@@ -1,0 +1,176 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0b1a14">
+<title>WIR School · Tree of Knowledge: Water</title>
+<style>
+:root{--bg:#0b1a14;--card:#12281f;--leaf:#5be38a;--gold:#ffcf5a;--water:#4cc9ff;--ink:#eaf7ef;--dim:#8fb3a1;--bad:#ff7a6b}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:radial-gradient(circle at 50% 0,#173a2b,var(--bg) 70%);color:var(--ink);min-height:100vh}
+.w{max-width:520px;margin:auto;padding:14px 14px 40px}
+a{color:var(--water)}h1{font-size:1.35rem;margin:6px 0 2px}.sub{color:var(--dim);font-size:.85rem;margin:0}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.pts{background:#0006;border:1px solid #ffcf5a55;color:var(--gold);padding:6px 12px;border-radius:99px;font-weight:800;transition:transform .3s}
+.pts.pop{transform:scale(1.25)}
+.lv{display:flex;background:#0006;border-radius:99px;padding:4px;margin:12px 0}
+.lv button{flex:1;border:0;background:none;color:var(--dim);padding:9px;border-radius:99px;font-weight:700;font-size:.9rem}
+.lv button.on{background:var(--leaf);color:#06210f}
+svg.tree{width:100%;height:auto;display:block}
+.br path,.rt path{fill:none;stroke:#3b5a48;stroke-linecap:round;transition:stroke .8s,filter .8s}
+.node circle{fill:#1d3a2c;stroke:#4d7a62;stroke-width:2;transition:all .6s}
+.node text{font-size:15px;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.node{cursor:pointer}.node.open circle{stroke:var(--gold);animation:pulse 1.6s infinite}
+.node.done circle{fill:var(--leaf);stroke:#d6ffe4}.lit path{stroke:var(--leaf);filter:drop-shadow(0 0 4px #5be38a)}
+.rt.lit path{stroke:var(--water);filter:drop-shadow(0 0 4px #4cc9ff)}
+.node.locked{opacity:.45}
+@keyframes pulse{50%{stroke-width:5}}
+.drop{animation:fall 3s infinite ease-in;fill:var(--water);opacity:.8}@keyframes fall{0%{transform:translateY(-20px);opacity:0}30%{opacity:.8}100%{transform:translateY(60px);opacity:0}}
+.card{background:var(--card);border:1px solid #2c4f3d;border-radius:18px;padding:16px;margin-top:12px;animation:up .4s ease}
+@keyframes up{from{opacity:0;transform:translateY(14px)}}
+.tag{font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);font-weight:800}
+.card h2{margin:4px 0 8px;font-size:1.2rem}.fact{font-size:1.05rem;line-height:1.45}
+.vis{text-align:center;font-size:2.4rem;margin:6px 0}
+.q{margin-top:14px}.q p{font-weight:700;margin:0 0 8px}
+.q button{display:block;width:100%;text-align:left;margin:6px 0;padding:12px;border-radius:12px;border:1px solid #2f5a45;background:#0d1f17;color:var(--ink);font-size:.98rem;transition:background .3s}
+.q button.y{background:#1e6b4a;border-color:var(--leaf)}.q button.n{background:#5a2420;border-color:var(--bad)}
+.go{display:block;width:100%;margin-top:14px;padding:14px;border:0;border-radius:14px;background:var(--gold);color:#2a1b00;font-weight:800;font-size:1rem}
+.prop{margin-top:12px;font-size:.85rem;color:var(--dim);border-left:3px solid var(--gold);padding-left:8px}
+.hint{color:var(--dim);font-size:.85rem;text-align:center;margin-top:8px}
+.final{background:linear-gradient(160deg,#143c5a,#12281f);border-color:var(--water)}
+.final li{margin:6px 0}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(120px);background:var(--leaf);color:#06210f;padding:12px 18px;border-radius:99px;font-weight:800;transition:transform .4s}
+.toast.s{transform:translateX(-50%) translateY(0)}
+</style></head><body><div class="w">
+<div class="top"><a href="today.html">← Today</a><div class="pts" id="pts">⭐ 0</div></div>
+<h1>🌳 Tree of Knowledge: WATER</h1>
+<p class="sub">SAMPLE DAY · 1 root + 5 branches · tap the glowing circle</p>
+<div class="lv" id="lv"><button data-l="0">🌱 Easy</button><button data-l="1" class="on">🌿 Medium</button><button data-l="2">🌳 Hard</button></div>
+<svg class="tree" viewBox="0 0 360 330" id="tree" aria-label="Tree of knowledge">
+<defs><radialGradient id="g" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#5be38a" stop-opacity=".25"/><stop offset="1" stop-color="#5be38a" stop-opacity="0"/></radialGradient></defs>
+<circle cx="180" cy="120" r="150" fill="url(#g)" id="glow" opacity=".3" style="transition:opacity 1s"/>
+<line x1="10" y1="235" x2="350" y2="235" stroke="#3a2a1a" stroke-width="3"/>
+<g class="rt" id="rt"><path d="M180 235 C175 260 150 270 120 300" stroke-width="5"/><path d="M180 235 C185 262 215 272 245 305" stroke-width="5"/><path d="M180 235 L180 310" stroke-width="6"/></g>
+<circle class="drop" cx="120" cy="250" r="4"/><circle class="drop" cx="245" cy="255" r="4" style="animation-delay:1.4s"/>
+<g class="br" id="trunk"><path d="M180 235 L180 150" stroke-width="12"/></g>
+<g class="br" id="b1"><path d="M180 175 C150 165 110 160 70 150" stroke-width="6"/></g>
+<g class="br" id="b2"><path d="M180 175 C210 165 250 160 290 150" stroke-width="6"/></g>
+<g class="br" id="b3"><path d="M180 150 C160 120 120 95 95 75" stroke-width="5"/></g>
+<g class="br" id="b4"><path d="M180 150 C200 120 240 95 265 75" stroke-width="5"/></g>
+<g class="br" id="b5"><path d="M180 150 L180 40" stroke-width="5"/></g>
+<g id="nodes"></g>
+</svg>
+<p class="hint" id="hint">Start at the ROOT 💧</p>
+<div id="stage"></div>
+</div><div class="toast" id="toast"></div>
+<script>
+var DATE=(function(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")})(new Date());
+var SCHOOL="School of the Absurd",TEACHER="Oscar Absurd";
+// c: [id,emoji,x,y,title,branchGroup]
+var C=[
+{id:"root",e:"💧",x:180,y:300,t:"ROOT: Water Is Sticky",g:"rt",
+ v:"H₂O  ⊖O  ⊕H ⊕H",
+ f:["A water molecule is one oxygen and two hydrogens. The oxygen pulls electrons harder, so it's slightly negative and the hydrogens are slightly positive. That makes water molecules stick to each other and to other stuff.",
+    "Water is polar: oxygen hogs the shared electrons, so one end is slightly − and the other slightly +. The + end of one molecule attracts the − end of another. That pull is a hydrogen bond. It makes water cohesive (sticks to itself), adhesive (sticks to surfaces), and a great solvent.",
+    "Water's polarity creates hydrogen bonds between molecules. Result: high cohesion and surface tension, strong solvent power for ions like Na⁺ and K⁺, and a high specific heat (about 4.18 J/g·°C), so water absorbs lots of heat before warming. Every branch today runs on these three properties."],
+ q:[[["Water is made of…","2 hydrogens + 1 oxygen","2 oxygens + 1 hydrogen","Only hydrogen"],["Water molecules tend to…","Stick together","Repel each other","Never touch"],["Which part of water is slightly negative?","Oxygen","Hydrogen","Neither"]],
+    [["The weak pull between water molecules is a…","Hydrogen bond","Nuclear bond","Magnet"],["Water sticking to ITSELF is called…","Cohesion","Adhesion","Evaporation"],["Why does salt dissolve in water?","Water's charged ends pull the ions apart","Water is acidic","Salt is made of water"]],
+    [["Water's high specific heat means it…","Absorbs a lot of heat before its temperature rises","Boils at a low temperature","Can't hold heat"],["Surface tension comes mainly from…","Cohesion via hydrogen bonds","Gravity","Dissolved oxygen"],["Polarity exists because oxygen is…","More electronegative than hydrogen","Heavier than hydrogen","A metal"]]]},
+{id:"plant",e:"🌱",x:70,y:150,t:"Plants: Drinking Uphill",g:"b1",
+ v:"🌱⬆️💧⬆️💧",
+ f:["Roots grow toward water (hydrotropism). Then water travels up the plant through tiny tubes and exits the leaves.",
+    "Water rises through tubes called xylem. As water evaporates from leaves (transpiration), it pulls the next molecule up behind it, because water is cohesive. That's the root lesson in action.",
+    "Cohesion-tension theory: transpiration at leaf pores (stomata) creates negative pressure in the xylem, and cohesion + adhesion hold the water column together, lifting it over 100 m in the tallest redwoods. Roots steer by gravitropism and hydrotropism."],
+ q:[[["Roots grow toward…","Water","The Moon","Wind"],["Water leaves a plant mostly through its…","Leaves","Bark","Flowers"],["Plants need water to…","Stay alive and grow","Glow","Make noise"]],
+    [["The tubes that carry water up a plant are…","Xylem","Veins of gold","Phloem only"],["Water leaving leaves as vapor is…","Transpiration","Respiration","Digestion"],["Which water property lets the column pull up as one chain?","Cohesion","Saltiness","Color"]],
+    [["Leaf pores where water vapor exits are…","Stomata","Ribosomes","Alveoli"],["Xylem water is under…","Tension (negative pressure)","High positive pressure from the heart","No pressure"],["Roots growing downward with gravity is…","Gravitropism","Phototropism","Thigmotropism"]]]},
+{id:"brain",e:"🧠",x:290,y:150,t:"Neurology: The Water-Cushioned Brain",g:"b2",
+ v:"🧠 ≈ 75% 💧",
+ f:["Your brain is roughly three-quarters water, and it floats in a clear liquid that cushions it like a helmet inside your skull.",
+    "That cushion is cerebrospinal fluid (CSF). Your brain makes about 500 mL of it a day, constantly refreshing it. Nerve signals run on dissolved ions like sodium and potassium, which only work because water dissolves them (root lesson!).",
+    "CSF is produced mainly by the choroid plexus (~500 mL/day) and fully replaced several times daily. Neurons fire by moving Na⁺ and K⁺ across membranes; those ions are dissolved in water, and the gradients are maintained by the Na⁺/K⁺ pump. During sleep, the glymphatic system appears to flush waste with CSF flow."],
+ q:[[["The brain is mostly…","Water","Bone","Air"],["The liquid around your brain acts like a…","Cushion","Battery","Light"],["Is water important for your brain?","Yes","No","Only on weekends"]],
+    [["The fluid around the brain is called…","Cerebrospinal fluid","Blood plasma only","Saliva"],["Nerve signals use dissolved…","Ions like sodium & potassium","Sugar crystals","Iron filings"],["About how much CSF does the brain make per day?","~500 mL","~5 mL","~50 L"]],
+    [["Main producer of CSF:","Choroid plexus","Cerebellum","Pituitary"],["What keeps Na⁺/K⁺ gradients across neuron membranes?","The sodium-potassium pump","Gravity","Myelin alone"],["The brain's sleep waste-clearing system is called…","Glymphatic system","Lymph node system","Cortisol loop"]]]},
+{id:"food",e:"🍉",x:95,y:75,t:"Food: You Eat Your Water Too",g:"b3",
+ v:"🥒 95% · 🍉 92% · 🍞 ~35%",
+ f:["About 20% of the water you take in comes from food, not drinks. Cucumbers and watermelon are over 90% water.",
+    "Fruits and veggies are water-packed: cucumber ~95%, watermelon ~92%. Water is also how you digest food: it dissolves nutrients so they can cross into your blood (solvent power from the root).",
+    "Roughly 20% of total water intake comes from food. Water is needed to break down nutrients (hydrolysis literally means 'water-splitting') and to dissolve water-soluble vitamins like vitamin C and the B vitamins, which the body doesn't store much of, so you need them regularly."],
+ q:[[["Which food is mostly water?","Watermelon","Crackers","Peanuts"],["Can food give you water?","Yes","No","Only ice"],["Cucumbers are about…","95% water","5% water","0% water"]],
+    [["About how much of your water comes from food?","~20%","~90%","~1%"],["Water helps digestion by…","Dissolving nutrients","Making food heavier","Nothing"],["Which has the MOST water?","Cucumber","Bread","Cheese"]],
+    [["'Hydrolysis' means…","Splitting molecules using water","Removing all water","Making water"],["Which vitamins dissolve in water?","Vitamin C and B vitamins","Vitamins A, D, E, K","None"],["Why do you need water-soluble vitamins often?","The body stores little of them","They're toxic","They never leave"]]]},
+{id:"body",e:"💪",x:265,y:75,t:"Body: Built-In Cooling & Filters",g:"b4",
+ v:"🧍 ≈ 60% 💧",
+ f:["An adult body is about 60% water. When you sweat, the water evaporates and carries heat away, cooling you down.",
+    "Sweat cools you because water needs a lot of energy to evaporate (high heat capacity, from the root). Your kidneys filter your blood all day, about 180 liters of fluid, but return almost all of it.",
+    "Kidneys filter ~180 L/day of plasma at the glomeruli and reabsorb ~99%, producing ~1–2 L of urine. Evaporative cooling works because water has a high heat of vaporization. Losing even ~2% of body weight as water can reduce physical performance."],
+ q:[[["The adult body is about…","60% water","10% water","100% water"],["Sweating helps you…","Cool down","Get taller","See better"],["Which organs clean your blood?","Kidneys","Ears","Hair"]],
+    [["Kidneys filter about how much fluid a day?","~180 L","~2 L","~1,000 L"],["Of that, how much is put back into the body?","Almost all","Half","None"],["Sweat cools you when it…","Evaporates","Freezes","Turns salty"]],
+    [["Kidney filtering units' filter site:","Glomerulus","Alveolus","Villus"],["Typical daily urine output:","~1–2 L","~20 L","~180 L"],["Performance can drop after losing about ___ of body weight as water:","~2%","~50%","~0.001%"]]]},
+{id:"mood",e:"🫶",x:180,y:40,t:"Mental Health: Thirst & Mood",g:"b5",
+ v:"😵‍💫 → 💧 → 🙂",
+ f:["Being even a little dehydrated can make you feel tired, cranky, and less focused. A glass of water is a real reset.",
+    "Studies find that mild dehydration (about 1–2% of body weight) is linked to worse mood, more fatigue, and harder concentration. A brain region called the hypothalamus watches your blood and triggers thirst.",
+    "The hypothalamus senses rising blood osmolality (more concentrated blood), triggers thirst, and signals release of vasopressin (ADH) so kidneys keep more water. In controlled studies, ~1–1.5% dehydration worsened mood, fatigue and headache reports. Water isn't therapy for depression or anxiety, but it's a basic you control."],
+ q:[[["A little dehydration can make you feel…","Tired and cranky","Super strong","Nothing at all"],["An easy mood reset is…","Drinking water","Skipping meals","Staying up late"],["Thirst is a signal from your…","Brain","Elbow","Shoes"]],
+    [["The brain area that triggers thirst:","Hypothalamus","Cerebellum","Retina"],["Mild dehydration is around ___ of body weight:","1–2%","20%","50%"],["Mild dehydration is linked to…","Worse focus and more fatigue","Better memory","Taller height"]],
+    [["The hypothalamus senses blood…","Osmolality (concentration)","Color","Temperature only"],["The hormone that makes kidneys keep water:","Vasopressin (ADH)","Insulin","Melatonin"],["Is water a cure for depression?","No, it's a basic support, not treatment","Yes, always","Only cold water"]]]},
+{id:"space",e:"🚀",x:180,y:150,t:"Space: Every Drop Counts",g:"trunk",
+ v:"🛰️ ♻️ 98%",
+ f:["In space, water floats in wobbly balls. Astronauts on the International Space Station recycle their sweat and pee back into clean drinking water.",
+    "Without gravity, water's cohesion pulls it into floating spheres (surface tension from the root!). The ISS recycles about 98% of its water, including urine and even moisture from breath and sweat.",
+    "In microgravity, surface tension dominates, so free water forms spheres and clings to surfaces (adhesion). In 2023 NASA reported the ISS Environmental Control and Life Support System reached ~98% water recovery, using a Brine Processor to pull extra water from urine brine. Water can also be split into hydrogen and oxygen: O₂ to breathe, H₂ for possible rocket fuel."],
+ q:[[["In space, loose water forms…","Floating balls","Flat puddles","Sand"],["Astronauts recycle…","Their pee and sweat into water","Nothing","Only rocks"],["Water is important in space because…","It's heavy and hard to resupply","It's not needed","It's free everywhere"]],
+    [["Why does water make spheres in space?","Surface tension/cohesion","Magnetism","Cold"],["How much water does the ISS recover?","~98%","~10%","~50%"],["Which root property makes floating water ball up?","Cohesion","Color","Smell"]],
+    [["Splitting water gives…","Hydrogen and oxygen","Helium and carbon","Salt"],["The ISS system that reached 98% added a…","Brine Processor","Solar sail","Fusion reactor"],["In microgravity, water clinging to walls shows…","Adhesion","Inertia only","Radioactivity"]]]}
+];
+// order: root, then branches (space sits on trunk, center)
+var ORDER=["root","brain","food","body","mood","space"];
+var MAP={};C.forEach(function(c){MAP[c.id]=c});
+// assign positions/branches for the 6 used
+var POS={brain:[70,150,"b1"],food:[290,150,"b2"],body:[95,75,"b3"],mood:[265,75,"b4"],space:[180,40,"b5"]};
+for(var k in POS){MAP[k].x=POS[k][0];MAP[k].y=POS[k][1];MAP[k].g=POS[k][2]}
+var PLANT=MAP.plant; // bonus fact folded into root on screen
+var lvl=+(localStorage.getItem("wirTreeLvl")||1);
+function S(){try{return JSON.parse(localStorage.getItem("wirTree_"+DATE))||{}}catch(e){return{}}}
+var st=S();function save(){localStorage.setItem("wirTree_"+DATE,JSON.stringify(st))}
+function pts(){var p=0;for(var k in st)p+=st[k];return p}
+function $(i){return document.getElementById(i)}
+function toast(m){var t=$("toast");t.textContent=m;t.classList.add("s");setTimeout(function(){t.classList.remove("s")},1800)}
+function brick(c,score){var B=[];try{B=JSON.parse(localStorage.getItem("wirBricks"))||[]}catch(e){}
+ if(B.some(function(b){return b.date===DATE&&b.class===c.t}))return;
+ B.push({school:SCHOOL,teacher:TEACHER,class:c.t,date:DATE,score:score});localStorage.setItem("wirBricks",JSON.stringify(B))}
+function nextOpen(){for(var i=0;i<ORDER.length;i++)if(!(ORDER[i] in st))return ORDER[i];return null}
+function draw(){var g=$("nodes");g.innerHTML="";var open=nextOpen();
+ ORDER.forEach(function(id){var c=MAP[id],n=document.createElementNS("http://www.w3.org/2000/svg","g");
+  var cls="node"+(id in st?" done":id===open?" open":" locked");n.setAttribute("class",cls);
+  n.innerHTML='<circle cx="'+c.x+'" cy="'+c.y+'" r="19"/><text x="'+c.x+'" y="'+c.y+'">'+(id in st?"✅":c.e)+'</text>';
+  n.onclick=function(){if(id in st||id===open)show(id)};g.appendChild(n);
+  var b=$(c.g);if(b)b.classList.toggle("lit",id in st)});
+ if("root" in st)$("trunk").classList.add("lit");
+ var done=Object.keys(st).length;$("glow").setAttribute("opacity",.3+done*.12);
+ $("pts").textContent="⭐ "+pts();
+ $("hint").textContent=open?(open==="root"?"Start at the ROOT 💧":"Next branch: "+MAP[open].t+" · "+done+"/6"):"🌳 Tree complete! 6/6";
+ if(!open)final()}
+function show(id){var c=MAP[id],L=lvl,h='<div class="card"><div class="tag">'+(id==="root"?"Root · understand this first":"Branch · built on the root")+' · '+["Easy","Medium","Hard"][L]+'</div><h2>'+c.e+' '+c.t+'</h2><div class="vis">'+c.v+'</div><div class="fact">'+c.f[L]+'</div>';
+ if(id==="root")h+='<div class="fact" style="margin-top:8px;color:#bfe">🌱 Why it matters: roots grow toward water (hydrotropism), and water climbs plants through xylem by cohesion. '+PLANT.f[Math.min(L,1)].split(". ")[1]+'</div>';
+ c.q[L].forEach(function(q,i){var a=q.slice(1),o=a.map(function(x,j){return[x,j===0]});o.sort(function(){return Math.random()-.5});
+  h+='<div class="q" data-i="'+i+'"><p>'+(i+1)+'. '+q[0]+'</p>'+o.map(function(x){return'<button data-ok="'+(x[1]?1:0)+'">'+x[0]+'</button>'}).join("")+'</div>'});
+ h+='<div class="prop">🪙 PROPOSAL (story flavor, not canon/fact): Gerald the frog ribbits once for every right answer.</div></div>';
+ $("stage").innerHTML=h;$("stage").scrollIntoView({behavior:"smooth"});
+ var got=0,ans=0;
+ [].forEach.call($("stage").querySelectorAll(".q"),function(qd){[].forEach.call(qd.querySelectorAll("button"),function(b){b.onclick=function(){
+  if(qd.dataset.d)return;qd.dataset.d=1;ans++;var ok=b.dataset.ok==="1";b.classList.add(ok?"y":"n");
+  if(!ok)qd.querySelector('[data-ok="1"]').classList.add("y");else got++;
+  if(ans===3){var score=got*(L+1)*10+(got===3?10:0);st[id]=score;save();brick(c,got);
+   $("pts").classList.add("pop");setTimeout(function(){$("pts").classList.remove("pop")},300);
+   toast(got===3?"🐸 Ribbit! Perfect +"+score:"✅ +"+score+" ("+got+"/3)");
+   var nb=document.createElement("button");nb.className="go";nb.textContent=nextOpen()?"Next branch →":"See what you know now 🌳";
+   nb.onclick=function(){var n=nextOpen();n?show(n):final()};$("stage").firstChild.appendChild(nb);draw()}}})});}
+function final(){$("stage").innerHTML='<div class="card final"><div class="tag">What you know now · '+pts()+' pts</div><h2>💧 One molecule, six worlds</h2>'+
+ '<div class="fact">Because water is <b>polar and sticky</b>:</div><ul class="fact">'+
+ '<li>🌱 it climbs plants as one chain, and roots chase it</li><li>🧠 it cushions your brain and carries the ions every nerve signal uses</li>'+
+ '<li>🍉 it dissolves your food so nutrients reach your blood</li><li>💪 it stores heat, so sweat cools you, and kidneys recycle it all day</li>'+
+ '<li>🫶 small shortages show up as fatigue and bad mood</li><li>🚀 in space it balls up, and astronauts recycle ~98% of it</li></ul>'+
+ '<div class="fact"><b>The insight:</b> one property, hydrogen bonding, explains plants, brains, food, bodies, moods and spaceships. Learn the root, and the whole tree makes sense.</div>'+
+ '<button class="go" onclick="location.href=\'today.html\'">Back to Today</button></div>'}
+[].forEach.call($("lv").querySelectorAll("button"),function(b){b.classList.toggle("on",+b.dataset.l===lvl);b.onclick=function(){lvl=+b.dataset.l;localStorage.setItem("wirTreeLvl",lvl);
+ [].forEach.call($("lv").querySelectorAll("button"),function(x){x.classList.toggle("on",x===b)});var o=nextOpen();if(o&&$("stage").innerHTML)show(o)}});
+draw();
+</script></body></html>
