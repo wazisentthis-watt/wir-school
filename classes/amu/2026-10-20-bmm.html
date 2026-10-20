@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BMM · Boy B1 Steady Ground · 2026-10-20 (PROPOSAL)</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#14110d;color:#f3ead8;font:17px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:640px;margin:0 auto;padding:14px}
+h1{font-size:1.35em;margin:.2em 0;color:#f2c14e}
+h2{font-size:1.15em;color:#f2c14e;margin:.2em 0 .5em}
+.law{font-style:italic;color:#e9d9a6}
+.card{background:#211b13;border:1px solid #4a3a20;border-radius:16px;padding:14px;margin:14px 0}
+.tag{display:inline-block;font-size:.72em;font-weight:700;letter-spacing:.05em;padding:2px 8px;border-radius:99px;margin-right:4px;vertical-align:middle}
+.P{background:#6b2fa0;color:#fff}.R{background:#1f7a4d;color:#fff}.W{background:#a8741a;color:#fff}
+.teacher{border-left:4px solid #f2c14e;padding-left:10px}
+button{font:inherit;border:0;border-radius:12px;padding:10px 12px;margin:4px 3px;background:#3a2f1e;color:#f3ead8;cursor:pointer;min-height:44px}
+button.gold{background:#f2c14e;color:#1a140b;font-weight:700}
+button:disabled{opacity:.45}
+#grid{display:grid;grid-template-columns:repeat(6,1fr);gap:3px;width:100%;max-width:360px;margin:8px auto;aspect-ratio:1}
+.cell{background:#2d2518;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:1.4em}
+.wall{background:#5a4a35}.goal{background:#1f5a3d}
+#prog{min-height:48px;background:#18130d;border-radius:10px;padding:6px;display:flex;flex-wrap:wrap;gap:4px}
+.blk{background:#3b5b8a;border-radius:8px;padding:4px 8px;font-family:ui-monospace,monospace;font-size:.85em;cursor:pointer}
+.blk.on{outline:3px solid #f2c14e}.blk.bad{background:#8a3b3b}
+.msg{min-height:1.5em;margin:6px 0;color:#ffd98a}
+input[type=text],textarea{width:100%;font:inherit;padding:8px;border-radius:10px;border:1px solid #4a3a20;background:#18130d;color:#f3ead8}
+label{display:block;margin:4px 0;padding:6px;border-radius:8px;background:#18130d}
+.ok{color:#7fe0a5}.no{color:#ffb38a}
+#brick{background:linear-gradient(135deg,#7a3e1d,#a85a2a);border-radius:12px;padding:14px;color:#fff3e0;font-family:ui-monospace,monospace;font-size:.9em;white-space:pre-wrap}
+small{color:#b8a888}
+</style>
+</head>
+<body>
+<main>
+<header class="card">
+<span class="tag P">PROPOSAL</span>
+<h1>BMM · From Boy to Man to Mansa</h1>
+<div>WIR School · Day: 2026-10-20 · Class by AMU</div>
+<h2>Stage 1 — BOY | Foundation · Lesson B1: Steady Ground</h2>
+<p><b>Goal:</b> calm the body and name feelings. <small>(Lesson ladder from the AMU ChatGPT review, 2026-10-14. A PROPOSAL, not locked by Canon.)</small></p>
+<div class="teacher"><span class="tag P">PROPOSAL</span> <b>BMM's principles</b> (from Coach's ChatGPT chat "BMM meaning explained"):
+<ul><li>It's not based on age, and it's not limited by gender. Progress depends on readiness.</li>
+<li>Nobody is forced to advance. Choosing to stay at a stage is a real choice.</li>
+<li>Leadership is stewardship, not domination.</li>
+<li>Resources circulate instead of piling up in a few hands.</li></ul></div>
+<p><span class="tag W">NEEDED FROM COACH</span> <b>Amu's Nine Programs:</b> nothing is on file, so nothing is filled in here. Program link for B1: <i>TBD (Coach)</i>.</p>
+</header>
+
+<section class="card" id="game">
+<h2>1 · Opening game: Breath Wave</h2>
+<p><span class="tag R">REALITY</span> When you breathe out slower than you breathe in, your body's calming system (the parasympathetic nervous system) gets more active. Naming a feeling in words ("affect labeling") can also turn down a strong emotion a little. Neither one is magic. Both get better with practice.</p>
+<p>Step 1: Tap the feeling closest to how you feel <b>right now</b> and how strong it is.</p>
+<div id="feelBefore"></div>
+<label>Strength: <input type="range" min="1" max="10" value="5" id="s1"> <b id="s1v">5</b></label>
+<p>Step 2: Follow the circle for 4 rounds. Breathe in for 4 counts and out for 6.</p>
+<div style="text-align:center"><div id="orb" style="width:90px;height:90px;margin:16px auto;border-radius:50%;background:#f2c14e;transition:transform 4s ease-in-out"></div>
+<div class="msg" id="cue">Ready</div><button class="gold" id="go">Start breathing</button></div>
+<p>Step 3: How do you feel now?</p>
+<div id="feelAfter"></div>
+<label>Strength: <input type="range" min="1" max="10" value="5" id="s2"> <b id="s2v">5</b></label>
+<div class="msg" id="gmsg"></div>
+<button class="gold" id="gdone" disabled>Log it</button>
+</section>
+
+<section class="card" id="test">
+<h2>2 · Small test (3 questions)</h2>
+<div id="quiz"></div>
+<button class="gold" id="check">Check answers</button>
+<div class="msg" id="qmsg"></div>
+</section>
+
+<section class="card">
+<h2>3 · Brick card</h2>
+<p><small>The card gets stamped when the game and the test are both done.</small></p>
+<div id="brick">🧱 Not stamped yet.</div>
+</section>
+
+<section class="card">
+<h2>4 · Field mission</h2>
+<p><span class="tag P">PROPOSAL</span> <b>Daily 2-minute breath check + feeling log</b>, for 7 days.</p>
+<ol><li>Once a day, name your feeling and rate how strong it is (1–10).</li>
+<li>Do 2 minutes of breathing, in for 4 and out for 6.</li><li>Name it and rate it again, then write one line about what happened.</li></ol>
+<div id="days"></div>
+<textarea id="note" rows="2" placeholder="Today's line (stays on this phone)"></textarea>
+<button class="gold" id="logday">Log today</button>
+<div class="msg" id="fmsg"></div>
+<p><b>Readiness check</b> <span class="tag P">PROPOSAL</span>: Can I name what I feel and calm myself? Can I explain one thing I'm curious about? Answer it yourself, then talk it over with a Man-stage mentor who listens without judging. <b>You can pass, or you can choose to stay at this stage.</b> Nobody moves you up under pressure.</p>
+<p><small>Next on the ladder: B2 Who Am I · B3 Curious Mind. Progress is saved only in this browser (localStorage): no login, no paid tools. This is teaching material, not story canon.</small></p>
+<button id="reset">Reset this class</button>
+</section>
+</main>
+<script>
+(function(){
+var K='wir-bmm-b1-2026-10-20',S;try{S=JSON.parse(localStorage.getItem(K))||{}}catch(e){S={}}
+function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){}}
+var F=['Calm','Happy','Sad','Angry','Worried','Tired','Excited','Lonely','Stressed','Not sure'];
+function picker(id,key){var d=document.getElementById(id);F.forEach(function(f){var b=document.createElement('button');b.textContent=f;b.onclick=function(){S[key]=f;save();paint(d,key);ready()};d.appendChild(b)});paint(d,key)}
+function paint(d,key){[].forEach.call(d.children,function(b){b.className=(S[key]===b.textContent)?'gold':''})}
+picker('feelBefore','fb');picker('feelAfter','fa');
+['s1','s2'].forEach(function(id){var r=document.getElementById(id);if(S[id])r.value=S[id];document.getElementById(id+'v').textContent=r.value;r.oninput=function(){S[id]=r.value;save();document.getElementById(id+'v').textContent=r.value}});
+var orb=document.getElementById('orb'),cue=document.getElementById('cue'),go=document.getElementById('go');
+go.onclick=function(){go.disabled=true;var round=0;
+ function inhale(){if(round>=4){cue.textContent='Done. Nice and steady.';S.breathed=true;save();ready();go.disabled=false;return}
+  round++;cue.textContent='Round '+round+'/4 · Breathe in… 4';orb.style.transitionDuration='4s';orb.style.transform='scale(1.7)';setTimeout(exhale,4000)}
+ function exhale(){cue.textContent='Round '+round+'/4 · Breathe out… 6';orb.style.transitionDuration='6s';orb.style.transform='scale(1)';setTimeout(inhale,6000)}
+ inhale()};
+var gd=document.getElementById('gdone');
+function ready(){gd.disabled=!(S.fb&&S.fa&&S.breathed)}
+gd.onclick=function(){var a=+(S.s1||5),b=+(S.s2||5);S.game=true;save();
+ document.getElementById('gmsg').textContent='Logged: '+S.fb+' '+a+' → '+S.fa+' '+b+'. '+(b<a?'It went down. That is your calming system working.':'No change is fine too. This is practice, not a performance.');brick()};
+var Q=[{q:'In BMM, what decides when someone moves up a stage?',o:['Their age','Their readiness','Their gender','Being told to'],a:1},
+{q:'REALITY: Which breathing pattern helps the body calm down the most?',o:['Breathing out longer than you breathe in','Fast, short breaths','Holding your breath as long as you can'],a:0},
+{q:'You feel the readiness check is not done yet. What happens?',o:['You are forced up anyway','You are kicked out','You can choose to stay at this stage. Nobody is forced to advance.'],a:2}];
+var qz=document.getElementById('quiz');
+Q.forEach(function(x,i){var h='<p><b>'+(i+1)+'. '+x.q+'</b></p>';x.o.forEach(function(o,j){h+='<label><input type="radio" name="q'+i+'" value="'+j+'"'+(S['q'+i]==j?' checked':'')+'> '+o+'</label>'});qz.insertAdjacentHTML('beforeend',h)});
+qz.onchange=function(e){S[e.target.name]=e.target.value;save()};
+document.getElementById('check').onclick=function(){var n=0;Q.forEach(function(x,i){if(S['q'+i]==x.a)n++});
+ var m=document.getElementById('qmsg');if(n===3){S.test=true;save();m.innerHTML='<span class="ok">3/3. Test passed.</span>'}else m.innerHTML='<span class="no">'+n+'/3. Take another look and try again.</span>';brick()};
+function wirBrick(){try{var B;try{B=JSON.parse(localStorage.getItem("wirBricks"))}catch(e){}if(!Array.isArray(B))B=[];if(!B.some(function(b){return b&&b.teacher==="AMU"&&b.class==="BMM B1 Steady Ground"&&b.date==="2026-10-20";})){B.push({teacher:"AMU",class:"BMM B1 Steady Ground",school:"BMM",date:"2026-10-20"});localStorage.setItem("wirBricks",JSON.stringify(B));}}catch(e){}}
+function brick(){var b=document.getElementById('brick');if(!(S.game&&S.test))return;wirBrick();
+ if(!S.stamp){S.stamp=new Date().toLocaleString();save()}
+ b.textContent='🧱 BRICK · BMM · BOY | Foundation\nLesson B1 — Steady Ground\nSchool: BMM (From Boy to Man to Mansa)\nDate: 2026-10-20 · Teacher: AMU\nFeeling: '+S.fb+' '+(S.s1||5)+' → '+S.fa+' '+(S.s2||5)+'\nTest: 3/3\nStamped: '+S.stamp+'\nProgram link: NEEDED FROM COACH\nStatus: PROPOSAL'}
+var days=S.days||[];function drawDays(){var d=document.getElementById('days');d.innerHTML='';for(var i=0;i<7;i++){var s=document.createElement('span');s.className='tag '+(days[i]?'R':'W');s.textContent='Day '+(i+1)+(days[i]?' ✓':'');d.appendChild(s)}}
+drawDays();
+document.getElementById('logday').onclick=function(){var t=new Date().toDateString(),m=document.getElementById('fmsg');
+ if(days.some(function(x){return x.d===t})){m.textContent='Already logged today. Come back tomorrow.';return}
+ if(days.length>=7){m.textContent='All 7 days are done. Now you can take the readiness check, when you choose to.';return}
+ days.push({d:t,n:document.getElementById('note').value});S.days=days;save();drawDays();m.textContent='Logged day '+days.length+'/7.'};
+document.getElementById('reset').onclick=function(){if(confirm('Reset this class on this device?')){localStorage.removeItem(K);location.reload()}};
+ready();brick();
+})();
+</script>
+</body>
+</html>

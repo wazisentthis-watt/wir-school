@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>What Is Reality Academy · Game Physics — Momentum on a Skateboard · 2026-10-20 (PROPOSAL)</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#0f1418;color:#e8f1f5;font:17px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:640px;margin:0 auto;padding:14px}
+h1{font-size:1.35em;margin:.2em 0;color:#6fd3ff}
+h2{font-size:1.15em;color:#6fd3ff;margin:.2em 0 .5em}
+.card{background:#172129;border:1px solid #2c4252;border-radius:16px;padding:14px;margin:14px 0}
+.tag{display:inline-block;font-size:.72em;font-weight:700;letter-spacing:.05em;padding:2px 8px;border-radius:99px;margin-right:4px;vertical-align:middle}
+.P{background:#6b2fa0;color:#fff}.R{background:#1f7a4d;color:#fff}
+.teacher{border-left:4px solid #6fd3ff;padding-left:10px}
+button{font:inherit;border:0;border-radius:12px;padding:10px 12px;margin:4px 3px;background:#26394a;color:#e8f1f5;cursor:pointer;min-height:44px}
+button.gold{background:#6fd3ff;color:#06141c;font-weight:700}
+button.sel{outline:3px solid #6fd3ff}
+canvas{width:100%;display:block;background:#1b2a35;border-radius:12px;touch-action:none;-webkit-user-select:none;user-select:none}
+#push{width:100%;font-size:1.1em;min-height:64px;background:#2f6f4f;touch-action:none;-webkit-user-select:none;user-select:none}
+#push.on{background:#49b07c}
+.msg{min-height:1.5em;margin:6px 0;color:#ffd98a}
+.hud{font-family:ui-monospace,monospace;font-size:.85em;color:#bfe3f2}
+textarea{width:100%;font:inherit;padding:8px;border-radius:10px;border:1px solid #2c4252;background:#111a20;color:#e8f1f5}
+label{display:block;margin:4px 0;padding:6px;border-radius:8px;background:#111a20}
+.ok{color:#7fe0a5}.no{color:#ffb38a}
+#brick{background:linear-gradient(135deg,#1d4a7a,#2a7aa8);border-radius:12px;padding:14px;color:#eef8ff;font-family:ui-monospace,monospace;font-size:.9em;white-space:pre-wrap}
+small{color:#8fa9b8}
+</style>
+</head>
+<body>
+<main>
+<header class="card">
+<span class="tag P">PROPOSAL</span>
+<h1>What Is Reality Academy · Game Physics — Momentum on a Skateboard</h1>
+<div>WIR School · Day: 2026-10-20 · Class by Phatom</div>
+<p class="teacher"><b>Phatom:</b> “Push, let go, and watch what your momentum does.”</p>
+<small>No login. No personal info. Progress is saved only in this browser (localStorage). This page is teaching material and a PROPOSAL, not story canon.</small>
+</header>
+
+<section class="card">
+<h2>1 · Game: Coast to the Line</h2>
+<p><span class="tag R">REAL SCIENCE</span> Momentum is <b>p = m·v</b> (mass × velocity). Hold <b>PUSH</b> (or hold the track) to kick. Let go to coast. Friction slows you down. Try to stop with your board's nose inside the green zone.</p>
+<div>Board:
+<button id="light" class="sel">Light board (60 kg total)</button>
+<button id="heavy">Heavy board (90 kg total)</button></div>
+<canvas id="cv" width="600" height="200" aria-label="skateboard track"></canvas>
+<div class="hud" id="hud">v = 0.00 m/s · p = 0 kg·m/s</div>
+<button id="push">HOLD TO PUSH</button>
+<button id="again">Reset run</button>
+<div class="msg" id="gmsg">Push, then release to coast.</div>
+<small>Simplification: the push force and the friction force are the same for both boards. Real rolling friction grows with weight, so real results vary.</small>
+</section>
+
+<section class="card">
+<h2>2 · Test (3 questions)</h2>
+<div id="quiz"></div>
+<button class="gold" id="check">Check answers</button>
+<div class="msg" id="qmsg"></div>
+</section>
+
+<section class="card">
+<h2>3 · Brick</h2>
+<p>A Brick is proof of what you learned today.</p>
+<p>One sentence in your own words (optional):</p>
+<textarea id="sent" rows="2" placeholder="Momentum is…"></textarea>
+<button id="saveSent">Save sentence</button>
+<div id="brick">Finish the game and the test to stamp your Brick.</div>
+<button id="copy">Copy Brick as text</button>
+<button id="dl">Download Brick (.txt)</button>
+<button id="reset">Reset class progress</button>
+<small>Bricks are personal proof, not credentials. This class page is a PROPOSAL, not story canon.</small>
+</section>
+</main>
+<script>
+var KEY="wirschool.phatom.momentum.2026-10-20";
+var st={};try{st=JSON.parse(localStorage.getItem(KEY))||{};}catch(e){st={};}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st));}catch(e){}}
+function $(i){return document.getElementById(i);}
+// ---- game ----
+var cv=$("cv"),cx=cv.getContext("2d");
+var TRACK=40,PX=600/TRACK,FPUSH=240,FRIC=30,VMAX=9,TZ0=30,TZ1=33;
+var m=60,x=2.5,v=0,holding=false,state="ready",pushed=false,last=0;
+function setBoard(h){m=h?90:60;$("light").className=h?"":"sel";$("heavy").className=h?"sel":"";resetRun();}
+$("light").onclick=function(){setBoard(false);};$("heavy").onclick=function(){setBoard(true);};
+function resetRun(){x=2.5;v=0;holding=false;state="ready";pushed=false;$("push").classList.remove("on");$("gmsg").textContent="Push, then release to coast.";draw();}
+$("again").onclick=resetRun;
+function down(e){if(e)e.preventDefault();if(state==="done")return;holding=true;pushed=true;state="run";$("push").classList.add("on");}
+function up(e){if(e)e.preventDefault();holding=false;$("push").classList.remove("on");}
+[$("push"),cv].forEach(function(el){
+ el.addEventListener("pointerdown",down);el.addEventListener("pointerup",up);
+ el.addEventListener("pointercancel",up);el.addEventListener("pointerleave",up);
+ el.addEventListener("touchstart",down,{passive:false});el.addEventListener("touchend",up,{passive:false});
+ el.addEventListener("contextmenu",function(e){e.preventDefault();});
+});
+document.addEventListener("keydown",function(e){if(e.code==="Space"){down(e);}});
+document.addEventListener("keyup",function(e){if(e.code==="Space"){up(e);}});
+function step(dt){
+ if(state!=="run")return;
+ var F=(holding?FPUSH:0);
+ var a=F/m; v+=a*dt;
+ if(v>0){var dv=FRIC/m*dt; v=v>dv?v-dv:0;}
+ if(v>VMAX)v=VMAX;
+ x+=v*dt;
+ if(x>=TRACK){x=TRACK;v=0;finish(false,"Off the end! Too much momentum.");return;}
+ if(pushed&&!holding&&v===0){
+  if(x>=TZ0&&x<=TZ1)finish(true,"Landed in the zone! 🎯");
+  else finish(false,x<TZ0?"Stopped short — not enough momentum.":"Overshot the zone.");
+ }
+}
+function finish(win,msg){state="done";var key=m===90?"heavy":"light";
+ $("gmsg").textContent=msg+" Stopped at "+x.toFixed(1)+" m. Tap Reset run to try again.";
+ if(win){st.solved=true;st.wins=st.wins||{};st.wins[key]=true;save();brick();}
+}
+function draw(){
+ cx.clearRect(0,0,600,200);
+ cx.fillStyle="#2a3d4c";cx.fillRect(0,150,600,50);
+ cx.fillStyle="rgba(73,176,124,.45)";cx.fillRect(TZ0*PX,20,(TZ1-TZ0)*PX,130);
+ cx.fillStyle="#7fe0a5";cx.font="14px system-ui";cx.fillText("TARGET",TZ0*PX+4,36);
+ cx.fillStyle="#8fa9b8";for(var i=0;i<=TRACK;i+=5){cx.fillRect(i*PX,150,1,8);cx.fillText(i+"m",i*PX+2,175);}
+ var bx=x*PX,heavy=m===90;
+ cx.fillStyle=heavy?"#c97b2a":"#d8c45a";cx.fillRect(bx-36,136,40,heavy?8:5);
+ cx.fillStyle="#111";cx.beginPath();cx.arc(bx-30,146,5,0,7);cx.arc(bx-2,146,5,0,7);cx.fill();
+ cx.strokeStyle="#e8f1f5";cx.lineWidth=4;cx.beginPath();
+ cx.moveTo(bx-16,134);cx.lineTo(bx-16,104);cx.moveTo(bx-16,104);cx.lineTo(bx-16,84);
+ var kick=holding?Math.sin(Date.now()/80)*10:0;
+ cx.moveTo(bx-16,118);cx.lineTo(bx-28+kick,148);cx.stroke();
+ cx.fillStyle="#e8f1f5";cx.beginPath();cx.arc(bx-16,76,8,0,7);cx.fill();
+ $("hud").textContent="m = "+m+" kg · v = "+v.toFixed(2)+" m/s · p = m·v = "+Math.round(m*v)+" kg·m/s · x = "+x.toFixed(1)+" m";
+}
+function loop(t){var dt=Math.min(.05,(t-(last||t))/1000);last=t;step(dt);draw();requestAnimationFrame(loop);}
+requestAnimationFrame(loop);
+// ---- quiz ----
+var Q=[
+ {q:"A skater has mass 50 kg and rolls at 4 m/s. What is the momentum?",o:["54 kg·m/s","200 kg·m/s","12.5 kg·m/s"],c:1,w:"p = m·v = 50 × 4 = 200 kg·m/s."},
+ {q:"Two boards roll at the same speed. One is heavier. With the same friction force, which coasts longer?",o:["The lighter one","The heavier one","They always stop together"],c:1,w:"More mass at the same speed = more momentum, so the same friction takes longer to remove it."},
+ {q:"After you stop pushing, what slows the skateboard down?",o:["Friction (and air drag)","Momentum running out by itself","Gravity pulling it backward on flat ground"],c:0,w:"Moving things keep moving unless a force acts. Friction is that force here."}
+];
+function quiz(){var h="";Q.forEach(function(x,i){h+="<p><b>"+(i+1)+". "+x.q+"</b></p>";x.o.forEach(function(o,j){h+="<label><input type='radio' name='q"+i+"' value='"+j+"'"+(st.ans&&st.ans[i]===j?" checked":"")+"> "+o+"</label>";});h+="<div id='f"+i+"'></div>";});$("quiz").innerHTML=h;}
+$("check").onclick=function(){var ok=0;st.ans=[];Q.forEach(function(x,i){var s=document.querySelector("input[name=q"+i+"]:checked"),v=s?+s.value:-1;st.ans[i]=v;var f=$("f"+i);if(v===x.c){ok++;f.innerHTML="<span class='ok'>✔ Right. "+x.w+"</span>";}else f.innerHTML="<span class='no'>Not yet — try again.</span>";});st.quiz=ok;save();$("qmsg").textContent=ok+" / 3"+(ok===3?" — test passed.":"");brick();};
+// ---- brick ----
+$("sent").value=st.sent||"";
+$("saveSent").onclick=function(){st.sent=$("sent").value.trim();save();brick();};
+function brick(){
+ var done=st.solved&&st.quiz===3;
+ if(done){try{var B=JSON.parse(localStorage.getItem("wirBricks"))||[];if(!B.some(function(b){return b.teacher==="Phatom"&&b.date==="2026-10-20";})){B.push({teacher:"Phatom",class:"Game Physics — Momentum on a Skateboard",school:"What Is Reality Academy",date:"2026-10-20"});localStorage.setItem("wirBricks",JSON.stringify(B));}}catch(e){}}
+ var w=st.wins||{};
+ $("brick").textContent=done?
+ "🧱 BRICK · What Is Reality Academy · Game Physics — Momentum on a Skateboard\nDate: 2026-10-20 · Teacher: Phatom (PROPOSAL)\nBoards landed: "+[w.light?"light":"",w.heavy?"heavy":""].filter(Boolean).join(" + ")+"\nMy sentence: "+(st.sent||"(add yours above)")+"\n\nLEARNED:\n• REAL SCIENCE: momentum p = m·v (mass × velocity).\n• REAL SCIENCE: a moving object keeps moving until a force (like friction) slows it.\n• REAL SCIENCE: with the same friction, more momentum takes longer to stop.\n"+(w.light&&w.heavy?"• Landed both the light and heavy board in the zone.\n":"")+"\nPersonal proof, not a credential. PROPOSAL."
+ :"Finish the game ("+(st.solved?"✔":"…")+") and the test ("+(st.quiz===3?"✔":"…")+") to stamp your Brick.";
+}
+$("copy").onclick=function(){var t=$("brick").textContent;if(navigator.clipboard)navigator.clipboard.writeText(t).then(function(){$("copy").textContent="Copied ✔";});};
+$("dl").onclick=function(){var b=new Blob([$("brick").textContent],{type:"text/plain"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="Brick_Phatom_Momentum_2026-10-20.txt";document.body.appendChild(a);a.click();a.remove();};
+$("reset").onclick=function(){if(confirm("Reset progress for this class?")){localStorage.removeItem(KEY);location.reload();}};
+quiz();brick();draw();
+</script>
+</body>
+</html>

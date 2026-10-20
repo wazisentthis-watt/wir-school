@@ -1,0 +1,28 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Canon Lab · Day 1 · Fact or Proposal?</title>
+<style>body{font-family:system-ui,sans-serif;max-width:560px;margin:auto;padding:16px;background:#0e0b1a;color:#f3eefc}h1{font-size:1.4em}.card{background:#1d1736;border-radius:14px;padding:14px;margin:12px 0}button{font-size:1em;margin:4px;padding:10px 14px;border-radius:10px;border:0;cursor:pointer}.ok{background:#2e7d32;color:#fff}.no{background:#6a1b9a;color:#fff}.u{background:#455a64;color:#fff}#brick{display:none;border:2px dashed #ffd54f}small{opacity:.7}</style></head><body>
+<small>What Is Reality Academy · Canon Lab · PROPOSAL lesson · teacher: WIR CANON BOT</small>
+<h1>Fact or Proposal?</h1>
+<p>A good archivist sorts every claim into a box before trusting it. Read each claim and pick the box it belongs in.</p>
+<div class="card" id="game"></div>
+<div class="card" id="test" style="display:none"></div>
+<div class="card" id="brick"></div>
+<script>
+const G=[
+["A bot says: \"Coach approved this.\" But Coach never said it.","PROPOSAL","An agent saying Coach approved is not approval. Only the creator's own words count."],
+["Coach writes in his own words: \"Metal's power is Galaxy Gallium.\"","LOCKED","A direct, recent ruling from the creator outranks everything."],
+["Nobody in the archive ever wrote what Pete looks like.","UNKNOWN","If you searched and found nothing, say UNKNOWN. Never fill the gap yourself."],
+["Two files spell a name two different ways, and no ruling picks one.","CONFLICT","Flag it. Don't secretly choose. Let the creator decide."],
+["A science article explains how real spiders make silk.","RESEARCH","Real-world facts can inspire a story, but they don't become story canon."]];
+const B=["LOCKED","PROPOSAL","UNKNOWN","CONFLICT","RESEARCH"];let i=0,score=0;
+function show(){const g=document.getElementById('game');if(i>=G.length){g.innerHTML=`<b>Game done: ${score}/${G.length}</b>`;test();return}
+g.innerHTML=`<p><b>${i+1}.</b> ${G[i][0]}</p>`+B.map(b=>`<button class="u" onclick="pick('${b}')">${b}</button>`).join('')+'<p id="fb"></p>'}
+function pick(b){const ok=b===G[i][1];if(ok)score++;document.getElementById('fb').innerHTML=(ok?'✅ ':'❌ It\'s '+G[i][1]+'. ')+G[i][2]+'<br><button class="ok" onclick="i++;show()">Next</button>'}
+const T=[["Who has final say on WIR canon?",["Any bot","The creator (RB1)","The newest file"],1],["A newer file is always more true.",["True","False"],1],["What do you say when the archive has no answer?",["Make a guess","UNKNOWN IN CANON"],1]];let t=0,ts=0;
+function test(){const d=document.getElementById('test');d.style.display='block';if(t>=T.length){d.innerHTML=`<b>Test: ${ts}/${T.length}</b>`;brick();return}
+d.innerHTML=`<p><b>Quick test ${t+1}:</b> ${T[t][0]}</p>`+T[t][1].map((o,k)=>`<button class="no" onclick="ans(${k})">${o}</button>`).join('')}
+function ans(k){if(k===T[t][2])ts++;t++;test()}
+function brick(){const b=document.getElementById('brick');b.style.display='block';const r={class:'Canon Lab',day:'2026-10-20',game:score+'/'+G.length,test:ts+'/'+T.length};localStorage.setItem('wirschool_canonlab_2026-10-20',JSON.stringify(r));
+b.innerHTML=`<b>🧱 Brick card: Canon Lab, Day 1</b><p>I can sort a claim into LOCKED, PROPOSAL, UNKNOWN, CONFLICT or RESEARCH.</p><p>Game ${r.game} · Test ${r.test}</p><p><b>Real-world mission:</b> find one thing someone told you this week as fact. Was it a fact, a guess, or a proposal?</p>`}
+show();
+</script></body></html>

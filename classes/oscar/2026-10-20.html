@@ -1,0 +1,21 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>School of the Absurd: Interview a Carrot</title>
+<style>body{font-family:system-ui,sans-serif;background:#1d1230;color:#fff;margin:0;padding:16px;max-width:520px;margin:auto}h1{color:#ff9f1c;font-size:1.5rem}.c{background:#2e1f4a;border-radius:14px;padding:14px;margin:12px 0}button{display:block;width:100%;padding:14px;margin:6px 0;border:0;border-radius:10px;font-size:1rem;background:#ff9f1c;color:#1d1230;font-weight:700}.t{font-size:.7rem;padding:2px 6px;border-radius:6px;font-weight:700}.R{background:#2ec4b6;color:#000}.P{background:#e71d36}#brick{display:none;border:3px dashed #ff9f1c}</style></head><body>
+<p><span class="t P">PROPOSAL</span> Oscar Absurd's School of the Absurd · 2026-10-20</p>
+<h1>🥕 Interview a Carrot</h1>
+<p><i>Listen for what is still trying to grow.</i></p>
+<div class="c"><b>🎙️ The Interview</b> <span class="t P">PROPOSAL</span> (carrots don't talk, but the facts are real)<p id="q"></p><div id="a"></div><p id="f"></p></div>
+<div class="c" id="test" style="display:none"><b>📝 Test</b><p id="tq"></p><div id="ta"></div></div>
+<div class="c" id="brick"><b>🧱 Brick Card</b><p id="bt"></p><p>Mission: find one plant this week and look which way it grows. Write down the direction. <span class="t P">PROPOSAL</span></p></div>
+<script>
+const I=[["Carrot, which way do your roots go when you sprout?",["Down, I feel gravity","Wherever the TV is"],0,"REAL: Gravitropism. Root-tip cells hold heavy starch grains (statoliths) that settle downward and steer growth."],
+["How do you find water underground?",["I grow toward wetter soil","I ask a worm for directions"],0,"REAL: Hydrotropism. Roots bend toward moisture, and that can sometimes beat gravity."],
+["Why are you orange?",["Beta-carotene","Embarrassment"],0,"REAL: Beta-carotene. Modern orange carrots were bred, and early carrots were often purple or yellow."]];
+const T=[["Roots growing down because of gravity is called…",["Gravitropism","Gravity yoga","Hydrotropism"],0],["Roots growing toward water is called…",["Phototropism","Hydrotropism","Splashing"],1],["Root tips sense gravity using…",["Tiny compasses","Starch grains (statoliths)","Vibes"],1]];
+let i=0,s=0,j=0;const $=x=>document.getElementById(x);
+function show(){if(i>=I.length){$("q").textContent="🥕 The carrot says: 'Thanks. Back to growing now.'";$("a").innerHTML="";$("f").textContent="";$("test").style.display="block";tq();return}
+const[q,o]=I[i];$("q").textContent=q;$("a").innerHTML="";o.forEach((t,k)=>{const b=document.createElement("button");b.textContent=t;b.onclick=()=>{$("f").innerHTML=(k==I[i][2]?"✅ ":"🤪 Absurd, but no! ")+'<span class="t R">REAL</span> '+I[i][3].slice(6);i++;setTimeout(show,1800)};$("a").appendChild(b)})}
+function tq(){if(j>=T.length){done();return}const[q,o,c]=T[j];$("tq").textContent=(j+1)+". "+q;$("ta").innerHTML="";o.forEach((t,k)=>{const b=document.createElement("button");b.textContent=t;b.onclick=()=>{if(k==c)s++;j++;tq()};$("ta").appendChild(b)})}
+function done(){$("test").style.display="none";$("brick").style.display="block";$("bt").textContent="Score: "+s+"/3. You listened to a root!";
+let B=[];try{B=JSON.parse(localStorage.getItem("wirBricks"))||[]}catch(e){}B.push({school:"School of the Absurd",teacher:"Oscar Absurd",class:"Interview a Carrot",date:"2026-10-20",score:s});localStorage.setItem("wirBricks",JSON.stringify(B))}
+show();
+</script></body></html>

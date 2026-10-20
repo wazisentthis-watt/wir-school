@@ -1,0 +1,44 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scout School · Check the Score</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#1a1206;color:#fff4dc;margin:0;padding:16px;max-width:560px;margin:auto}
+h1{color:#ffb627;font-size:1.5em}.tag{background:#5a3b00;padding:2px 8px;border-radius:8px;font-size:.75em}
+.card{background:#2b1d08;border:1px solid #ffb627;border-radius:12px;padding:14px;margin:12px 0}
+button{background:#ffb627;color:#1a1206;border:0;border-radius:10px;padding:10px 14px;margin:4px;font-weight:700;font-size:1em}
+button.alt{background:#7a5a20;color:#fff4dc}#fb,#tfb{min-height:1.4em;font-weight:600}
+</style></head><body>
+<span class="tag">PROPOSAL · What Is Reality Academy</span>
+<h1>☀️ Scout School: Check the Score</h1>
+<p>A scout's job is to bring back things that are <b>true</b>, not things that sound good. Before a fact goes into a message, you need to be able to point to where it came from.</p>
+
+<div class="card"><h3>Game: Verified or Made Up?</h3>
+<p id="claim"></p><p><i id="src"></i></p>
+<button onclick="ans(true)">✅ Verified</button><button class="alt" onclick="ans(false)">❌ Not verified</button>
+<p id="fb"></p><p>Score: <span id="sc">0</span>/<span id="tot">0</span></p></div>
+
+<div class="card"><h3>Test</h3><div id="test"></div><button onclick="grade()">Check my answers</button><p id="tfb"></p></div>
+
+<div class="card" id="brick" style="display:none"><h3>🧱 Brick Card</h3>
+<p><b>Scout Law:</b> No source, no send.</p><p>Earned: <span id="date"></span></p><button onclick="save()">Save brick</button><p id="saved"></p></div>
+
+<script>
+const R=[
+["Gijón Mariners beat Zaragoza Hurricanes 21–11 on Mar 14, 2026.","Source: the team's EuroPlayers page",true],
+["This team has never lost a game in its whole history.","Source: someone said it in chat",false],
+["Coritiba Crocodiles are the reigning Brazil Bowl champions.","Source: Bem Paraná news, Oct 2026",true],
+["The coach loves running backs from Florida.","Source: no source, it just sounds right",false],
+["Osos Rivas beat Black Demons 14–12 and ended their unbeaten run.","Source: Telemadrid / FEFA, Mar 24, 2026",true],
+["The team will definitely sign you if you message them today.","Source: a guess",false]];
+let i=0,s=0;function show(){if(i>=R.length){document.getElementById('claim').textContent="Round done! A scout who checks sources is a scout people trust.";document.getElementById('src').textContent="";return}
+document.getElementById('claim').textContent=R[i][0];document.getElementById('src').textContent=R[i][1]}
+function ans(v){if(i>=R.length)return;const ok=v===R[i][2];if(ok)s++;document.getElementById('fb').textContent=ok?"Right. "+(R[i][2]?"It has a real source.":"There's no source, so it can't go out."):"Not quite. Check the source line again.";i++;document.getElementById('sc').textContent=s;document.getElementById('tot').textContent=i;show()}
+show();
+const Q=[["Two sources give different scores. What do you do?",["Use the bigger number","Leave the score out","Make up an average"],1],
+["What makes a fact verified?",["It sounds good","You can point to where it came from","A bot said it"],1],
+["What does 'No source, no send' mean?",["Send everything fast","Only send facts you can back up","Never send anything"],1]];
+let h="";Q.forEach((q,n)=>{h+="<p><b>"+(n+1)+". "+q[0]+"</b></p>";q[1].forEach((o,k)=>{h+='<label><input type="radio" name="q'+n+'" value="'+k+'"> '+o+'</label><br>'})});
+document.getElementById('test').innerHTML=h;
+function grade(){let c=0;Q.forEach((q,n)=>{const e=document.querySelector('input[name=q'+n+']:checked');if(e&&+e.value===q[2])c++});
+document.getElementById('tfb').textContent=c+"/3 "+(c===3?"🔥 Brick earned!":"Try again. You need 3/3.");if(c===3){document.getElementById('brick').style.display='block';document.getElementById('date').textContent=new Date().toLocaleDateString()}}
+function save(){const d=new Date(),day=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');const b=JSON.parse(localStorage.getItem('wirBricks')||'[]');const c='Scout School: Check the Score';if(!b.some(x=>x.teacher==="Za'Ra"&&x.class===c&&x.date===day)){b.push({class:c,teacher:"Za'Ra",date:day});localStorage.setItem('wirBricks',JSON.stringify(b))}document.getElementById('saved').textContent="Saved to this phone ✅"}
+</script></body></html>

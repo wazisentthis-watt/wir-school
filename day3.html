@@ -1,0 +1,84 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WIR School · Day 3: The O-Line Membrane</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:linear-gradient(160deg,#1b1046,#0b3d3a);color:#fff;min-height:100vh}
+.wrap{max-width:560px;margin:auto;padding:14px 14px 80px}
+header{display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#1b1046ee;padding:8px 10px;border-radius:0 0 14px 14px;z-index:5}
+.xp{background:#ffcc33;color:#222;font-weight:800;border-radius:20px;padding:4px 12px}
+.card{background:#ffffff14;border:1px solid #ffffff22;border-radius:18px;padding:16px;margin:14px 0}
+h1{font-size:1.6rem;margin:.3em 0}h2{margin:.2em 0 .5em;font-size:1.2rem}
+.cast{font-size:3rem;text-align:center;user-select:none}
+.hippo{display:inline-block;transform:rotate(180deg);animation:wob 2s ease-in-out infinite}
+@keyframes wob{0%,100%{transform:rotate(170deg)}50%{transform:rotate(190deg)}}
+.frog{display:inline-block;animation:hop 1.2s infinite}@keyframes hop{0%,100%{transform:translateY(0)}40%{transform:translateY(-18px)}}
+button{font:inherit;border:0;border-radius:14px;padding:12px 14px;margin:4px;font-weight:700;cursor:pointer}
+.pri{background:#ff7a1a;color:#fff}.opt{display:block;width:100%;text-align:left;background:#ffffff22;color:#fff}
+.opt.ok{background:#22c55e}.opt.no{background:#ef4444}
+.items{display:flex;flex-wrap:wrap;gap:6px}.item{background:#fff;color:#222;padding:10px 12px;border-radius:12px}
+.item.sel{outline:4px solid #ffcc33;transform:scale(1.05)}
+.bins{display:grid;gap:8px;margin-top:10px}.bin{background:#ffffff1f;border:2px dashed #fff8;border-radius:14px;padding:10px;min-height:60px}
+.bin .item{display:inline-block;margin:3px;font-size:.85rem}
+.big{font-size:3rem;font-weight:900;text-align:center}
+.stage{height:170px;position:relative;overflow:hidden;border-radius:14px;background:#0a1a3a}
+.dot{position:absolute;border-radius:50%;width:14px;height:14px}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#22c55e;padding:12px 18px;border-radius:20px;font-weight:800;opacity:0;transition:.3s;z-index:9}
+.toast.on{opacity:1}
+.badges{font-size:2rem;letter-spacing:6px}.dim{opacity:.25;filter:grayscale(1)}
+.prop{font-size:.8rem;opacity:.75}a{color:#ffcc33}
+textarea{width:100%;border-radius:12px;padding:10px;font:inherit;min-height:70px}
+</style></head><body>
+<header><a href="index.html">🏠 Hub</a><span id="streak"></span><span class="xp">⭐ <span id="xp">0</span> XP</span></header>
+<div class="wrap">
+<div class="card"><div class="cast"><span class="hippo">🦛</span><span class="frog">🐸</span> <span id="em"></span></div>
+<div class="prop">WIR SCHOOL · DAY <span id="dn"></span> · Headmaster Oscar Absurd 🥕</div><h1 id="ti"></h1><b id="tp"></b><p id="st"></p>
+<button class="pri" onclick="say('Ribbit! 🐸');award('story',10)">I read it (+10)</button></div>
+<div class="card"><h2>👀 Watch it happen</h2><div class="stage" id="stage"></div><p id="cap" class="prop"></p><button class="pri" id="animBtn">▶ Play</button></div>
+<div class="card"><h2>🎮 <span id="sortT"></span></h2><div class="items" id="items"></div><div class="bins" id="bins"></div><p id="sortMsg"></p></div>
+<div class="card"><h2>💪 Move: <span id="mvN"></span></h2><p id="mvD"></p><div class="big" id="rep">0</div>
+<button class="pri" style="width:100%;padding:22px;font-size:1.3rem" onclick="rep()">TAP EACH REP</button></div>
+<div class="card"><h2>🧠 Lock-in facts</h2><ol id="facts"></ol></div>
+<div class="card"><h2>❓ Gerald's 3</h2><div id="quiz"></div><p id="qMsg" style="font-weight:800"></p></div>
+<div class="card"><h2>🪙 Reality Deposit <span class="prop">(PROPOSAL, not canon)</span></h2><p>Invent one creature, place or rule for Cell City built from today's fact.</p><textarea id="dep" placeholder="My invention…"></textarea><button class="pri" onclick="deposit()">Drop in Proposal Vault (+20)</button></div>
+<div class="card"><h2>🧪 Real-world rep</h2><p>Do one <a href="https://modernstates.org" target="_blank">Modern States Biology</a> video or quiz. That's what earns your free CLEP voucher (6 real credits).</p><button class="pri" onclick="award('ms',30)">I did it (+30)</button></div>
+<div class="card"><h2>🏅 Collection</h2><div class="badges" id="badges"></div><p class="prop">Finish all sections to earn today's badge.</p></div>
+<div class="card" style="background:#ff7a1a33"><h2>🔮 Tomorrow</h2><p id="teaser"></p></div>
+<p class="prop">Characters and story bits are playful WIR School PROPOSALS, not canon. Science facts are real.</p>
+</div><div class="toast" id="toast"></div>
+<script>
+const D={"title": "The O-Line Membrane", "topic": "Cell membrane & transport", "emoji": "\ud83d\udee1\ufe0f", "story": "The gate of Cell City Stadium is a <b>phospholipid bilayer</b>, an offensive line two rows deep. The water-loving (<b>hydrophilic</b>) heads face out toward the water; the water-hating (<b>hydrophobic</b>) tails hide inside. Sir Wobbleton checks tickets upside down while Gerald guards the turnstile. Small nonpolar stuff (O\u2082, CO\u2082) slips through. Big or charged stuff (glucose, Na\u207a ions) needs a protein gate called a <b>channel</b>. Going high \u2192 low is <b>diffusion</b> (free). Going uphill is <b>active transport</b> and costs <b>ATP</b>.", "anim": "membrane", "sortTitle": "Gate Check! Who slips through vs who needs a protein gate?", "bins": ["Slips right through \ud83c\udfc3", "Needs a channel/pump \ud83d\udeaa"], "items": [["O\u2082 (oxygen)", 0], ["Na\u207a ion", 1], ["CO\u2082", 0], ["Glucose", 1], ["K\u207a ion", 1], ["Small nonpolar molecule", 0]], "move": {"name": "Pay Your ATP", "reps": 10, "desc": "Active transport pushes molecules UPHILL against the gradient. That costs energy. 10 push-ups = 10 ATP paid. (Knees down is fine. Still counts.)"}, "facts": ["Phospholipid heads = hydrophilic (out). Tails = hydrophobic (in).", "Diffusion/passive transport: high \u2192 low, no energy.", "Active transport: low \u2192 high, needs ATP."], "quiz": [["Phospholipid tails are\u2026", ["Hydrophilic", "Hydrophobic"], 1], ["Moving high \u2192 low with no energy is\u2026", ["Active transport", "Diffusion (passive)", "Exocytosis"], 1], ["Uphill (active) transport needs\u2026", ["ATP", "Water", "Sunlight only"], 0]], "badge": ["\ud83d\udee1\ufe0f", "O-Line Shield"], "teaser": "Day 4: Organelle Draft Day. You're the GM. Draft a whole team of organelles\u2026", "day": 3};const ALL=[["🏟️",1],["💧",2],["🛡️",3],["📋",4],["🧫",5],["🧬",6],["⚡",7]];
+const K='wirschool';let S=JSON.parse(localStorage.getItem(K)||'{"xp":0,"done":{},"badges":{}}');
+const save=()=>{localStorage.setItem(K,JSON.stringify(S));draw()};const $=i=>document.getElementById(i);
+function say(t){const e=$('toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),1600)}
+function award(k,n){const key=D.day+':'+k;if(S.done[key])return say('Already banked ✔');S.done[key]=1;S.xp+=n;say('+'+n+' XP!');checkBadge();save()}
+const NEED=['story','anim','sort','move','quiz'];
+function checkBadge(){if(NEED.every(k=>S.done[D.day+':'+k])&&!S.badges[D.day]){S.badges[D.day]=1;S.xp+=25;setTimeout(()=>say('🏅 BADGE: '+D.badge[1]+' +25'),1700)}}
+function draw(){$('xp').textContent=S.xp;$('badges').innerHTML=ALL.map(([e,d])=>`<span class="${S.badges[d]?'':'dim'}">${e}</span>`).join('');
+$('streak').textContent='🏅 '+Object.keys(S.badges).length+' badges'}
+$('em').textContent=D.emoji;$('dn').textContent=D.day;$('ti').textContent=D.title;$('tp').textContent=D.topic;$('st').innerHTML=D.story;
+$('sortT').textContent=D.sortTitle;$('mvN').textContent=D.move.name;$('mvD').textContent=D.move.desc;$('teaser').textContent=D.teaser;
+$('facts').innerHTML=D.facts.map(f=>'<li>'+f+'</li>').join('');
+// sort game
+let sel=null,left=D.items.length,miss=0;const items=$('items'),bins=$('bins');
+D.items.sort(()=>Math.random()-.5).forEach(([t,b])=>{const e=document.createElement('button');e.className='item';e.textContent=t;e.dataset.b=b;e.onclick=()=>{if(sel)sel.classList.remove('sel');sel=e;e.classList.add('sel')};items.appendChild(e)});
+D.bins.forEach((n,i)=>{const e=document.createElement('div');e.className='bin';e.innerHTML='<b>'+n+'</b><br>';e.onclick=()=>{if(!sel)return say('Tap a card first');
+if(+sel.dataset.b===i){sel.classList.remove('sel');sel.onclick=null;e.appendChild(sel);sel=null;left--;if(!left){$('sortMsg').textContent='🎉 Perfect sort! Gerald ribbits.';award('sort',miss<2?30:20)}}else{miss++;say('Nope! Wobbleton wobbles 🦛');sel.animate([{transform:'translateX(-8px)'},{transform:'translateX(8px)'},{transform:'none'}],250)}};bins.appendChild(e)});
+// move
+let r=0;function rep(){r++;$('rep').textContent=r;navigator.vibrate&&navigator.vibrate(30);if(r===D.move.reps){say('💪 Set complete!');award('move',20)}}
+// quiz
+let ans=0,right=0;D.quiz.forEach(([q,o,c],qi)=>{const w=document.createElement('div');w.innerHTML='<p><b>'+(qi+1)+'. '+q+'</b></p>';let done=false;
+o.forEach((t,i)=>{const b=document.createElement('button');b.className='opt';b.textContent=t;b.onclick=()=>{if(done)return;done=true;ans++;if(i===c){b.classList.add('ok');right++}else{b.classList.add('no');w.querySelectorAll('.opt')[c].classList.add('ok')}
+if(ans===D.quiz.length){$('qMsg').textContent=right>=2?`🐸 RIBBIT! ${right}/3. Gerald approves.`:`${right}/3. Gerald says try again tomorrow, no shame.`;award('quiz',right*10+(right===3?10:0))}};w.appendChild(b)});$('quiz').appendChild(w)});
+function deposit(){const v=$('dep').value.trim();if(!v)return say('Write something first!');const vault=JSON.parse(localStorage.getItem('wirvault')||'[]');vault.push({day:D.day,text:v,label:'PROPOSAL'});localStorage.setItem('wirvault',JSON.stringify(vault));award('deposit',20)}
+// animations
+const stage=$('stage');function dot(x,y,c,s){const d=document.createElement('div');d.className='dot';d.style.left=x+'px';d.style.top=y+'px';d.style.background=c;if(s){d.style.width=d.style.height=s+'px'}stage.appendChild(d);return d}
+const A={
+cell(){$('cap').textContent='One cell grows, then divides into two. Every cell comes from a cell.';stage.innerHTML='';let n=1,w=stage.clientWidth;const go=()=>{stage.innerHTML='';for(let i=0;i<n;i++){const d=dot(20+(i%8)*(w-40)/8,20+Math.floor(i/8)*40,'#7CFC00',30);d.animate([{transform:'scale(.3)'},{transform:'scale(1)'}],500)}n*=2;if(n<=32)setTimeout(go,700)};go()},
+water(){$('cap').textContent='Water molecules (🔴 O, ⚪ H) stick together by hydrogen bonds, then a hot body (bottom) evaporates them away.';stage.innerHTML='';const w=stage.clientWidth;for(let i=0;i<14;i++){const x=Math.random()*(w-40),y=90+Math.random()*60;const o=dot(x,y,'#ef4444',16);const h=dot(x+14,y-6,'#eee',9);const h2=dot(x-6,y-6,'#eee',9);[o,h,h2].forEach(e=>e.animate([{transform:'translateY(0)'},{transform:'translateY(-'+(80+Math.random()*80)+'px)',opacity:0}],{duration:2500,delay:600+i*120,fill:'forwards'}))}},
+membrane(){$('cap').textContent='Bilayer: heads (blue) out, tails in. Small O₂ (white) slips through; Na⁺ (yellow) needs the channel (green), and pumping uphill costs ATP.';stage.innerHTML='';const w=stage.clientWidth;for(let x=0;x<w;x+=18){if(Math.abs(x-w/2)<20)continue;dot(x,62,'#3b82f6',14);dot(x,96,'#3b82f6',14);const t=document.createElement('div');t.style.cssText=`position:absolute;left:${x+5}px;top:76px;width:4px;height:20px;background:#fbbf24`;stage.appendChild(t)}
+const ch=document.createElement('div');ch.style.cssText=`position:absolute;left:${w/2-12}px;top:58px;width:24px;height:54px;background:#22c55e;border-radius:6px`;stage.appendChild(ch);
+for(let i=0;i<5;i++){const o=dot(30+i*50,10,'#fff',10);o.animate([{transform:'none'},{transform:'translateY(150px)'}],{duration:1800,delay:i*300,fill:'forwards'})}
+for(let i=0;i<3;i++){const n=dot(w/2-6+(i-1)*60,10,'#ffcc33',12);n.animate([{transform:'none'},{transform:`translate(${-(i-1)*60}px,40px)`},{transform:`translate(${-(i-1)*60}px,150px)`}],{duration:2500,delay:600+i*400,fill:'forwards'})}},
+draft(){$('cap').textContent='Players run onto the field: ⚡ mitochondria, 🧱 ribosomes, 🧠 nucleus, 📦 Golgi, 🧹 lysosome, 🌱 chloroplast.';stage.innerHTML='';const p=['⚡','🧱','🧠','📦','🧹','🌱'],w=stage.clientWidth;p.forEach((e,i)=>{const d=document.createElement('div');d.textContent=e;d.style.cssText='position:absolute;font-size:2rem;left:-40px;top:'+(20+(i%3)*45)+'px';stage.appendChild(d);d.animate([{left:'-40px'},{left:(30+i*(w-60)/6)+'px'}],{duration:900,delay:i*250,fill:'forwards',easing:'ease-out'})})}};
+$('animBtn').onclick=()=>{A[D.anim]();award('anim',10)};
+draw();
+</script></body></html>
