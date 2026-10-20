@@ -22,7 +22,7 @@ const T=[["Who has final say on WIR canon?",["Any bot","The creator (RB1)","The 
 function test(){const d=document.getElementById('test');d.style.display='block';if(t>=T.length){d.innerHTML=`<b>Test: ${ts}/${T.length}</b>`;brick();return}
 d.innerHTML=`<p><b>Quick test ${t+1}:</b> ${T[t][0]}</p>`+T[t][1].map((o,k)=>`<button class="no" onclick="ans(${k})">${o}</button>`).join('')}
 function ans(k){if(k===T[t][2])ts++;t++;test()}
-function brick(){const b=document.getElementById('brick');b.style.display='block';const r={class:'Canon Lab',day:'2026-10-20',game:score+'/'+G.length,test:ts+'/'+T.length};localStorage.setItem('wirschool_canonlab_2026-10-20',JSON.stringify(r));
+function brick(){const b=document.getElementById('brick');b.style.display='block';const r={class:'Canon Lab',day:'2026-10-20',game:score+'/'+G.length,test:ts+'/'+T.length};localStorage.setItem('wirschool_canonlab_2026-10-20',JSON.stringify(r));const d=new Date(),ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');let a=[];try{a=JSON.parse(localStorage.getItem('wirBricks')||'[]')}catch(e){}if(!a.some(x=>x.teacher==='WIR CANON BOT'&&x.date===ds)){a.push({teacher:'WIR CANON BOT',class:'Canon Lab: Fact or Proposal?',date:ds,game:r.game,test:r.test});localStorage.setItem('wirBricks',JSON.stringify(a))}
 b.innerHTML=`<b>🧱 Brick card: Canon Lab, Day 1</b><p>I can sort a claim into LOCKED, PROPOSAL, UNKNOWN, CONFLICT or RESEARCH.</p><p>Game ${r.game} · Test ${r.test}</p><p><b>Real-world mission:</b> find one thing someone told you this week as fact. Was it a fact, a guess, or a proposal?</p>`}
 show();
 </script></body></html>
