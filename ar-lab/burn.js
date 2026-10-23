@@ -5,9 +5,13 @@
 import {FX,L,rnd,lightAt} from './fx.js';
 import {E} from './elements.js';
 import {aimStep} from './aim.js';
+import {FIRE,dousing} from './fire.js';
+import {normalizeRGBA,Voter,sigDist} from './vision.js';
+const MODEL2='https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite2/float16/1/efficientdet_lite2.tflite';
+const V=new Voter(5,2,.42); let pre,pctx2,VMOD,FSET; const qp=new URLSearchParams(location.search);
 const MODEL='https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite';
 const NEVER=/person|dog|cat|bird|horse|sheep|cow|bear|elephant|zebra|giraffe/;
-export const B={maxFires:2,still:false,on:false,det:null,objs:[],last:0,status:'off',inject:null,lastSay:0};
+export const B={maxFires:FIRE.maxObj,still:false,on:false,det:null,objs:[],last:0,status:'off',inject:null,lastSay:0};
 let cv,cx,video,toScreen,say,charImg;
 const mem=JSON.parse(localStorage.getItem('wirlab.char')||'{}');
 const saveMem=()=>{ try{localStorage.setItem('wirlab.char',JSON.stringify(mem));}catch{} };
@@ -15,9 +19,14 @@ export async function init(vid,ts,sayFn,VISION){ video=vid; toScreen=ts; say=say
   cv=document.getElementById('char'); cx=cv.getContext('2d'); resize(); addEventListener('resize',resize);
   charImg=new Image(); charImg.src='assets/char_decal.png';
   try{ const v=await import(VISION+'/vision_bundle.mjs'); const fs=await v.FilesetResolver.forVisionTasks(VISION+'/wasm');
-    const o=d=>({baseOptions:{modelAssetPath:MODEL,delegate:d},runningMode:'VIDEO',scoreThreshold:.35,maxResults:6});
-    try{ B.det=await v.ObjectDetector.createFromOptions(fs,o('GPU')); }catch{ B.det=await v.ObjectDetector.createFromOptions(fs,o('CPU')); }
+    VMOD=v; FSET=fs; B.model=qp.get('det')==='lite2'?'lite2':'lite0'; B.det=await makeDet(B.model);
     B.status='ready'; }catch(e){ console.warn('object detector failed',e); B.status='failed'; } }
+async function makeDet(name){ const url=name==='lite2'?MODEL2:MODEL; const o=d=>({baseOptions:{modelAssetPath:url,delegate:d},runningMode:'VIDEO',scoreThreshold:.2,maxResults:8}); // v8: low threshold + temporal voting
+  try{ return await VMOD.ObjectDetector.createFromOptions(FSET,o('GPU')); }catch{ return await VMOD.ObjectDetector.createFromOptions(FSET,o('CPU')); } }
+/* v8: alternate raw and contrast-normalized frames into the same voter */
+export function preFrame(){ const vw=video.videoWidth,vh=video.videoHeight; if(!vw) return null; const W=Math.min(512,vw), H=Math.round(W*vh/vw); if(!pre){ pre=document.createElement('canvas'); pctx2=pre.getContext('2d',{willReadFrequently:true}); } if(pre.width!==W){pre.width=W;pre.height=H;}
+  pctx2.drawImage(video,0,0,W,H); const img=pctx2.getImageData(0,0,W,H); normalizeRGBA(img.data,W,H); pctx2.putImageData(img,0,0); return {cv:pre,img,W,H,sx:vw/W,sy:vh/H}; }
+B.ms=0; B.runs=0;
 function resize(){ if(!cv) return; cv.width=innerWidth; cv.height=innerHeight; }
 function boxToScreen(bb){ const vw=video.videoWidth,vh=video.videoHeight; const a=toScreen({x:bb.originX/vw,y:bb.originY/vh}), b=toScreen({x:(bb.originX+bb.width)/vw,y:(bb.originY+bb.height)/vh});
   return {x:Math.min(a.x,b.x),y:Math.min(a.y,b.y),w:Math.abs(b.x-a.x),h:Math.abs(b.y-a.y)}; }
@@ -25,13 +34,21 @@ function iou(a,b){ const x=Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x
 function detect(now){
   let dets=null;
   if(B.inject) dets=B.inject();
-  else if(B.det&&video.videoWidth&&now-B.last>220){ B.last=now; try{ const r=B.det.detectForVideo(video,now); dets=r.detections.map(d=>({label:d.categories[0].categoryName,score:d.categories[0].score,box:boxToScreen(d.boundingBox)})); }catch{} }
+  else if(B.det&&video.videoWidth&&now-B.last>220){ B.last=now; B.runs++; const t0=performance.now();
+    try{ const useN=B.runs%2===0, F=useN?preFrame():null; const r=B.det.detectForVideo(F?F.cv:video,now);
+      const sc=bb=>F?{originX:bb.originX*F.sx,originY:bb.originY*F.sy,width:bb.width*F.sx,height:bb.height*F.sy}:bb;
+      dets=V.push(r.detections.map(d=>({label:d.categories[0].categoryName,score:d.categories[0].score,box:boxToScreen(sc(d.boundingBox))})));
+      // remembered manual tags override a wrong/generic detector label when the color+shape signature matches
+      if(F&&B.tags?.length) for(const d of dets){ const sg=B.sigOf?.(d.box,F); if(!sg) continue; let bt=null,bd=.35; for(const t of B.tags){ const q=sigDist(sg,t.sig); if(q<bd){bd=q;bt=t;} } if(bt) d.label=bt.label; }
+    }catch{}
+    B.ms=B.ms*.9+(performance.now()-t0)*.1;
+    if(B.model==='lite0'&&!qp.get('det')&&B.runs===30&&B.ms<35&&FX.Q>.9&&!B.upgrading){ B.upgrading=1; makeDet('lite2').then(d=>{ B.det=d; B.model='lite2'; console.info('detector → EfficientDet-Lite2'); }).catch(()=>{}); } }
   if(!dets) return;
-  for(const d of dets){ let best=null,bs=0; for(const o of B.objs){ if(o.label!==d.label) continue; const s=iou(o.box,d.box)+(1-Math.min(1,Math.hypot(o.box.x+o.box.w/2-d.box.x-d.box.w/2,o.box.y+o.box.h/2-d.box.y-d.box.h/2)/Math.max(d.box.w,d.box.h))); if(s>bs){bs=s;best=o;} }
+  for(const d of dets){ let best=null,bs=0; for(const o of B.objs){ if(o.label!==d.label||o.manual) continue; const s=iou(o.box,d.box)+(1-Math.min(1,Math.hypot(o.box.x+o.box.w/2-d.box.x-d.box.w/2,o.box.y+o.box.h/2-d.box.y-d.box.h/2)/Math.max(d.box.w,d.box.h))); if(s>bs){bs=s;best=o;} }
     if(best&&bs>.35){ const o=best, k=B.still?(iou(o.box,d.box)>.8?0:.15):.55; o.vx=((d.box.x-o.box.x))/Math.max(.05,(now-o.seenMs)/1000); o.vy=((d.box.y-o.box.y))/Math.max(.05,(now-o.seenMs)/1000);
       for(const p of ['x','y','w','h']) o.box[p]+=(d.box[p]-o.box[p])*(o.held?.85:k); o.seen=FX.t; o.seenMs=now; heldCheck(o); }
     else B.objs.push({label:d.label,box:{...d.box},seen:FX.t,seenMs:now,vx:0,vy:0,fire:0,chars:(mem[d.label]||[]).map(c=>({...c})),safe:NEVER.test(d.label)}); }
-  B.objs=B.objs.filter(o=>FX.t-o.seen<2.5); }
+  B.objs=B.objs.filter(o=>FX.t-o.seen<(o.manual?6:2.5)); }
 /* real handheld objects: a detected box that overlaps a gripping hand is "held"; between detections the box rides on the palm */
 B.palms=[];
 function heldCheck(o){ if(o.safe){ o.held=null; return; } const b=o.box; let best=null;
@@ -52,15 +69,18 @@ export function update(dt,now,active){
       const u=Math.min(1,Math.max(0,(h.x-b.x)/b.w)), v=Math.min(1,Math.max(0,(h.y-b.y)/b.h));
       const burning=B.objs.filter(q=>q.fire>0).length; if(o.fire<=0&&burning>=B.maxFires){ if(FX.t-B.lastSay>2){B.lastSay=FX.t; say(`${B.maxFires} fires already: let one burn out first`);} } else {
       if(o.fire<=0){ say(`The ${o.label} caught fire!`); E.onBurn?.(o.label); }
-      o.fire=Math.min(2.5,o.fire+dt*2+.5*(o.fire<=0)); const near=o.chars.find(c=>Math.hypot(c.u-u,c.v-v)<.12);
-      if(near) near.r=Math.min(.2,near.r+dt*.08); else if(o.chars.length<4) o.chars.push({u,v,r:.05,s:Math.random()}); } } }
-    if(o.fire>0){ o.fire-=dt; const k=FX.Q;
-      for(const c of o.chars){ c.r=Math.min(.2,c.r+dt*.005); const x=b.x+c.u*b.w, y=b.y+c.v*b.h, rr=c.r*Math.min(b.w,b.h);
-        for(let i=0;i<3*k;i++) L.fire.spawn(x+rnd(-rr,rr)*.5,y+rnd(-rr,rr)*.3,rnd(-12,12),-rnd(70,150),{size:rnd(14,26),grow:.8,life:rnd(.3,.5),curl:1.2,a:.8});
+      o.fire=Math.min(1.8,o.fire+dt*.8+.5*(o.fire<=0)); const near=o.chars.find(c=>Math.hypot(c.u-u,c.v-v)<.12);
+      if(near) near.r=Math.min(.16,near.r+dt*.03); else if(o.chars.length<3) o.chars.push({u,v,r:.05,s:Math.random()}); } } }
+    if(o.fire>0){ let dz=0; for(const p of B.palms) dz=Math.max(dz,dousing(p,b,E.mode));
+      if(dz){ o.douse=(o.douse||0)+dt*dz; o.fire-=dt*4*dz; if(Math.random()<.4) L.smoke.spawn(b.x+b.w*rnd(.2,.8),b.y+b.h*.3,rnd(-10,10),-rnd(40,80),{c:[.85,.87,.9],a:.22,size:rnd(25,45),grow:1.4,life:1,curl:1});
+        if(o.fire<=0){ o.fire=0.0001; o.doused=1; } }
+      o.fire-=dt; const k=FX.Q;
+      for(const c of o.chars){ c.r=Math.min(.16,c.r+dt*.002); const x=b.x+c.u*b.w, y=b.y+c.v*b.h, rr=c.r*Math.min(b.w,b.h);
+        if(Math.random()<.7*k) L.fire.spawn(x+rnd(-rr,rr)*.4,y+rnd(-rr,rr)*.25,rnd(-8,8),-rnd(50,100),{size:rnd(8,14),grow:.5,life:rnd(.22,.36),curl:1,a:.85}); // v8: small, sticks to the object
         if(Math.random()<.12*k) L.smoke.spawn(x,y-rr,rnd(-15,15),-rnd(40,90),{c:[.5,.48,.46],a:.15,size:rnd(40,70),grow:1.6,life:rnd(1.2,2.2),curl:1.5});
         if(Math.random()<.1) L.spark.spawn(x,y,rnd(-150,150),-rnd(150,400),{c:[1,.7,.3],size:rnd(5,10),life:rnd(.4,.8),grav:300}); }
       lightAt(b.x+b.w/2,b.y+b.h/2,[1,.55,.2],2);
-      if(o.fire<=0){ mem[o.label]=o.chars.map(c=>({u:+c.u.toFixed(3),v:+c.v.toFixed(3),r:+c.r.toFixed(3),s:c.s})); saveMem(); say(`Fire's out. The ${o.label} stays scorched.`); } }
+      if(o.fire<=0){ if(o.doused){ o.doused=0; say(E.mode==='water'?`Doused. The ${o.label} hisses out.`:`Smothered: no oxygen, no fire.`); window.labEvent?.('fire:out'); } mem[o.label]=o.chars.map(c=>({u:+c.u.toFixed(3),v:+c.v.toFixed(3),r:+c.r.toFixed(3),s:c.s})); saveMem(); say(`Fire's out. The ${o.label} stays scorched.`); } }
     // draw char decal anchored to object box (follows it as the camera moves)
     for(const c of o.chars){ const x=b.x+c.u*b.w, y=b.y+c.v*b.h, rr=c.r*Math.min(b.w,b.h);
       cx.save(); cx.beginPath(); cx.rect(b.x,b.y,b.w,b.h); cx.clip(); cx.translate(x,y); cx.rotate(c.s*6.28); cx.globalAlpha=.42;

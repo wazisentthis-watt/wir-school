@@ -122,3 +122,8 @@ A natural strings combo would then read: **pulse (Open) → ripple (Weave) → c
 - **Mini quests:** "Light the candle" (pull a candle → light it → fire-triangle quiz), then "Melt the ice cube" (→ latent-heat quiz). Items now emit `item:melt`.
 
 Tests: `node tests/v7.test.mjs` (34 checks).
+
+## v8
+- **Calmer fire**: fewer and smaller flames, slower spread. Fire on screen is capped (`FIRE.cap`, at most 2 burning objects). To put it out, curl your hand, make a fist, or hold your palm down over the flame; water mode douses it with steam.
+- **Element orb**: a golf-ball-sized orb rests just above your palm. Tilt your palm to roll it, and use your fingertips to nudge or twirl it (the spin marks show it turning). If you move fast without guiding it, it wobbles and drops, then respawns. A stability ring shows how steady it is. Tap the chip at the top right to cycle easy / normal / master / off. The charge-blast and the throw moves launch the orb. New lesson: "Lio of the Steady Palm".
+- **Detection**: frames are contrast-normalized, the detection threshold is lower (.2), and results go through temporal voting. Lite2 switches on automatically when fps allows (or use `?det=lite2`). Long-press an object to identify it: a CLIP guess plus a label picker, remembered per profile.

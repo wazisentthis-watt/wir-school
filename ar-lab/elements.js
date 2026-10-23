@@ -166,12 +166,12 @@ function drawKeeper(S,sc,dt){ const k=FX.Q, z=sc*.55*S.size, x=S.x, y=S.y;
   // v7: small warm halo only (additive glow was washing the flame out to white on bright scenes); heat shimmer above
   L.glow.spawn(x,y+z*.2,0,0,{c:[1,.4,.1],a:.18*S.bright,size:z*3.2,life:.06,field:0});
   FX.shimmer={x,y:y-z*.6,r:z*1.5}; FX.shimT=FX.t;
-  const n=Math.round((6+6*S.size+8*S.flicker)*k), up=150*S.height+40;
+  const n=Math.round((2+2.5*S.size+2.5*S.flicker)*k), up=110*S.height+30; // v8: much smaller keeper flame
   for(let i=0;i<n;i++){ let px=x+rnd(-.35,.35)*z, py=y+rnd(-.1,.3)*z, vx=rnd(-14,14)*(1+S.flicker*2)+S.lean*90, vy=-rnd(.7,1)*up;
     if(S.swirl>.05){ const a=S.spin+i*2.4, r=z*(.5+.6*S.swirl); px=x+Math.cos(a)*r; py=y+Math.sin(a)*r*.45; vx+=-Math.sin(a)*220*S.swirl; vy+=Math.cos(a)*60*S.swirl; }
     L.fire.spawn(px,py,vx,vy,{size:rnd(.5,.9)*z,grow:.7,life:rnd(.22,.36)*(.8+.4*S.height),curl:1+S.flicker,a:.85}); }
   // v7: licking tongues: thin, fast, leaning flame licks that break off the top
-  if(Math.random()<.6*k+S.flicker*.3) for(let i=0;i<2;i++){ const a=rnd(-.6,.6); L.flame.spawn(x+a*z*.5,y-z*.2,a*60+S.lean*120+rnd(-30,30),-rnd(1.1,1.6)*up,{size:z*rnd(.28,.45),grow:-.3,life:rnd(.18,.3),curl:2,a:.9}); }
+  if(Math.random()<.25*k+S.flicker*.15) for(let i=0;i<1;i++){ const a=rnd(-.6,.6); L.flame.spawn(x+a*z*.5,y-z*.2,a*60+S.lean*120+rnd(-30,30),-rnd(1.1,1.6)*up,{size:z*rnd(.28,.45),grow:-.3,life:rnd(.18,.3),curl:2,a:.9}); }
   // v7: rising embers (always a few)
   if(Math.random()<.35*k+S.sparks*.5) L.spark.spawn(x+rnd(-.4,.4)*z,y-z*.3,rnd(-40,40),-rnd(120,260),{c:[1,.45,.08],size:rnd(3,5),life:rnd(.6,1.2),grav:-40,curl:1.5});
   if(S.weave>.05) for(let i=0;i<3;i++){ const a=S.spin*1.7+i*2.09; L.flame.spawn(x+Math.cos(a)*z*.9,y+Math.sin(a)*z*.3,0,-80,{size:z*.35,life:.25,a:.7}); }
@@ -246,7 +246,7 @@ export function update(hands,dt){
   if(!hands.some(h=>h.g==='open')&&E.mode==='water') WATER.orb=null;
   if(MODES[E.mode]) combo(hands,dt);
   for(let i=E.q.length-1;i>=0;i--) if(FX.t>=E.q[i].t){ const f=E.q[i].f; E.q.splice(i,1); f(); }
-  if(E.mode==='fire') stepKeeper(hands,dt); else if(E.keeper) E.keeper=null;
+  if(E.mode==='fire'&&!E.orbOn) stepKeeper(hands,dt); else if(E.keeper&&E.mode!=='fire') E.keeper=null;
   if(MODES[E.mode]) stepCharge(hands,dt); stepBlasts(dt);
   stepEmber(dt); stepVortexFx(dt); }
 export function clearAll(){ WATER.n=0; WATER.orb=null; WATER.path=[]; for(const k of [...ROCKS]) rockCrumble(k); E.ember=null; E.vortex=null; E.keeper=null; E.blasts.length=0; FX.fields.length=0; airClear(); E.pair=null; for(const S of WATER.strands) S.on=false; }

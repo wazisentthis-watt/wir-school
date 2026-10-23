@@ -1,5 +1,6 @@
 /* WIR AR Lab particle engine: textured GPU sprites, curl noise, force fields, metaball water with
    camera refraction, CC0 rock meshes, wind streaks, bloom. Screen-pixel coords (y down). */
+import {FIRE} from './fire.js';
 import * as THREE from 'three';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
@@ -47,7 +48,7 @@ void main(){vec2 p=gl_PointCoord-.5;float c=cos(vR),s=sin(vR);p=mat2(c,-s,s,c)*p
  #include <colorspace_fragment>
 }`;
 class Layer{
-  constructor({map,max,add=true,heat=false,fin=.08,order=5,rate=1,lifeK=1,sizeK=1,aK=1,growK=1}){ Object.assign(this,{max,n:0,rate,lifeK,sizeK,aK,growK});
+  constructor({map,max,add=true,heat=false,fin=.08,order=5,rate=1,lifeK=1,sizeK=1,aK=1,growK=1}){ Object.assign(this,{max,n:0,rate,lifeK,sizeK,aK,growK,heat});
     const A=(k)=>new Float32Array(max*k);
     this.x=A(1);this.y=A(1);this.vx=A(1);this.vy=A(1);this.life=A(1);this.maxl=A(1);this.drag=A(1);this.grav=A(1);this.grow=A(1);this.spin=A(1);this.cu=A(1);this.base=A(1);this.fld=A(1);
     this.pos=A(3);this.col=A(4);this.sz=A(1);this.rot=A(1);this.age=A(1);
@@ -57,7 +58,7 @@ class Layer{
     this.mat=new THREE.ShaderMaterial({uniforms:{map:{value:map},dpr:{value:1},heat:{value:heat?1:0},add:{value:add&&!heat?1:0},fin:{value:fin},gain:{value:1},sat:{value:1},outline:{value:.35}},vertexShader:VS,fragmentShader:FS,
       transparent:true,depthTest:false,depthWrite:false,blending:add&&!heat?THREE.AdditiveBlending:THREE.NormalBlending});
     this.pts=new THREE.Points(g,this.mat); this.pts.frustumCulled=false; this.pts.renderOrder=order; }
-  spawn(x,y,vx,vy,o={}){ if(this.n>=this.max*FX.Q||(this.rate<1&&Math.random()>this.rate)) return -1; if(FX.clip&&this.clip&&!inClip(x,y)) return -1; const i=this.n++, c=o.c||[1,1,1];
+  spawn(x,y,vx,vy,o={}){ if(this.heat&&L.fire.n+L.flame.n>=FIRE.cap*FX.Q) return -1; if(this.n>=this.max*FX.Q||(this.rate<1&&Math.random()>this.rate)) return -1; if(FX.clip&&this.clip&&!inClip(x,y)) return -1; const i=this.n++, c=o.c||[1,1,1];
     this.x[i]=x;this.y[i]=y;this.vx[i]=vx;this.vy[i]=vy;this.life[i]=this.maxl[i]=(o.life||1)*this.lifeK;this.drag[i]=o.drag??.985;this.grav[i]=o.grav||0;
     this.grow[i]=(o.grow||0)*this.growK;this.spin[i]=o.spin??rnd(-2,2);this.cu[i]=o.curl||0;this.base[i]=(o.size||20)*this.sizeK;this.rot[i]=rnd(0,6.28);this.fld[i]=o.field??1;
     this.col[i*4]=c[0];this.col[i*4+1]=c[1];this.col[i*4+2]=c[2];this.col[i*4+3]=(o.a??1)*this.aK; return i; }
@@ -230,8 +231,8 @@ export function init(canvas,videoEl){ video=videoEl;
   const map=n=>tex(n);
   L.smoke=new Layer({map:map('kenney_smoke_03.png'),max:140,add:false,fin:.15,order:5,rate:.3,lifeK:.5,aK:.55,growK:.6});
   L.dust=new Layer({map:map('kenney_smoke_07.png'),max:280,add:false,fin:.1,order:5,rate:.6,lifeK:.65,aK:.8});
-  L.fire=new Layer({map:map('kenney_flame_02.png'),max:900,heat:true,order:6,rate:.5,lifeK:.75,sizeK:.8,growK:.7});
-  L.flame=new Layer({map:map('kenney_flame_04.png'),max:350,heat:true,order:6,rate:.6,lifeK:.8});
+  L.fire=new Layer({map:map('kenney_flame_02.png'),max:260,heat:true,order:6,rate:.35,lifeK:.55,sizeK:.6,growK:.5}); // v8: far less fire
+  L.flame=new Layer({map:map('kenney_flame_04.png'),max:80,heat:true,order:6,rate:.5,lifeK:.6,sizeK:.7});
   L.glow=new Layer({map:map('kenney_light_01.png'),max:400,order:7});
   L.spark=new Layer({map:map('kenney_spark_01.png'),max:500,order:7,fin:.02,rate:.6,lifeK:.8});
   L.magic=new Layer({map:map('kenney_twirl_02.png'),max:300,order:6});

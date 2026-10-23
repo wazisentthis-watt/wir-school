@@ -46,6 +46,13 @@ export const LESSONS={
   {ev:'blast:charge',say:'Both hands: heels together, fingers open like a bowl. Hold to charge.',ghost:t=>({x:W()*.5,y:Hh()*.6,g:{...OPEN,roll:-.6}})},
   {ev:'blast:release',say:'Clap to release. It launches as your hands close, before they meet.',ghost:t=>({x:W()*.5,y:Hh()*.6,g:{...OPEN,roll:-.6*Math.abs(Math.cos(t*2))}})},
  ]},
+ orb:{mode:'fire',teacher:'Lio of the Steady Palm',intro:'The orb is not glued to you. Feel its weight. Move slowly, guide it with your palm and fingers.',steps:[
+  {ev:'orb:hold',say:'Hold the orb: open palm up, keep the ring green for 3 seconds.',ghost:t=>({x:W()*.5,y:Hh()*.66,g:OPEN})},
+  {ev:'orb:roll',say:'Tilt your hand a little to one side: the orb rolls that way. Tilt back to catch it.',ghost:t=>({x:W()*.5,y:Hh()*.66,g:{...OPEN,roll:Math.sin(t*1.5)*.35}})},
+  {ev:'orb:carry',say:'Carry it: move your hand slowly left and right. Lean the palm into the move so it does not slide off.',ghost:t=>({x:W()*(.5+.18*Math.sin(t*1.2)),y:Hh()*.66,g:{...OPEN,roll:Math.cos(t*1.2)*.25}})},
+  {ev:'orb:twirl',say:'Twirl it: brush a fingertip across the top of the orb to spin it.',ghost:t=>({x:W()*.5,y:Hh()*.66,g:{n:[1,1,(t%1)<.5?1:.4,1,1]}})},
+  {ev:'orb:launch',say:'Send it: flick-open or push toward the camera. A new orb forms after a beat.',ghost:t=>({x:W()*.5,y:Hh()*.66,g:bloom(t)})},
+ ]},
  air:{teacher:'Tavi of the High Wind',intro:'Air never stops moving. Keep it turning.',steps:[
   {ev:'air:ball',say:'Jellyfish pulse (or a soft cup, or two palms close) to gather a ball of air.',ghost:t=>({x:W()*.5,y:Hh()*.6,g:pulse(t)})},
   {ev:'air:spin',say:'Spiral your wrist in circles, like spinning a basketball.',ghost:t=>({...circ(W()*.5,Hh()*.6,45)(t),g:CUP})},

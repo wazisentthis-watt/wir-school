@@ -2,6 +2,7 @@
    Simple material + temperature model (°C-ish). Drawn procedurally on a 2D canvas (no external assets). */
 import {FX,L,WATER,AIRB,rnd,waterSpawn,lightAt} from './fx.js';
 import {E} from './elements.js';
+import {dousing} from './fire.js';
 export const MAT={
  paper:{name:'Paper ball',icon:'📃',r:24,ign:230,burn:.22,flame:1,bounce:.25,mass:.3,ash:true},
  candle:{name:'Candle',icon:'🕯',r:26,ign:150,burn:.012,flame:.55,bounce:.1,mass:1,wick:true},
@@ -65,19 +66,21 @@ function thermal(t,dt){ const m=t.m, r=m.r*t.size;
     t.frozen=Math.max(0,Math.min(1,t.frozen+(t.temp<0?dt*.25:-dt*.3))); }
   if(t.wet>0&&!m.water) t.frozen=Math.max(0,Math.min(1,t.frozen+(t.temp<0?dt*.4:-dt*.5)))*(t.wet>.05?1:0);
   if(m.ign<1e8&&t.temp>m.ign&&t.wet<.15&&t.frozen<.2&&!t.lit){ t.lit=true; say(`The ${m.name.toLowerCase()} caught fire`); window.labEvent?.('item:lit:'+t.type); }
-  if(t.lit){ if(t.wet>.4||t.frozen>.5){ t.lit=false; steam(t,6); say('Hiss… put out'); }
+  if(t.lit){ let dz=0; for(const h of HS) if(h.palm) dz=Math.max(dz,dousing({x:h.palm.x,y:h.palm.y,s:h.scale,g:h.g,mv:h.mv,st:h.mvs},{x:t.x-r,y:t.y-r,w:2*r,h:2*r},E.mode)); if(dz){ t.dz=(t.dz||0)+dt*dz; if(t.dz>.35){ t.lit=false; t.dz=0; t.temp=Math.min(t.temp,m.ign-60); steam(t,5); say(E.mode==='water'?'Doused':'Smothered: no oxygen, no fire'); window.labEvent?.('fire:out'); } } else t.dz=0;
+    if(!t.lit){} else if(t.wet>.4||t.frozen>.5){ t.lit=false; steam(t,6); say('Hiss… put out'); }
     else { if(m.wick){ t.size=Math.max(.25,t.size-dt*m.burn); t.char=Math.min(.15,t.char+dt*.01); }
-      else { t.char=Math.min(1,t.char+dt*m.burn); t.curl=Math.min(1,t.curl+dt*m.burn*1.5); if(m.smoulder&&t.char>.5&&Math.random()<.02) t.temp-=10; }
+      else { t.char=Math.min(1,t.char+dt*m.burn*.5); t.curl=Math.min(1,t.curl+dt*m.burn*.75); /* v8: slower burn */ if(m.smoulder&&t.char>.5&&Math.random()<.02) t.temp-=10; }
       t.temp=Math.max(t.temp,m.ign+40);
       const f=m.flame*(m.ash?(1-t.char*.8):m.smoulder?(t.char>.6?.35:1):1), fx=m.wick?t.x:t.x, fy=m.wick?t.y-r*1.05:t.y-r*.4;
-      for(let i=0;i<(m.wick?2:5*f)*FX.Q;i++) L.fire.spawn(fx+rnd(-r,r)*(m.wick?.08:.45),fy,rnd(-12,12),-rnd(50,120)*(m.wick?.7:1),{size:rnd(10,20)*(m.wick?.8:f+.4),grow:.8,life:rnd(.2,.4),curl:m.wick?.4:1.2,a:.9});
+      for(let i=0;i<(m.wick?1:1.6*f)*FX.Q;i++) L.fire.spawn(fx+rnd(-r,r)*(m.wick?.08:.45),fy,rnd(-12,12),-rnd(50,120)*(m.wick?.7:1),{size:rnd(8,14)*(m.wick?.8:f*.7+.3),grow:.5,life:rnd(.18,.32),curl:m.wick?.4:1.2,a:.9});
       if(Math.random()<.06*f) L.smoke.spawn(fx,fy-10,rnd(-10,10),-rnd(40,80),{c:[.6,.58,.55],a:.15,size:rnd(30,50),grow:1.5,life:rnd(1,1.8),curl:1.2});
       if(m.smoulder&&Math.random()<.15) L.spark.spawn(t.x+rnd(-r,r)*.6,t.y+rnd(-r,r)*.4,rnd(-60,60),-rnd(60,160),{c:[1,.5,.2],size:5,life:.6,grav:200});
-      E.hot.push({x:fx,y:fy,r:r*.6}); lightAt(fx,fy,[1,.6,.25],m.wick?1:1.6);
+      E.hot.push({x:fx,y:fy,r:r*.35}); /* v8: slower spread */ lightAt(fx,fy,[1,.6,.25],m.wick?1:1.6);
       if(m.ash&&t.char>=1){ for(let i=0;i<14;i++) L.dust.spawn(t.x+rnd(-r,r)*.5,t.y+rnd(-r,r)*.5,rnd(-60,60),rnd(-120,0),{c:[.35,.34,.33],size:rnd(3,7),life:rnd(1,2),grav:120,a:.8,drag:.97}); t.dead=true; say(`The ${m.name.toLowerCase()} burned to ash`); window.labEvent?.('item:ash'); } } }
   if(m.metal&&t.temp>400&&Math.random()<.05) lightAt(t.x,t.y,[1,.4,.15],(t.temp-400)/300); }
 function steam(t,n){ for(let i=0;i<n;i++) L.smoke.spawn(t.x+rnd(-10,10),t.y-t.m.r*.6,rnd(-20,20),-rnd(60,120),{c:[.92,.94,.97],a:.18,size:rnd(20,36),grow:1.8,life:rnd(.8,1.4),curl:1.5}); }
-export function update(hs,dt){ if(!cx) return; handle(hs||[],dt);
+let HS=[];
+export function update(hs,dt){ if(!cx) return; HS=hs||[]; handle(hs||[],dt);
   for(const t of IT.items){ physics(t,dt,hs||[]); thermal(t,dt); } IT.items=IT.items.filter(t=>!t.dead&&!(t.m.ice&&t.size<=.05));
   draw(); }
 export function zones(){ return IT.items.map(t=>({x:t.x-t.m.r,y:t.y-t.m.r,w:t.m.r*2,h:t.m.r*2,up:90})); }
