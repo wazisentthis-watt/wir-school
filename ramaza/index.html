@@ -1519,7 +1519,7 @@ ${AMU_CLASSES.map((c,i)=>`<button class="alt" data-m="${i}">${c.name}</button>`)
   ent(g,{name:"Oscar's AR Safe Lab door (separate, PROPOSAL)",verb(){ return 'Open'; },use(){ openPanel(`<h2>🥕 Oscar's AR Safe Lab</h2><p style="font-size:12px">A separate door off the hall for Oscar. Its own page, its own rules. PROPOSAL.</p><a href="../ar-lab/" target="_top" style="color:#ffb060">Go to AR Safe Lab ▶</a>`); return true; }}); targetsDirty=true; }
 
 // ===== v7 app-quality layer (reliability, mobile, perf, save, a11y, sound). No new HUD text. =====
-const PREF_K='wirLabPrefs'; const SAFE_LS={get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } }, set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ return false; } }};
+const PROFS=(()=>{ try{ return JSON.parse(localStorage.getItem('wirProfiles'))||{list:[],cur:null}; }catch(e){ return {list:[],cur:null}; } })(); const PSUF=PROFS.cur?':'+PROFS.cur:''; const PREF_K='wirLabPrefs'+PSUF; const SAFE_LS={get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } }, set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); return true; }catch(e){ return false; } }};
 const PREFS=Object.assign({sound:true,big:false,contrast:false,lowpower:false,voice:false,haptics:true,resume:true},SAFE_LS.get(PREF_K,{}));
 function savePrefs(){ SAFE_LS.set(PREF_K,PREFS); }
 const DIAG={errs:[],fps:0,pr:renderer.getPixelRatio()};
@@ -1569,9 +1569,9 @@ document.addEventListener('visibilitychange',()=>{ if(document.hidden){ hidT=set
   else { clearTimeout(hidT); if(HANDS.on){ HANDS.video?.play?.().catch(()=>{}); wakeOn(); } } });
 { const st0=startHands; startHands=async function(){ const r=await st0(); if(HANDS.on) wakeOn(); else { try{ wake?.release(); }catch(e){} } handsDot(); return r; }; }
 // 10. saved progress: position, look, Five-Stack, prefs; restore on entry
-function persist(){ if(!PREFS.resume) return; SAFE_LS.set('wirLabSave',{v:1,x:cam.position.x,z:cam.position.z,yaw,pitch,stack:ATT.stack||null,t:Date.now()}); }
+function persist(){ if(!PREFS.resume) return; SAFE_LS.set('wirLabSave'+PSUF,{v:1,x:cam.position.x,z:cam.position.z,yaw,pitch,stack:ATT.stack||null,t:Date.now()}); }
 addEventListener('pagehide',persist); setInterval(persist,15000);
-{ const s=SAFE_LS.get('wirLabSave',null); if(PREFS.resume&&s&&s.v===1&&Math.abs(s.x)<RW&&Math.abs(s.z)<RD){ cam.position.x=s.x; cam.position.z=s.z; yaw=s.yaw||0; pitch=s.pitch||0; if(s.stack) ATT.stack=s.stack; } }
+{ const s=SAFE_LS.get('wirLabSave'+PSUF,null); if(PREFS.resume&&s&&s.v===1&&Math.abs(s.x)<RW&&Math.abs(s.z)<RD){ cam.position.x=s.x; cam.position.z=s.z; yaw=s.yaw||0; pitch=s.pitch||0; if(s.stack) ATT.stack=s.stack; } }
 // 11. first-visit onboarding without words: pulse the ? button
 if(!SAFE_LS.get('wirSeenHelp',false)) helpB.classList.add('pulse');
 helpB.addEventListener('click',()=>{ helpB.classList.remove('pulse'); SAFE_LS.set('wirSeenHelp',true); });
@@ -1582,7 +1582,7 @@ function openSettings(){ const row=(k,l)=>`<button data-p="${k}" class="${PREFS[
   openPanel(`<h2>⚙ Settings</h2><div style="display:flex;flex-wrap:wrap;gap:6px">${row('sound','Sounds')}${row('voice','Domowaye speaks aloud')}${row('haptics','Vibration')}${row('big','Big text')}${row('contrast','High contrast')}${row('lowpower','Battery saver')}${row('resume','Remember where I was')}</div>
   <p style="font-size:12px">Saved only on this device. The camera picture is never shown, saved or sent; only hand points are used, on this phone.</p><button id="wipe" class="alt">🗑 Reset my lab progress</button>`);
   panel.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{ const k=b.dataset.p; PREFS[k]=!PREFS[k]; savePrefs(); applyPrefs(); if(k==='lowpower') renderer.setPixelRatio(PREFS.lowpower?.75:Math.min(1.5,devicePixelRatio)); openSettings(); });
-  $('wipe').onclick=()=>{ if(!confirm('Reset lab position, Five-Stack and settings? (Your wirBricks school bricks are kept.)')) return; ['wirLabSave',PREF_K,'wirSeenHelp','wirHandsTut','wirLabLastErr'].forEach(k=>{ try{localStorage.removeItem(k);}catch(e){} }); location.reload(); }; }
+  $('wipe').onclick=()=>{ if(!confirm('Reset lab position, Five-Stack and settings? (Your wirBricks school bricks are kept.)')) return; ['wirLabSave'+PSUF,PREF_K,'wirSeenHelp','wirHandsTut','wirLabLastErr'].forEach(k=>{ try{localStorage.removeItem(k);}catch(e){} }); location.reload(); }; }
 function openDiag(){ const gl=!!renderer.getContext(); const ok=b=>b?'✅':'❌';
   openPanel(`<h2>🩺 Device check</h2><div style="font-size:13px;line-height:1.6">${ok(isSecureContext)} Secure link (https)<br>${ok(!!navigator.mediaDevices?.getUserMedia)} Camera access<br>${ok(gl)} 3D graphics<br>${ok(!!SR)} Voice input (Go Live)<br>${ok(!!window.speechSynthesis)} Voice output<br>${ok((()=>{try{localStorage.setItem('_t','1');localStorage.removeItem('_t');return true;}catch(e){return false;}})())} Saving progress<br>
   Hands: ${HANDS.on?'on ('+HANDS.delegate+')':HANDS.starting?'starting…':'off'} · frames ${HANDS.frames||0}<br>Speed: ${DIAG.fps} fps · quality ${DIAG.pr.toFixed(2)}${IOS?' · iPhone/iPad':''}<br>
@@ -1596,6 +1596,141 @@ canvas.addEventListener('webglcontextlost',e=>{ e.preventDefault(); DIAG.errs.pu
 { const tv=$('tVoice'); if(tv){ const o=tv.onclick; tv.onclick=()=>{ o(); PREFS.voice=T.voice; savePrefs(); }; } }
 // 17. expose for tests
 setTimeout(()=>Object.assign(window.WIRLAB,{PREFS,DIAG,openSettings,openDiag,persist}),0);
+
+// ===== v8 navigation: in-world labels, Go-to map, easier pressing, clear Back. Labels are world objects (paper + ink, PMM style). =====
+const NAV={labels:[],dests:[],near:null,glide:null};
+const nmE=e=>(typeof e.name==='function'?e.name():e.name)||'';
+const SHORT=[[/AMU's Octo-Matrix/,'AMU Wing · BMM','amu'],[/AR Safe Lab/,"Oscar's AR Safe Lab",'oscar'],[/Greenhouse/,"Oscar's Greenhouse",'oscar'],
+ [/^HELP call/,'HELP','help'],[/^Professor/,'Professor','help'],[/safety poster/,'Safety poster','help'],[/Lab Dex/,'Lab Dex moves','help'],[/safety shower/,'Safety shower','help'],[/eyewash/,'Eyewash','help'],
+ [/Domowaye \(teacher\)/,'Domowaye','help'],[/lab entrance door/,'Entrance','hall'],[/gloves \(M\)/,'Gloves','ppe'],[/^lab coat/,'Lab coat','ppe'],[/^safety goggles/,'Goggles','ppe'],
+ [/^sink/,'Sink','lab'],[/fridge door/,'Fridge','lab'],[/freezer drawer/,'Freezer','lab'],[/sample box/,'Sample box','lab'],[/^Bunsen/,'Bunsen burner','lab'],[/hot plate surface/,'Hot plate','lab'],[/fume hood sash/,'Fume hood','lab'],
+ [/^SOP card · (.*)/,'How-to','sop']];
+const STN_SHORT={vortex:'Vortex',stain:'Staining',spectro:'Spectrometer',scope:'Microscope',scale:'Scale',pipette:'Pipettes',pcr:'PCR',meter:'pH meter',heat:'Heat block',gel:'Gel',column:'Spin columns',centrifuge:'Centrifuge'};
+function labelTex(text,kind){ const c=document.createElement('canvas'); const x=c.getContext('2d'); const fs=56; x.font=`bold ${fs}px Georgia`; const w=Math.ceil(x.measureText(text).width)+56; c.width=w; c.height=fs+40;
+  const amu=kind==='amu', osc=kind==='oscar', help=kind==='help';
+  x.fillStyle=amu?'#2a1440':osc?'#fff1df':'#f3ead8'; x.strokeStyle=amu?'#b070ff':osc?'#c0601a':help?'#a02a20':'#2a1e16'; x.lineWidth=6;
+  const r=18; x.beginPath(); x.roundRect?x.roundRect(3,3,w-6,c.height-6,r):x.rect(3,3,w-6,c.height-6); x.fill(); x.stroke();
+  x.font=`bold ${fs}px Georgia`; x.fillStyle=amu?'#efe0ff':help?'#8a1d15':'#2a1e16'; x.textBaseline='middle'; x.fillText(text,28,c.height/2+2);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return {t,aspect:w/c.height}; }
+function buildLabels(){ NAV.labels.forEach(l=>scene.remove(l.s)); NAV.labels=[]; NAV.dests=[];
+  for(const e of ents){ if(!e.use||e.pick||!e.obj) continue; let short=null,kind='lab';
+    if(e.kind==='station'&&e.key){ short=STN_SHORT[e.key]||nmE(e).split(' ')[0]; kind='station'; }
+    else for(const [re,s,k] of SHORT){ if(re.test(nmE(e))){ short=s; kind=k; break; } }
+    if(!short) continue;
+    const bb=new THREE.Box3().setFromObject(e.obj); if(bb.isEmpty()) continue; const c=bb.getCenter(new THREE.Vector3());
+    const {t,aspect}=labelTex(short,kind); const sop=kind==='sop';
+    const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthTest:true,toneMapped:false})); const h=sop?.08:.19; s.scale.set(h*aspect,h,1);
+    s.position.set(c.x,Math.min(RH-.15,bb.max.y+(sop?.06:.14)),c.z); s.userData.noRay=true; s.userData.labelOf=e; s.renderOrder=5; scene.add(s);
+    const L={s,e,short,kind,base:s.scale.clone(),pos:c.clone()}; NAV.labels.push(L);
+    if(kind!=='sop') NAV.dests.push(L); }
+  NAV.dests.sort((a,b)=>({hall:0,amu:1,oscar:2,help:3,ppe:4,station:5,lab:6}[a.kind]-({hall:0,amu:1,oscar:2,help:3,ppe:4,station:5,lab:6}[b.kind]))||a.short.localeCompare(b.short)); }
+setTimeout(buildLabels,50);
+// distance fade + gentle highlight on the nearest pressable thing in view
+function pressCandidate(maxD=2.6,cone=.86){ const dir=new THREE.Vector3(); cam.getWorldDirection(dir); let best=null,bs=-1;
+  for(const L of NAV.labels){ const v=L.pos.clone().sub(cam.position); const d=v.length(); if(d>maxD) continue; const dot=v.normalize().dot(dir); if(dot<cone) continue; const sc=dot-d*.04; if(sc>bs){ bs=sc; best=L; } } return best; }
+function navTick(dt){ const near=panelOpen?null:pressCandidate(); NAV.near=near;
+  for(const L of NAV.labels){ const d=L.s.position.distanceTo(cam.position); const far=L.kind==='sop'?3:7; const op=Math.max(0,Math.min(1,(far-d)/(L.kind==='sop'?1.2:2.5)));
+    const tooClose=d<1.1&&L.kind!=='sop'; L.s.material.opacity=tooClose?0:L===near?1:op*.9; L.s.visible=!tooClose&&(op>0.02||L===near); const k=L===near?1.25+Math.sin(performance.now()/260)*.04:1; L.s.scale.set(L.base.x*k,L.base.y*k,1); }
+  if(NAV.glide){ const g=NAV.glide; g.t+=dt/g.dur; const k=Math.min(1,g.t), e=k*k*(3-2*k); cam.position.x=g.x0+(g.x1-g.x0)*e; cam.position.z=g.z0+(g.z1-g.z0)*e;
+    let dy=g.y1-g.y0; dy=Math.atan2(Math.sin(dy),Math.cos(dy)); yaw=g.y0+dy*e; pitch=g.p0+(g.p1-g.p0)*e; if(k>=1){ NAV.glide=null; g.done?.(); } } }
+{ const ht=handsTick; handsTick=function(dt){ navTick(dt); return ht(dt); }; }
+// bigger press radius: if the centre ray hits nothing pressable, use the nearest labelled thing in view
+{ const oi=interact; interact=function(){ if(panelOpen) return; const hit=aim(); const e=hit&&entOf(hit.object); if((!e||(!e.use&&!e.pick))&&!held&&NAV.near){ return openDest(NAV.near,false); } return oi(); }; }
+function openDest(L,move=true){ const e=L.e; const fire=()=>{ try{ e.use({object:e.obj,point:L.pos.clone()}); }catch(err){ console.warn(err); } hudRefresh(); };
+  if(!move) return fire();
+  const to=new THREE.Vector3(0,0,0).sub(L.pos); to.y=0; if(to.length()<.01) to.set(0,0,1); to.normalize();
+  let x=L.pos.x+to.x*1.25, z=L.pos.z+to.z*1.25; x=Math.max(-RW+.45,Math.min(RW-.45,x)); z=Math.max(-RD+.45,Math.min(RD-.45,z));
+  const y1=Math.atan2(-(L.pos.x-x),-(L.pos.z-z)); const p1=Math.atan2(L.pos.y-1.65,Math.hypot(L.pos.x-x,L.pos.z-z));
+  NAV.glide={t:0,dur:.7,x0:cam.position.x,z0:cam.position.z,x1:x,z1:z,y0:yaw,y1,p0:pitch,p1:Math.max(-1,Math.min(.6,p1)),done:fire}; }
+function goHall(){ NAV.glide={t:0,dur:.7,x0:cam.position.x,z0:cam.position.z,x1:-3.4,z1:3.3,y0:yaw,y1:0,p0:pitch,p1:-.08}; }
+// tap a label (or anything) on screen to open it
+{ let d0=null; canvas.addEventListener('pointerdown',e=>{ d0={x:e.clientX,y:e.clientY,t:performance.now()}; });
+  canvas.addEventListener('pointerup',e=>{ if(!d0||panelOpen) return; const moved=Math.hypot(e.clientX-d0.x,e.clientY-d0.y), dt=performance.now()-d0.t; d0=null; if(moved>12||dt>350) return; if(document.pointerLockElement) return;
+    const ndc=new THREE.Vector2(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1); const rc=new THREE.Raycaster(); rc.setFromCamera(ndc,cam);
+    const hits=rc.intersectObjects(NAV.labels.filter(l=>l.s.visible).map(l=>l.s),false); if(hits.length&&hits[0].distance<8){ const L=hits[0].object.userData.labelOf&&NAV.labels.find(l=>l.e===hits[0].object.userData.labelOf); if(L){ L.s.position.distanceTo(cam.position)<2.8?openDest(L,false):openDest(L); } } }); }
+// map button (same small style as ?), top-down map + list
+const mapB=document.createElement('canvas'); mapB.id='mapBtn'; mapB.width=120; mapB.height=96; mapB.setAttribute('aria-label','Map: tap to go to a place'); mapB.setAttribute('role','button'); document.body.appendChild(mapB);
+function drawMini(){ const x=mapB.getContext('2d'),W=120,H=96; x.clearRect(0,0,W,H); x.fillStyle='rgba(239,230,210,.82)'; x.fillRect(0,0,W,H); x.strokeStyle='#2a1e16'; x.lineWidth=2; x.strokeRect(1,1,W-2,H-2);
+  const px=v=>(v+RW)/(2*RW)*(W-8)+4, pz=v=>(v+RD)/(2*RD)*(H-8)+4;
+  for(const L of NAV.dests){ x.fillStyle=L.kind==='amu'?'#6b2fa0':L.kind==='oscar'?'#c0601a':L.kind==='help'?'#a02a20':'#2c3570'; x.beginPath(); x.arc(px(L.pos.x),pz(L.pos.z),L===NAV.near?3.6:2.3,0,7); x.fill(); }
+  const cx=px(cam.position.x),cz=pz(cam.position.z); const fx=-Math.sin(yaw),fz=-Math.cos(yaw); x.fillStyle='#1f7a4d'; x.beginPath(); x.moveTo(cx+fx*7,cz+fz*7); x.lineTo(cx-fz*4,cz+fx*4); x.lineTo(cx+fz*4,cz-fx*4); x.fill();
+  if(window.PROF_POS){ x.fillStyle='#8a6a3a'; x.beginPath(); x.arc(px(PROF_POS.x),pz(PROF_POS.z),2.6,0,7); x.fill(); } }
+setInterval(drawMini,200);
+
+{ const c=document.createElement('style'); c.textContent=`#mapBtn{position:fixed;left:50%;transform:translateX(-50%);top:calc(6px + env(safe-area-inset-top));width:84px;height:67px;border-radius:8px;z-index:31;cursor:pointer;opacity:.9}body.panelopen #mapBtn{display:none}
+#panel .xclose{position:sticky;top:0;float:right;margin:-4px -4px 0 6px;width:44px;height:44px;border-radius:50%;font-size:20px;padding:0;z-index:2}
+.mapsvg{width:100%;max-width:360px;display:block;margin:4px auto;background:#efe6d2;border:2px solid #2a1e16;border-radius:10px;touch-action:manipulation}
+.dl{display:flex;flex-wrap:wrap;gap:4px}.dl button{font-size:13px;padding:8px 10px;min-height:40px}.dl .amu{background:#6b2fa0;color:#fff}.dl .oscar{background:#c0601a;color:#fff}.dl .help{background:#a02a20;color:#fff}`; document.head.appendChild(c); }
+const KIND_T={hall:'Hall',amu:'AMU wing',oscar:"Oscar's wings",help:'Help',ppe:'Gear (PPE)',station:'Stations',lab:'Lab things'};
+function openMap(){ const W=360,H=W*RD/RW; const px=x=>(x+RW)/(2*RW)*(W-30)+15, pz=z=>(z+RD)/(2*RD)*(H-30)+15;
+  const dots=NAV.dests.map((L,i)=>`<g data-d="${i}" style="cursor:pointer"><circle cx="${px(L.pos.x).toFixed(1)}" cy="${pz(L.pos.z).toFixed(1)}" r="8" fill="${L.kind==='amu'?'#6b2fa0':L.kind==='oscar'?'#c0601a':L.kind==='help'?'#a02a20':'#2c3570'}"/><title>${L.short}</title></g>`).join('');
+  const me=`<circle cx="${px(cam.position.x)}" cy="${pz(cam.position.z)}" r="6" fill="#1f7a4d" stroke="#fff" stroke-width="2"/>`;
+  const groups=Object.keys(KIND_T).map(k=>{ const ls=NAV.dests.map((L,i)=>[L,i]).filter(([L])=>L.kind===k); return ls.length?`<h3 style="margin:8px 0 3px;font-size:14px">${KIND_T[k]}</h3><div class="dl">${ls.map(([L,i])=>`<button data-d="${i}" class="${k}">${L.short}</button>`).join('')}</div>`:''; }).join('');
+  openPanel(`<h2>🗺 Go to</h2><button data-home="1">🏠 Back to hall</button><svg class="mapsvg" viewBox="0 0 ${W} ${H.toFixed(0)}"><rect x="1" y="1" width="${W-2}" height="${(H-2).toFixed(0)}" fill="none" stroke="#2a1e16" stroke-width="2"/>${dots}${me}</svg>${groups}`);
+  panel.querySelectorAll('[data-d]').forEach(b=>b.addEventListener('click',()=>{ const L=NAV.dests[+b.dataset.d]; closePanel(); openDest(L); }));
+  panel.querySelector('[data-home]').onclick=()=>{ closePanel(); goHall(); }; }
+mapB.onclick=openMap; addEventListener('keydown',e=>{ if(!panelOpen&&e.code==='KeyM'&&e.shiftKey) openMap(); });
+// one obvious close on every panel
+{ const op=openPanel; openPanel=function(h){ op(h); const x=document.createElement('button'); x.className='xclose'; x.textContent='✕'; x.setAttribute('aria-label','Close'); x.onclick=closePanel; panel.prepend(x); }; }
+setTimeout(()=>Object.assign(window.WIRLAB,{NAV,openMap,openDest,goHall,buildLabels,navTick}),0);
+
+// ===== v8 Professor guide (PROPOSAL, unnamed) + local student profiles. Matte materials only: no glow. =====
+// --- local profiles (no password, no server) ---
+function saveProfs(){ try{ localStorage.setItem('wirProfiles',JSON.stringify(PROFS)); }catch(e){} }
+function openProfiles(){ const cur=PROFS.cur;
+  openPanel(`<h2>👤 Who's in the lab?</h2><p style="font-size:12px">Pick your name so your progress saves separately. <b>Local only:</b> names stay on this device. No password, no account, nothing sent anywhere.</p>
+  <div class="dl">${PROFS.list.map(n=>`<button data-pf="${encodeURIComponent(n)}" class="${n===cur?'':'alt'}">${n===cur?'✔ ':''}${n.replace(/[<>&"]/g,'')}</button>`).join('')}</div>
+  <div style="display:flex;gap:6px;margin-top:8px"><input id="pfName" type="text" maxlength="20" placeholder="Nickname (no real full name needed)" style="flex:1;font:inherit;padding:8px;border-radius:8px"><button id="pfAdd">Add</button></div>
+  <button id="pfGuest" class="alt" style="margin-top:6px">Play as guest</button>`);
+  panel.querySelectorAll('[data-pf]').forEach(b=>b.onclick=()=>pickProfile(decodeURIComponent(b.dataset.pf)));
+  $('pfAdd').onclick=()=>{ const n=($('pfName').value||'').trim().replace(/[<>&"]/g,'').slice(0,20); if(!n) return; if(!PROFS.list.includes(n)) PROFS.list.push(n); pickProfile(n); };
+  $('pfGuest').onclick=()=>{ try{ sessionStorage.setItem('wirGuest','1'); }catch(e){} if(PROFS.cur){ PROFS.cur=null; saveProfs(); location.reload(); } else closePanel(); }; }
+function pickProfile(n){ if(n===PROFS.cur){ closePanel(); return; } persist(); PROFS.cur=n; saveProfs(); location.reload(); }
+$('go')?.addEventListener('click',()=>{ let g=false; try{ g=sessionStorage.getItem('wirGuest')==='1'; }catch(e){} if(!PROFS.cur&&!g&&!navigator.webdriver) setTimeout(openProfiles,700); });
+// --- Professor character ---
+const PROF={g:new THREE.Group(),pos:new THREE.Vector3(-2.6,0,3.0),step:-1,idle:0,arm:null,bubT:0,said:0};
+{ const g=PROF.g, tweed=new THREE.MeshStandardMaterial({color:0x6b5434,roughness:.95}), skin=new THREE.MeshStandardMaterial({color:0x7a4a2a,roughness:.9}), paper=new THREE.MeshStandardMaterial({color:0xe9e0c8,roughness:1});
+  const body=new THREE.Mesh(new THREE.CylinderGeometry(.2,.24,1.1,12),tweed); body.position.y=.85; g.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.15,14,10),skin); head.position.y=1.58; g.add(head);
+  const brow=new THREE.Mesh(new THREE.BoxGeometry(.22,.03,.02),new THREE.MeshStandardMaterial({color:0xdddddd,roughness:1})); brow.position.set(0,1.63,.14); g.add(brow);
+  const board=new THREE.Mesh(new THREE.BoxGeometry(.22,.28,.02),paper); board.position.set(-.24,1.0,.12); g.add(board);
+  const arm=new THREE.Group(); arm.position.set(.22,1.3,0); const a=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.5,8),tweed); a.rotation.x=Math.PI/2; a.position.z=.25; arm.add(a); g.add(arm); PROF.arm=arm;
+  g.position.copy(PROF.pos); scene.add(g); }
+const pbub=document.createElement('div'); pbub.id='pbub'; pbub.style.cssText='position:fixed;max-width:230px;background:#f3ead8;color:#2a1e16;border:2px solid #6b5434;border-radius:10px;padding:5px 8px;font:12px Georgia,serif;pointer-events:none;display:none;z-index:11;transform:translate(-50%,-100%)'; document.body.appendChild(pbub);
+{ const c=document.createElement('style'); c.textContent='body.panelopen #pbub{display:none!important}'; document.head.appendChild(c); }
+function profSay(t){ pbub.textContent='🎓 '+t; PROF.bubT=Math.min(10,4+t.length/22); if(PREFS.voice&&window.speechSynthesis){ try{ speechSynthesis.cancel(); const u=new SpeechSynthesisUtterance(t); u.rate=.95; u.pitch=.8; speechSynthesis.speak(u); }catch(e){} } PROF.lastSaid=t; }
+// --- protocols with fading guidance ---
+const PROT_K='wirProto'+PSUF; const MAST=SAFE_LS.get(PROT_K,{});
+const PROTO={id:'safeStart',title:'Safe lab start',steps:[
+ {k:'goggles',t:'Goggles',say:"Goggles first, always. They're on the gear rack by the door. Tap them.",done:()=>st.ppe.goggles},
+ {k:'gloves',t:'Gloves',say:"Now gloves. Pick your size from the glove boxes.",done:()=>st.ppe.gloves},
+ {k:'coat',t:'Lab coat',say:"Lab coat on. It catches splashes before your clothes do.",done:()=>st.ppe.coat},
+ {k:'check',t:'station',say:"Good. Now check a station before you use it. Walk up and open one.",done:()=>RUN.checked},
+ {k:'clean',t:'Gloves',say:"Clean up: take your gloves off when you're done, and wash up at the sink.",done:()=>RUN.checked&&!st.ppe.gloves}]};
+const RUN={checked:false,mistakes:0,done:false,idx:0};
+function mast(){ return MAST[PROTO.id]||(MAST[PROTO.id]={runs:0,mistakes:0}); }
+function level(){ const r=mast().runs; return r<1?'guide':r<3?'remind':'watch'; }
+for(const k of Object.keys(STATIONS)){ const s=STATIONS[k]; if(typeof s.open!=='function') continue; const o=s.open; s.open=function(...a){ if(k!=='ppe'){ const miss=['goggles','gloves'].filter(x=>!st.ppe[x]); if(miss.length){ RUN.mistakes++; mast().mistakes++; SAFE_LS.set(PROT_K,MAST); if(level()!=='watch') profSay(`Hold on: ${miss.join(' and ')} first. Safety before science.`); } else RUN.checked=true; } return o.apply(this,a); }; }
+function targetPos(step){ if(!step) return null; if(step.t==='station'){ const d=NAV.dests.filter(l=>l.kind==='station').sort((a,b)=>a.pos.distanceTo(cam.position)-b.pos.distanceTo(cam.position))[0]; return d&&d.pos; } const L=NAV.dests.find(l=>l.short===step.t); return L&&L.pos; }
+function profTick(dt){ // walk alongside the student
+  const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw)), fwd=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+  const want=new THREE.Vector3(cam.position.x,0,cam.position.z).addScaledVector(right,1.1).addScaledVector(fwd,.15); want.x=Math.max(-RW+.4,Math.min(RW-.4,want.x)); want.z=Math.max(-RD+.4,Math.min(RD-.4,want.z));
+  const d=want.clone().sub(PROF.pos); const dl=d.length(); if(dl>.15) PROF.pos.addScaledVector(d.normalize(),Math.min(dl,dt*(dl>3?4:1.8)));
+  PROF.g.position.copy(PROF.pos); window.PROF_POS=PROF.pos;
+  let j=RUN.idx||0; while(j<PROTO.steps.length&&PROTO.steps[j].done()) j++; RUN.idx=j; const i=j>=PROTO.steps.length?-1:j; const step=PROTO.steps[i]; const tp=targetPos(step); const lv=level();
+  if(tp&&lv!=='watch'){ const lp=tp.clone(); PROF.g.lookAt(lp.x,0,lp.z); PROF.arm.lookAt(lp); } else PROF.g.lookAt(cam.position.x,0,cam.position.z);
+  if(i!==PROF.step){ PROF.step=i; PROF.idle=0; if(i>=0&&lv==='guide') profSay(step.say); if(i<0&&!RUN.done){ RUN.done=true; const m=mast(); if(RUN.mistakes===0) m.runs++; SAFE_LS.set(PROT_K,MAST); if(lv!=='watch') profSay(RUN.mistakes?'Protocol done. Next time try it with no slips.':m.runs>=3?"Clean run. You don't need me for this one any more; I'll just watch.":'Clean run. Well done.'); } }
+  else if(i>=0&&lv==='guide'){ PROF.idle+=dt; if(PROF.idle>25){ PROF.idle=0; profSay(step.say); } }
+  if(PROF.bubT>0){ PROF.bubT-=dt; const hp=new THREE.Vector3(PROF.pos.x,1.95,PROF.pos.z).project(cam); const vis=hp.z<1&&Math.abs(hp.x)<1.1&&Math.abs(hp.y)<1.1; pbub.style.display=vis?'block':'none'; if(vis){ pbub.style.left=((hp.x+1)/2*innerWidth)+'px'; pbub.style.top=((1-hp.y)/2*innerHeight)+'px'; } } else pbub.style.display='none';
+  const L=NAV.labels.find(l=>l.e===PROF.ent); if(L){ L.pos.set(PROF.pos.x,1.6,PROF.pos.z); L.s.position.set(PROF.pos.x,1.95,PROF.pos.z); } }
+PROF.ent=ent(PROF.g,{name:'Professor (guide, PROPOSAL)',verb(){ return 'Talk'; },use(){ const m=mast();
+  openPanel(`<h2>🎓 Professor</h2><p style="font-size:12px"><b>PROPOSAL</b> guide character, not named in canon. Coaches lab safety protocols and steps back as you master them.</p><h3 style="font-size:14px;margin:6px 0">${PROTO.title}</h3>${PROTO.steps.map(s=>`<div>${PROTO.steps.indexOf(s)<RUN.idx?'✅':'⬜'} ${s.k==='check'?'Check a station':s.k==='clean'?'Clean up (gloves off)':s.t}</div>`).join('')}<p style="font-size:12px">Clean runs: ${m.runs} · Coaching: <b>${{guide:'every step',remind:'only at mistakes',watch:'just watching'}[level()]}</b>${PROFS.cur?' · Student: '+PROFS.cur.replace(/[<>&"]/g,''):' · Guest'}</p><button id="pfReset" class="alt">Start the protocol over</button>`);
+  $('pfReset').onclick=()=>{ RUN.checked=false; RUN.mistakes=0; RUN.done=false; RUN.idx=0; PROF.step=-2; ['gloves','coat','goggles'].forEach(k=>st.ppe[k]=false); closePanel(); }; return true; }});
+targetsDirty=true;
+{ const nt=navTick; navTick=function(dt){ nt(dt); profTick(dt); }; }
+// menu: student + professor buttons
+{ const oh=openHelp; openHelp=function(){ oh(); const d=panel.querySelector('div[style*="flex-wrap"]'); if(d){ d.insertAdjacentHTML('afterbegin',`<button data-x="pf" class="alt">👤 ${PROFS.cur?PROFS.cur.replace(/[<>&"]/g,''):'Student'}</button><button data-x="map" class="alt">🗺 Go to</button>`); d.querySelector('[data-x="pf"]').onclick=openProfiles; d.querySelector('[data-x="map"]').onclick=openMap; } }; }
+setTimeout(()=>Object.assign(window.WIRLAB,{PROF,PROTO,RUN,MAST,level,openProfiles,profTick,PROFS}),0);
 
 hudRefresh(); loop();
 window.WIRLAB={st,STATIONS,LIB,cam,items,HP,HB,FR,CF,fires,inv,beaker,get held(){return held;},
