@@ -94,7 +94,14 @@ function lookup(el, target){
 
 /* ---------- state ---------- */
 const S = {cursor:{x:innerWidth/2,y:innerHeight/2}, held:null, loads:{}, facing:'environment',
-  low:false, stream:null, landmarker:null, handSeen:false, pinch:false, palmT:0, busy:false, src:'touch'};
+  low:false, stream:null, landmarker:null, handSeen:false, pinch:false, palmT:0, busy:false, src:'touch', boost:'auto', boostOn:false, luma:128, pinchOn:.35, pinchOff:.55, lostT:0, calib:null};
+try{const c=JSON.parse(localStorage.getItem('wirlab.calib')||'null'); if(c){S.pinchOn=c.on;S.pinchOff=c.off;}}catch{}
+/* progressive unlock: Cu,Fe open after the gate; Mg after 2 reactions; Na after 4; K after 6 */
+const UNLOCK={Cu:0,Fe:0,Mg:2,Na:4,K:6};
+const LS='wirlab.v1', gst=()=>JSON.parse(localStorage.getItem(LS)||'{}');
+const doneN=()=>(gst().done||[]).length;
+function markDone(k){const g=gst(); g.done=[...new Set([...(g.done||[]),k])]; localStorage.setItem(LS,JSON.stringify(g)); refreshLocks();}
+function refreshLocks(){document.querySelectorAll('.el').forEach(n=>n.classList.toggle('locked',doneN()<UNLOCK[n.dataset.id]));}
 
 /* ---------- UI build ---------- */
 const shelf=$('shelf'), tgs=$('targets'), cur=$('cursor');
@@ -108,6 +115,7 @@ function hit(sel,x,y){for(const n of document.querySelectorAll(sel)){const r=n.g
   const pad=14; if(x>r.left-pad&&x<r.right+pad&&y>r.top-pad&&y<r.bottom+pad) return n;} return null;}
 
 function grab(){ if(S.held||S.busy) return; const n=hit('.el',S.cursor.x,S.cursor.y);
+  if(n&&n.classList.contains('locked')){ status(`🔒 ${n.dataset.id} unlocks after ${UNLOCK[n.dataset.id]} different reactions (you have ${doneN()}).`); return; }
   if(n){S.held=n.dataset.id; cur.classList.add('grab'); cur.textContent=S.held; status(`Holding ${S.held}. Drop it on water, flame or paper.`);} }
 function release(){ if(!S.held) return; const t=hit('.tg',S.cursor.x,S.cursor.y);
   if(t){ const id=t.dataset.id; S.loads[id]=S.held; t.querySelector('.load').textContent=S.held;
@@ -130,7 +138,7 @@ function tgPos(id){const r=document.querySelector(`.tg[data-id="${id}"]`).getBou
 function react(el,target,fire){
   let key = target==='water' ? el+'+water'+(fire?'+fire':'') : el+'+fire';
   const r = R[key]; if(!r) return;
-  S.busy=true; const p=tgPos(target);
+  S.busy=true; markDone(key); const p=tgPos(target);
   if(target==='paper'&&fire) runFx('paper',p,{});
   runFx(r.fx,p,r);
   status(fire?`🔥 ${el} ignited on ${target}…`:`${el} meets water…`);
@@ -158,9 +166,9 @@ function initThree(){
   geo.setAttribute('color',new THREE.BufferAttribute(P.col,3));
   geo.setAttribute('size',new THREE.BufferAttribute(P.size,1));
   const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
-    uniforms:{dpr:{value:1}},
+    uniforms:{dpr:{value:1},tex:{value:new THREE.TextureLoader().load('assets/kenney_light_01.png')}},
     vertexShader:`attribute float size;varying vec3 vC;uniform float dpr;void main(){vC=color;gl_PointSize=size*dpr;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-    fragmentShader:`varying vec3 vC;void main(){float d=length(gl_PointCoord-.5);float a=smoothstep(.5,0.,d);gl_FragColor=vec4(vC*a,a);}`,
+    fragmentShader:`varying vec3 vC;uniform sampler2D tex;void main(){vec4 t=texture2D(tex,gl_PointCoord);float d=length(gl_PointCoord-.5);float a=max(t.a*max(t.r,.6),smoothstep(.5,0.,d)*.35);gl_FragColor=vec4(vC*a,a);}`,
     vertexColors:true});
   P.mat=mat; scene.add(new THREE.Points(geo,mat)); resize();
 }
@@ -246,7 +254,7 @@ async function initHands(){
   try{
     const v=await import(VISION+'/vision_bundle.mjs');
     const fs=await v.FilesetResolver.forVisionTasks(VISION+'/wasm');
-    const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:1});
+    const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:1,minHandDetectionConfidence:.4,minHandPresenceConfidence:.4,minTrackingConfidence:.4});
     try{ S.landmarker=await v.HandLandmarker.createFromOptions(fs,opts('GPU')); }
     catch{ S.landmarker=await v.HandLandmarker.createFromOptions(fs,opts('CPU')); }
     status(S.stream?'Hand tracking ready. Pinch an element to grab it ✋':'Hand tracking ready (no camera yet).');
@@ -257,20 +265,70 @@ function toScreen(l){ const vw=video.videoWidth,vh=video.videoHeight,W=innerWidt
   const s=Math.max(W/vw,H/vh),dx=(W-vw*s)/2,dy=(H-vh*s)/2; let x=l.x*vw*s+dx; const y=l.y*vh*s+dy;
   if(S.facing==='user') x=W-x; return {x,y}; }
 let lastVT=-1, frameN=0;
+/* One-euro filter: smooth when still, responsive when moving */
+class OneEuro{constructor(mc=1.2,beta=.03,dc=1){this.mc=mc;this.b=beta;this.dc=dc;this.x=null;this.dx=0;}
+  a(c,dt){const r=2*Math.PI*c*dt;return r/(r+1);}
+  f(v,dt){if(this.x===null){this.x=v;return v;} const d=(v-this.x)/dt; this.dx+=this.a(this.dc,dt)*(d-this.dx);
+    const c=this.mc+this.b*Math.abs(this.dx)*1000; this.x+=this.a(c,dt)*(v-this.x); return this.x;}}
+const F=[...Array(42)].map(()=>new OneEuro());
+/* Low-light / dark-skin boost: downscale, measure brightness, apply gamma+contrast LUT before detection */
+const proc=document.createElement('canvas'), pctx=proc.getContext('2d',{willReadFrequently:true}); const LUT=new Uint8ClampedArray(256);
+let lutFor=-1;
+function buildLUT(l){ const target=125, g=Math.max(.35,Math.min(1,Math.log(target/255)/Math.log(Math.max(8,l)/255)));
+  for(let i=0;i<256;i++){ let v=255*Math.pow(i/255,g); v=(v-128)*1.25+128; LUT[i]=v; } lutFor=l; }
+function frameForDetect(){
+  const W=480, H=Math.round(W*video.videoHeight/video.videoWidth); if(proc.width!==W){proc.width=W;proc.height=H;}
+  pctx.drawImage(video,0,0,W,H);
+  const meter=frameN%15===0, apply=S.boost==='on'||(S.boost==='auto'&&S.boostOn);
+  if(!meter&&!apply) return proc;
+  const img=pctx.getImageData(0,0,W,H), d=img.data;
+  if(meter){ let sum=0,n=0; for(let i=0;i<d.length;i+=64){sum+=d[i]*.3+d[i+1]*.59+d[i+2]*.11;n++;} S.luma=sum/n;
+    S.boostOn=S.luma<95; updBoostBtn(); }
+  if(apply){ if(Math.abs(lutFor-S.luma)>6) buildLUT(S.luma); for(let i=0;i<d.length;i+=4){d[i]=LUT[d[i]];d[i+1]=LUT[d[i+1]];d[i+2]=LUT[d[i+2]];} pctx.putImageData(img,0,0); }
+  return proc;
+}
+function updBoostBtn(){ const b=$('boost'); if(b) b.textContent='🌙 Boost: '+(S.boost==='auto'?('Auto'+(S.boostOn?' (on)':'')):S.boost==='on'?'On':'Off'); }
+/* skeleton overlay */
+const skel=$('skel'), sk=skel.getContext('2d');
+const BONES=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+function drawSkel(pts,pinch){ const dpr=Math.min(devicePixelRatio,2); if(skel.width!==innerWidth*dpr){skel.width=innerWidth*dpr;skel.height=innerHeight*dpr;}
+  sk.setTransform(dpr,0,0,dpr,0,0); sk.clearRect(0,0,innerWidth,innerHeight); if(!pts) return;
+  const col=pinch?'#5fff8a':'#7fffd4';
+  for(const [w,c] of [[9,'#000a'],[4,col]]){ sk.lineWidth=w; sk.strokeStyle=c; sk.lineCap='round'; sk.beginPath();
+    for(const [a,b] of BONES){sk.moveTo(pts[a].x,pts[a].y);sk.lineTo(pts[b].x,pts[b].y);} sk.stroke(); }
+  for(const [i,p] of pts.entries()){ sk.fillStyle=(i===4||i===8)?'#ffb347':'#fff'; sk.strokeStyle='#000'; sk.lineWidth=2;
+    sk.beginPath(); sk.arc(p.x,p.y,(i===4||i===8)?8:5,0,7); sk.fill(); sk.stroke(); } }
+const hint=m=>{const h=$('hint'); h.hidden=!m; if(m) h.textContent=m;};
+/* calibration: learn this person's open-hand and pinch distances */
+function startCalib(){ S.calib={phase:0,open:[],pin:[],t:0}; $('calbox').hidden=false; $('calIcon').textContent='✋'; $('calMsg').textContent='Show your OPEN hand, fingers spread, about an arm\'s length away'; $('calFill').style.width='0'; }
+function stepCalib(r,dt){ const c=S.calib; if(!c) return; (c.phase?c.pin:c.open).push(r); const need=25, arr=c.phase?c.pin:c.open;
+  $('calFill').style.width=Math.min(100,arr.length/need*100)+'%';
+  if(arr.length>=need){ if(!c.phase){ c.phase=1; $('calIcon').textContent='👌'; $('calMsg').textContent='Now PINCH: touch thumb and pointer finger together and hold'; $('calFill').style.width='0'; return; }
+    const med=a=>[...a].sort((x,y)=>x-y)[a.length>>1]; const o=med(c.open), p=med(c.pin);
+    if(o-p<.15){ $('calMsg').textContent='Hmm, open and pinch looked the same. Try again closer to the light.'; c.phase=0;c.open=[];c.pin=[]; return; }
+    S.pinchOn=p+(o-p)*.3; S.pinchOff=p+(o-p)*.55; localStorage.setItem('wirlab.calib',JSON.stringify({on:S.pinchOn,off:S.pinchOff}));
+    S.calib=null; $('calbox').hidden=true; status('✅ Calibrated to your hand. Pinch an element to grab it.'); } }
 function trackHands(now,dt){
   if(!S.landmarker||!video.videoWidth||video.currentTime===lastVT) return;
   if(S.low && (frameN%2)) return;
   lastVT=video.currentTime;
-  const res=S.landmarker.detectForVideo(video,now);
-  const lm=res.landmarks?.[0];
-  if(!lm){ S.handSeen=false; S.palmT=0; $('palm').style.opacity=0; return; }
+  const res=S.landmarker.detectForVideo(frameForDetect(),now);
+  const raw=res.landmarks?.[0];
+  if(!raw){ S.lostT+=dt; if(S.lostT>.35){ S.handSeen=false; S.palmT=0; $('palm').style.opacity=0; drawSkel(null); F.forEach(f=>f.x=null);
+      if(S.pinch&&S.lostT>.8){S.pinch=false;release();}
+      if(S.src==='hand'||S.lostT>3) hint(S.luma<95?'🌙 It\'s dark: face a lamp or window. Boost is helping.':'✋ Show your hand: palm to camera, 30–60 cm away'); }
+    return; }
+  S.lostT=0; hint(null);
+  const fdt=Math.max(dt,1/120), lm=raw.map((l,i)=>({x:F[i*2].f(l.x,fdt),y:F[i*2+1].f(l.y,fdt)}));
+  if(!S.handSeen && !S.calib && !localStorage.getItem('wirlab.calib')) startCalib();
   S.handSeen=true; S.src='hand';
-  const scale=dist(lm[0],lm[9])||.1;
+  const scale=dist(lm[0],lm[9])||.1, pinchR=dist(lm[4],lm[8])/scale;
+  if(S.calib){ drawSkel(lm.map(toScreen),false); return stepCalib(pinchR,dt); }
   const mid={x:(lm[4].x+lm[8].x)/2,y:(lm[4].y+lm[8].y)/2};
-  const sp=toScreen(mid); S.cursor.x+= (sp.x-S.cursor.x)*.5; S.cursor.y+=(sp.y-S.cursor.y)*.5;
-  const pinchR=dist(lm[4],lm[8])/scale;
-  const pinch = S.pinch ? pinchR<0.55 : pinchR<0.35; // hysteresis
+  const sp=toScreen(mid); S.cursor.x+=(sp.x-S.cursor.x)*.6; S.cursor.y+=(sp.y-S.cursor.y)*.6;
+  const pinch = S.pinch ? pinchR<S.pinchOff : pinchR<S.pinchOn; // hysteresis
   if(pinch&&!S.pinch) grab(); if(!pinch&&S.pinch) release(); S.pinch=pinch;
+  drawSkel(lm.map(toScreen),pinch);
   const open=!pinch && [[8,6],[12,10],[16,14],[20,18]].every(([t,p])=>dist(lm[t],lm[0])>dist(lm[p],lm[0])*1.1) && dist(lm[4],lm[5])/scale>0.5;
   if(open&&!S.held&&!S.busy){ S.palmT+=dt; $('palm').style.opacity=1; $('palmFill').style.width=Math.min(100,S.palmT*100)+'%';
     if(S.palmT>=1){ S.palmT=0; $('palm').style.opacity=0; ignite(); } }
@@ -311,9 +369,13 @@ function loop(now){
 }
 
 /* ---------- wiring ---------- */
-$('agree').onclick=()=>{ $('pledge').hidden=true; $('pledge').style.display='none'; hud.hidden=false;
-  initThree(); requestAnimationFrame(loop); startCamera(); initHands(); };
+let started=false;
+window.startLab=()=>{ if(started) return; started=true; hud.hidden=false; refreshLocks();
+  initThree(); requestAnimationFrame(loop); startCamera(); initHands();
+  status('Tip: pinch 👌 to grab, open palm ✋ 1 s to ignite. No camera? Tap and drag.'); };
+$('boost').onclick=()=>{ S.boost={auto:'on',on:'off',off:'auto'}[S.boost]; updBoostBtn(); };
+$('calib').onclick=startCalib; $('calSkip').onclick=()=>{S.calib=null;$('calbox').hidden=true;};
 $('flip').onclick=()=>{ S.facing=S.facing==='user'?'environment':'user'; startCamera(); };
 $('ignite').onclick=ignite; $('reset').onclick=resetLab;
 $('lowpow').onchange=e=>{ S.low=e.target.checked; resize(); status(S.low?'Low power: fewer particles, hands tracked every other frame.':'Full power. Oscar is sweating.'); };
-window.__lab={S,react,ignite,grab,release};
+window.__lab={S,react,ignite,grab,release,drawSkel,startCalib};

@@ -9,17 +9,10 @@
 </head><body>
 <video id="cam" playsinline muted autoplay></video>
 <canvas id="fx"></canvas>
+<canvas id="skel"></canvas>
 <div id="flash"></div>
 
-<div id="pledge" class="screen">
-  <div class="box">
-    <h1>🥕 Oscar's Absurd AR Lab</h1>
-    <p class="big">"Don't get smart to hurt nobody."</p>
-    <p>I promise to use what I learn here to explore, protect people, plants and the planet, and never to harm anyone. Everything in this lab is <b>virtual</b>. Real reactive metals belong only with trained teachers and proper safety gear.</p>
-    <p class="small">— Oscar Absurd, Dean of Things That Should Not Be Licked</p>
-    <button id="agree">I pledge. Open the lab 🔬</button>
-  </div>
-</div>
+<div id="gate" class="screen" hidden></div>
 
 <div id="hud" hidden>
   <div id="shelf"></div>
@@ -31,11 +24,16 @@
     <button id="flip">🔄 Camera</button>
     <button id="ignite">🔥 Ignite</button>
     <button id="reset">♻️ Reset</button>
+    <button id="boost">🌙 Boost: Auto</button>
+    <button id="calib">✋ Calibrate</button>
     <label><input type="checkbox" id="lowpow"> Low power</label>
     <span id="fps"></span>
   </div>
+  <div id="hint" hidden></div>
+  <div id="calbox" hidden><div class="cbig" id="calIcon">✋</div><div id="calMsg">Show your open hand to the camera</div><div class="pbar"><div id="calFill"></div></div><button id="calSkip">Skip</button></div>
   <div id="camerr" hidden></div>
   <div id="card" hidden><div class="inner" id="cardBody"></div><button id="cardClose">Got it, back to lab</button></div>
 </div>
+<script src="gate.js"></script>
 <script type="module" src="app.js"></script>
 </body></html>
