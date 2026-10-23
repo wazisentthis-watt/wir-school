@@ -159,7 +159,7 @@ function makeMetal(){const root=new THREE.Group();const o=metalGLTF.scene;root.a
 
 // ---------- Metal S1–S4 forms (rigged by Metal's Bot, PROPOSAL; compressed for web) ----------
 const FORM_FILES=['S1','S2','S3','S4'].map(s=>'assets/models/metal/forms/metal_'+s+'_PROPOSAL.glb');const formGLTF=[];
-const FORM_LABEL=['S1 · black spiky crown (PLACEHOLDER mesh)','S2 · violet seams','S3 · braided mane · bandaged right hand · Merkaba on back','S4 · the Lion · bandaged right hand'];
+const FORM_LABEL=['S1 · black spiky crown (PLACEHOLDER mesh)','S2 · violet seams','S3 · braided mane · bandaged right hand · Merkaba on back','S4 · the Lion · bandaged right hand · Merkaba carryover PROPOSAL'];
 const FMAP={Idle:'idle',Standing:'idle',Walking:'cruise',Running:'skate_push',Skate:'cruise',Jump:'ollie',Punch:'punch',Cross:'punch',Kick:'slam',Block:'idle',ThumbsUp:'idle',Dance:'idle',No:'idle',Charge:'flight_stance',Blast:'punch',Swing:'swing',Grind:'grind',Carve:'carve',Sitting:'idle'};
 function buildFormModel(gltf,i){const o=gltf.scene;o.traverse(m=>{if(!m.isMesh)return;m.castShadow=true;m.frustumCulled=false;
   const ms=Array.isArray(m.material)?m.material:[m.material];ms.forEach(mt=>{if(/Bandage/i.test(mt.name||m.name)){mt.emissiveIntensity=.35;mt.userData.bandage=true;bandMats.push(mt);}});});
@@ -171,11 +171,11 @@ async function setForm(i){if(!P||i<0||i>3)return;let g=formGLTF[i];if(!g){try{g=
  P.o.remove(P.model);const mi=mixers.indexOf(P.mixer);if(mi>=0)mixers.splice(mi,1);
  P.o.add(f.model);P.model=f.model;P.mixer=f.mixer;P.acts=f.acts;P.cur=null;mixers.push(f.mixer);f.model.scale.setScalar(1);f.model.position.set(0,0,0);
  play(P,'Idle');f.mixer.update(.01);P.o.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(f.model,true);const h=bb.max.y-bb.min.y;const sc=h>.3?1.78/h:1;
- f.model.scale.setScalar(sc);P.o.updateMatrixWorld(true);const b2=new THREE.Box3().setFromObject(f.model,true);f.model.position.y=P.o.position.y-b2.min.y;P.footY=f.model.position.y;
+ f.model.scale.setScalar(sc);P.o.updateMatrixWorld(true);const b2=new THREE.Box3().setFromObject(f.model,true);f.model.position.y=-(b2.min.y-P.o.position.y);P.footY=f.model.position.y;
  P.feet=[];f.model.traverse(b=>{if(b.isBone&&/^(DEF-?(toe|foot)|Foot)\.?_?[LR]$/i.test(b.name))P.feet.push(b);});P.o.updateMatrixWorld(true);
  P.soleGap=P.feet.length?Math.min(...P.feet.map(b=>b.getWorldPosition(new THREE.Vector3()).y))-(P.o.position.y):0;
- P.handBone=f.model.getObjectByName('HandR')||f.model.getObjectByName('Hand.R')||f.model.getObjectByName('LowerArmR');
- st.metalForm=i+1;st.season='S'+(i+1);window.__realForms=true;const fb=document.getElementById('formBtn');if(fb)fb.textContent='FORM S'+(i+1);
+ P.footL=f.model.getObjectByName('FootL')||f.model.getObjectByName('Foot.L');P.handBone=f.model.getObjectByName('HandR')||f.model.getObjectByName('Hand.R')||f.model.getObjectByName('LowerArmR');
+ st.metalForm=i+1;st.form=i+1;st.season='S'+(i+1);window.__badge&&window.__badge('S'+(i+1)+' · '+FORM_LABEL[i]+' · PROPOSAL');window.__realForms=true;const fb=document.getElementById('formBtn');if(fb)fb.textContent='FORM S'+(i+1);
  toast('Form '+FORM_LABEL[i]+' — PROPOSAL');dispatchEvent(new Event('wir-form'));}
 window.__setForm=setForm;
 // keep soles exactly on the surface (deck top when skating) regardless of pose blend
@@ -191,7 +191,7 @@ let board;function makeBoard(){const g=new THREE.Group();const deck=new THREE.Me
  for(const [x,z] of [[-.13,-.33],[.13,-.33],[-.13,.33],[.13,.33]]){const w=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.05,14),wm);w.rotation.z=Math.PI/2;w.position.set(x,.06,z);g.add(w);} // FOUR wheels, never a hoverboard
  g.traverse(o=>o.castShadow=true);return g;}
 // PROPOSAL: thin violet line replaced by Galaxy Gallium LIMB (see gallium_limb.js); tether kept as an invisible stub so physics/control code is unchanged
-const tether=new THREE.Group();tether.visible=false;let galLimb=null;const _hand=new THREE.Vector3();
+const _bu=new THREE.Vector3(),_bf=new THREE.Vector3();const tether=new THREE.Group();tether.visible=false;let galLimb=null;const _hand=new THREE.Vector3();
 const merkaba=new THREE.Mesh(new THREE.OctahedronGeometry(.9,0),new THREE.MeshStandardMaterial({color:0x000,emissive:VIOLET,emissiveIntensity:2,wireframe:true}));merkaba.visible=false;
 
 // NPCs with routines [S3 living city]; traffic (Kenney cars)
@@ -274,7 +274,7 @@ function wallRide(dt,wish,pp){const w=st.wall,b=w.b,n=w.n,t=w.t;w.time+=dt;
  if(n.x)pp.x=n.x>0?b.max.x+.4:b.min.x-.4;else pp.z=n.z>0?b.max.z+.4:b.min.z-.4;
  vel.copy(t).multiplyScalar(w.side).setY(w.up);setViolet(.35); // subtle seam glow while riding
  const exit=(v,msg)=>{st.wall=null;vel.copy(v);onGround=false;if(msg)toast(msg);};
- if(tap('Space')){exit(n.clone().multiplyScalar(WR.jumpOff).addScaledVector(t,w.side).setY(Math.max(w.up,0)+WR.jumpUp),'Kick off!');st.comboPend++;play(P,'Jump',true);return;}
+ if(tap('Space')){st.boardFree=.35;exit(n.clone().multiplyScalar(WR.jumpOff).addScaledVector(t,w.side).setY(Math.max(w.up,0)+WR.jumpUp),'Kick off!');st.comboPend++;play(P,'Jump',true);return;}
  if(st.swing){st.wall=null;return;} // chained into grapple
  if(pp.y>=b.max.y-.15){ // crest the top onto the roof
   pp.y=b.max.y+.05;pp.addScaledVector(n,-WR.roofPop);st.wall=null;vel.copy(n).multiplyScalar(-Math.max(5,w.up*.6)).addScaledVector(t,w.side);vel.y=0;onGround=true;bank();toast('Roof transfer');plog('discoveries','Wall ride → rooftop');return;}
@@ -368,6 +368,7 @@ function update(dt){
  // camera-relative movement
  const fwd=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw)),right=new THREE.Vector3(-fwd.z,0,fwd.x);
  const wish=new THREE.Vector3().addScaledVector(right,ix).addScaledVector(fwd,-iz);if(wish.lengthSq()>1)wish.normalize();
+ if(tap('KeyB')&&st.wall&&st.board){st.wall=null;onGround=false;st.board=false;board.visible=false;toast('Bail (B) — board released');}
  if(tap('KeyB')&&onGround&&!st.swing){st.board=!st.board;board.visible=st.board;toast(st.board?'Board down — four wheels':'Board up');if(st.board)plog('discoveries','Skating on the four-wheel board');}
  // grapple [S1]: tap to attach nearest anchor in front; tendril costs Gallium only while out, refunds on release
  if(tap('KeyQ')){if(st.swing){st.gal=Math.min(1,st.gal+st.swing.spent*.5);st.swing=null;tether.visible=false;toast('Release');st.comboPend++;}
@@ -375,7 +376,7 @@ function update(dt){
    if(a&&st.gal>.04){st.swing={a:a.clone(),len:a.distanceTo(pp)*.8,spent:0};play(P,'Swing');tether.visible=true;onGround=false;vel.y=Math.max(vel.y,4);plog('discoveries','Grapple swing');setViolet(1);beep(330,.1,'triangle');}else toast(st.gal<=.04?'Out of Gallium — bank combos to refill':'No anchor in range');}}
  // flight: Merkaba propulsion, limited only by orientation to gravity point [decision #3]. No charge meter.
  if(tap('KeyF')){if(st.flying){st.flying=false;}else if(!onGround&&st.ori>.2){st.flying=true;st.swing=null;tether.visible=false;plog('discoveries','Star Merkaba flight');}else toast(onGround?'Get airborne first (ollie, kicker or swing)':'Orientation unstable — cannot lock gravity point');}
- merkaba.visible=st.metalForm>=3; if(merkaba.visible&&!st.flying){const bk=new THREE.Vector3(-Math.sin(yaw)*.25,1.35,-Math.cos(yaw)*.25);merkaba.position.copy(P.o.position).add(bk);merkaba.scale.setScalar(.22);}else merkaba.scale.setScalar(1); // canon: Merkaba only from S3, on his back
+ merkaba.visible=st.metalForm>=3; if(merkaba.visible&&!st.flying){P.model.updateMatrixWorld(true);const ch=P.model.getObjectByName('Chest');const bk=new THREE.Vector3(0,0,-1).transformDirection(P.model.matrixWorld);if(ch)ch.getWorldPosition(merkaba.position);else merkaba.position.copy(P.o.position).setY(P.o.position.y+1.35);merkaba.position.addScaledVector(bk,.28);merkaba.scale.setScalar(.22);}else merkaba.scale.setScalar(1); // canon: Merkaba only from S3, on his back
  const run=keys.ShiftLeft||keys.ShiftRight||il>.95&&isTouch;
 if(st.wall){wallRide(dt,wish,pp);}else{
  const SK={cruise:8.5,boost:16,acc:5,coast:.15,grav:17.5,ollie:6.8}; // v7 parity port (html_v7_parity.json: CRUISE_MAX 340px*.025, GRAV 700px*.025, coast 8.42->6.26 m/s in 2 s, ollie peak 1.31 m / air .775 s)
@@ -412,7 +413,11 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  // animation select
  actT-=dt;if(actT<=0&&(P.cur.loop!==THREE.LoopOnce||!P.cur.isRunning())){
   if(st.flying||st.swing)play(P,'Jump');else if(st.board)play(P,onGround?'Skate':'Jump');else if(!onGround)play(P,'Jump');else if(hs>4.5)play(P,'Running');else if(hs>.4)play(P,'Walking');else play(P,blocking?'Standing':'Idle');}
- if(st.board){board.position.copy(pp);if(st.wall)board.quaternion.copy(P.o.quaternion);else{board.rotation.set(0,yaw,0);}}
+ if(st.board){if(st.boardFree>0){st.boardFree-=dt;}else{ // BOARD LOCK: board stays attached under the LEFT (prosthetic) foot while riding; only bail (B) or kick-off (Space) separates. Mechanism (Gallium film / magnetic) = OPEN
+  if(st.wall)board.quaternion.copy(P.o.quaternion);else board.rotation.set(0,yaw,0);
+  const up=_bu.set(0,1,0).applyQuaternion(board.quaternion);const fl=P.footL;
+  if(fl){P.o.updateMatrixWorld(true);fl.getWorldPosition(_bf);const rel=_bf.sub(pp);const along=rel.dot(up);rel.addScaledVector(up,-along);rel.multiplyScalar(.5);board.position.copy(pp).add(rel);}else board.position.copy(pp);
+  st.boardGap=fl?fl.getWorldPosition(_bf).distanceTo(board.position):0;}}
  // violet decays (only on active moves)
  for(const mt of seamMats)mt.emissiveIntensity=Math.max(0,mt.emissiveIntensity-dt*3);
  if(galLimb){const hb=P.handBone;if(hb){hb.updateMatrixWorld(true);hb.getWorldPosition(_hand);}else _hand.copy(P.o.position).setY(P.o.position.y+1.2);galLimb.tick(dt,{swing:st.swing,hand:_hand,model:P.model,st,groundY,playerPos:P.o.position});} // PROPOSAL Gallium limb visuals
@@ -467,7 +472,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  tickRamps(dt);signs.forEach(s=>s.lookAt(camera.position));if(plutoRing)plutoRing.rotation.y+=dt;
  for(const m of mixers)m.update(dt);
  P.model.rotation.y+=((st.board&&!st.flying?-1.35:0)-P.model.rotation.y)*Math.min(1,dt*10); // sideways skate stance on the deck
- if(onGround||st.board)seatFeet(dt);else P.model.position.y+=(P.footY+(st.board?DECK_TOP:0)-P.model.position.y)*Math.min(1,dt*8);
+ if(st.board&&st.wall&&P.footL&&!(st.boardFree>0)){P.o.updateMatrixWorld(true);P.footL.getWorldPosition(_bf);_bu.set(0,1,0).applyQuaternion(board.quaternion);const h=_bf.sub(board.position).dot(_bu);P.model.position.y+=THREE.MathUtils.clamp(DECK_TOP+Math.max(0,P.soleGap)-h,-2,2);P.o.updateMatrixWorld(true);st.boardGap=P.footL.getWorldPosition(_bf).distanceTo(board.position);} else if(onGround||st.board)seatFeet(dt);else P.model.position.y+=(P.footY+(st.board?DECK_TOP:0)-P.model.position.y)*Math.min(1,dt*8);
 }
 let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());try{update(dt);window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<3){console.error(e);window.__errors.push(String(e));}}if(LITE)renderer.render(scene,camera);else composer.render();}
 
@@ -478,5 +483,5 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
-  window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);}};// test harness only (not a gameplay teleport)
+  window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
   window.__game.setForm=setForm;loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();

@@ -22,7 +22,7 @@ function cycleSeason(){if(window.__setForm&&window.__realForms){const g=G();wind
  const g=G();g.st.season=s;ensureLine();if(line)line.visible=s!=='S1';
  const bs=g.board&&g.board.children[0];if(bs){if(base===null)base=bs.position.y;bs.position.y=base-(s==='S1'?0:BOARD_DROP/(g.board.scale.y||1));}}
 function seasonPost(){if(window.__realForms)return;if(!G()||SEASONS[si]==='S1')return;const bm=bones();for(const [n,b] of Object.entries(bm)){const k=S3N[n];b.scale.set(b.scale.x*k[0],b.scale.y*k[1],b.scale.z*k[2]);}}
-let badgeEl;function badge(t){if(!badgeEl){badgeEl=document.createElement('div');badgeEl.style.cssText='position:absolute;right:10px;top:10px;font:600 12px system-ui;color:#e8e8f0;background:rgba(10,8,20,.7);padding:4px 10px;border-radius:10px;z-index:30';document.body.appendChild(badgeEl);}badgeEl.textContent='SEASON '+t+' · [T] cycle';}
+let badgeEl;function badge(t){if(!badgeEl){badgeEl=document.createElement('div');badgeEl.style.cssText='position:absolute;right:10px;top:10px;font:600 12px system-ui;color:#e8e8f0;background:rgba(10,8,20,.7);padding:4px 10px;border-radius:10px;z-index:30';document.body.appendChild(badgeEl);}badgeEl.textContent='FORM '+t+' · [1-4/T] switch';}
 // ---------- brick minigame ----------
 const STAGES=[
  {k:'Chip',goal:'Place a small amount of force where you intend. Tap/hold briefly on the target corner.'},
@@ -106,5 +106,5 @@ addEventListener('keydown',e=>{const g=G();if(!g)return;
  if(e.code==='KeyT'&&!e.repeat){cycleSeason();e.stopImmediatePropagation();}
  if(e.code==='KeyG'&&!e.repeat){const s=g.SPOTS.skate,p=g.P.o.position;if(window.__brickAnywhere||(s.c&&p.distanceTo(s.c)<40)){for(const k in g.keys)g.keys[k]=false;openBrick();e.stopImmediatePropagation();}else{const t=document.getElementById('toast');t.innerHTML='Brick minigame: go to the Skatepark (Lighthouse Yard), then press G';t.style.opacity=1;}}},true);
 addEventListener('keyup',e=>{if(B){e.stopImmediatePropagation();if(e.code==='Space')release();}},true);
-window.__seasonPost=seasonPost;window.__brick={open:openBrick,close:closeBrick,cycleSeason,get state(){return B;}};
+window.__seasonPost=seasonPost;window.__badge=t=>{badge(t);};window.__brick={open:openBrick,close:closeBrick,cycleSeason,get state(){return B;}};
 const wait=setInterval(()=>{if(G()&&G().P){clearInterval(wait);badge('S1 · Street Metal (default)');}},300);
