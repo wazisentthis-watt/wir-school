@@ -33,6 +33,7 @@ export function makeGalliumLimb(scene,THREEref){
  const front=new THREE.Mesh(new THREE.TorusGeometry(.3,.07,10,24),glowM.clone());front.visible=false;scene.add(front); // freeze front
  const frost=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({color:0xcfd6e0,size:.05,transparent:true,opacity:.8,depthWrite:false}));frost.frustumCulled=false;scene.add(frost);
  const splash=new THREE.Mesh(new THREE.SphereGeometry(.32,14,8),frozenM);splash.scale.set(1,.45,1);splash.visible=false;scene.add(splash);
+ const dripM=new THREE.MeshStandardMaterial({color:0xd8dde4,metalness:1,roughness:.15,emissive:0x50555c}); // silver drips (PROPOSAL)
  const drips=[];const dripG=new THREE.SphereGeometry(.045,6,4);
  const puddles=[];const pudG=new THREE.CircleGeometry(.45,20);
  let S=null,prevSwing=null;
@@ -89,7 +90,7 @@ export function makeGalliumLimb(scene,THREEref){
     // frost motes shed at the freeze front
     if(front.visible){const arr=[];for(let k=0;k<40;k++){const u=Math.min(1,uf+Math.random()*.12);const p=curve.getPointAt(u);arr.push(p.x+(Math.random()-.5)*.35,p.y+(Math.random()-.5)*.35,p.z+(Math.random()-.5)*.35);}frost.geometry.setAttribute('position',new THREE.Float32BufferAttribute(arr,3));frost.visible=true;}else frost.visible=false;
     splash.visible=ext>=1;if(splash.visible){splash.position.copy(S.a);const s=Math.min(1,(S.t-LIMB.extendT)*10+.3);splash.scale.set(s*1.1,s*.45,s*1.1);}
-    if(ext<1||fr<1&&Math.random()<dt*25){const p=curve.getPointAt(Math.random()*Math.max(.05,uf));const m=new THREE.Mesh(dripG,liquidM);m.position.copy(p);scene.add(m);drips.push({m,v:new THREE.Vector3((Math.random()-.5),-.5,(Math.random()-.5))});}
+    if(ext<1||fr<1&&Math.random()<dt*25){const p=curve.getPointAt(Math.random()*Math.max(.05,uf));const m=new THREE.Mesh(dripG,dripM);m.position.copy(p);scene.add(m);drips.push({m,v:new THREE.Vector3((Math.random()-.5),-.5,(Math.random()-.5))});}
    }else if(S.phase==='retract'){ // un-freeze, flow back into the arm
     const k=Math.min(1,S.t/LIMB.retractT);frozen.visible=false;splash.visible=false;front.visible=false;frost.visible=false;
     const tip=S.from.clone().lerp(h,k*k);const curve=curvePts(h,tip,1,1-k*.5,time,.6);

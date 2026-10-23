@@ -392,7 +392,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  if(st.board){board.position.copy(pp);if(st.wall)board.quaternion.copy(P.o.quaternion);else{board.rotation.set(0,yaw,0);}}
  // violet decays (only on active moves)
  for(const mt of seamMats)mt.emissiveIntensity=Math.max(0,mt.emissiveIntensity-dt*3);
- if(galLimb){const hb=P.handBone;if(hb)hb.getWorldPosition(_hand);else _hand.copy(P.o.position).setY(P.o.position.y+1.2);galLimb.tick(dt,{swing:st.swing,hand:_hand,model:P.model,st,groundY,playerPos:P.o.position});} // PROPOSAL Gallium limb visuals
+ if(galLimb){const hb=P.handBone;if(hb){hb.updateMatrixWorld(true);hb.getWorldPosition(_hand);}else _hand.copy(P.o.position).setY(P.o.position.y+1.2);galLimb.tick(dt,{swing:st.swing,hand:_hand,model:P.model,st,groundY,playerPos:P.o.position});} // PROPOSAL Gallium limb visuals
  // systems
  doFight(dt);doStrings(dt);doFootball(dt);rivalAI(dt);
  for(const s of slabs){if(s.t<1){s.t+=dt;s.m.position.y=Math.min(.8,s.m.position.y+s.vy*dt);}else if(s.t<6)s.t+=dt;else{s.m.position.y-=dt;if(s.m.position.y<-1){scene.remove(s.m);s.dead=true;}}}
@@ -451,7 +451,7 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
 (async()=>{const msg=t=>$('loadmsg').textContent=t;
  try{await buildWorld(msg);msg('Characters (Quaternius CC0)…');robotGLTF=await loadG('assets/models/RobotExpressive.glb');msg('3D Metal…');metalGLTF=await loadG('assets/models/metal/metal_rigged_PLACEHOLDER.glb');boardGLTF=await loadG('assets/models/metal/metal_skateboard_4wheel_PLACEHOLDER.glb');
   P=makeMetal();scene.add(P.o);P.o.position.copy(SPOTS.home.c).add(new THREE.Vector3(0,groundY,8));camPos.copy(P.o.position).add(new THREE.Vector3(0,4,8));
-  board=new THREE.Group();board.add(boardGLTF.scene);boardGLTF.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;if(/Wheel/i.test(m.material.name)){m.material.emissive=new THREE.Color(VIOLET);m.material.emissiveIntensity=.15;}}});board.visible=false;board.scale.setScalar(BOARD_S);scene.add(board,tether,merkaba);galLimb=makeGalliumLimb(scene);P.handBone=P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearm.R');
+  board=new THREE.Group();board.add(boardGLTF.scene);boardGLTF.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;if(/Wheel/i.test(m.material.name)){m.material.emissive=new THREE.Color(VIOLET);m.material.emissiveIntensity=.15;}}});board.visible=false;board.scale.setScalar(BOARD_S);scene.add(board,tether,merkaba);galLimb=makeGalliumLimb(scene);P.handBone=P.o.getObjectByName('DEF-handR')||P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearmR');/* three.js strips '.' from node names */
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
