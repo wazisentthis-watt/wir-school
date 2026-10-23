@@ -64,7 +64,7 @@ const pretty=f=>(DISPLAY[f]||f).replace(/(\d+)/g,m=>SUB(m));
 
 /* ---------- molecule model ---------- */
 let scene, idc=1; export const MOLS=[];
-const sphereG=new THREE.SphereGeometry(1,24,16), cylG=new THREE.CylinderGeometry(1,1,1,10), torusCache={};
+const sphereG=new THREE.SphereGeometry(1,14,10), cylG=new THREE.CylinderGeometry(1,1,1,10), torusCache={};
 const matCache={}; const mat=(c,em=0)=>matCache[c+'_'+em]||(matCache[c+'_'+em]=new THREE.MeshStandardMaterial({color:c,roughness:.35,metalness:.1,emissive:c,emissiveIntensity:em}));
 const eMat=new THREE.MeshBasicMaterial({color:0x88ccff}), vMat=new THREE.MeshBasicMaterial({color:new THREE.Color(2.2,1.9,.6)}), pairMat=new THREE.MeshBasicMaterial({color:new THREE.Color(2,1.8,.5)});
 const ringMat=new THREE.MeshBasicMaterial({color:0x88aaff,transparent:true,opacity:.28,depthWrite:false}), vRingMat=new THREE.MeshBasicMaterial({color:0xffdd77,transparent:true,opacity:.55,depthWrite:false});
@@ -101,7 +101,7 @@ function bohr(m){ const a=m.atoms[0], d=EL[a.e]; const g=m.g; let shells=[...d.s
   const nuc=new THREE.Mesh(sphereG,mat(d.col,.25)); nuc.scale.setScalar(9); g.add(nuc);
   m.orbits=[]; const vs=shells.length-1;
   shells.forEach((n,si)=>{ const R=20+si*11, isV=si===vs; const key=R;
-    const tg=torusCache[key]||(torusCache[key]=new THREE.TorusGeometry(R,.7,6,80)); const piv=new THREE.Group(); piv.rotation.set(1.1+si*.35,si*.7,0);
+    const tg=torusCache[key]||(torusCache[key]=new THREE.TorusGeometry(R,.7,4,48)); const piv=new THREE.Group(); piv.rotation.set(1.1+si*.35,si*.7,0);
     piv.add(new THREE.Mesh(tg,isV?vRingMat:ringMat));
     const spin=new THREE.Group(); piv.add(spin);
     const show=Math.min(n,18); for(let i=0;i<show;i++){ const e=new THREE.Mesh(sphereG,isV?vMat:eMat); const ang=i/show*Math.PI*2; e.position.set(Math.cos(ang)*R,Math.sin(ang)*R,0); e.scale.setScalar(isV?3.4:2.2); spin.add(e); }
@@ -234,12 +234,14 @@ let say=()=>{}, onEv=[];
 function explain(m){ const b=$('atip'); b.hidden=false; b.innerHTML=m; clearTimeout(explain.t); explain.t=setTimeout(()=>b.hidden=true,9000); }
 function ev(type,data){ E_.events.push({type,data}); window.labEvent?.(type==='bond'||type==='react'?type+':'+data:'atoms:'+type); onEv.forEach(f=>f(type,data)); }
 export function init(sc,sayFn){ scene=sc; say=sayFn;
-  const p=$('ptable'); p.innerHTML=PALETTE.map(e=>`<button class="pt k-${EL[e].kind}" data-e="${e}"><small>${EL[e].Z}</small>${e}</button>`).join('')+
+  const p=$('ptable'); p.innerHTML='<button id="ptHandle">▾ Elements</button>'+PALETTE.map(e=>`<button class="pt k-${EL[e].kind}" data-e="${e}"><small>${EL[e].Z}</small>${e}</button>`).join('')+
    ['H2','O2','H2O','CH4','CO2','HCl','NaOH'].map(f=>`<button class="pt kit" data-f="${f}">${pretty(f)}</button>`).join('')+`<button class="pt kit" id="aClear">Clear</button><button class="pt kit" id="aChal">Challenge</button>`;
+  $('ptHandle').onclick=()=>{ p.classList.toggle('collapsed'); $('ptHandle').textContent=p.classList.contains('collapsed')?'▴ Elements':'▾ Elements'; tileCache=null; };
   $('aClear').onclick=()=>{ [...MOLS].forEach(delMol); $('energy').hidden=true; };
   $('aChal').onclick=()=>challenge(); }
-export function show(on){ $('ptable').hidden=!on; $('gest').style.display=on?'none':''; $('status').style.visibility=on?'hidden':''; $('atomLabels').hidden=!on; if(!on){ $('energy').hidden=true; $('atip').hidden=true; $('chal').hidden=true; [...MOLS].forEach(m=>m.g.visible=false);} else MOLS.forEach(m=>m.g.visible=true); }
-function tileAt(x,y){ for(const b of document.querySelectorAll('#ptable .pt')){ const r=b.getBoundingClientRect(); if(x>=r.left-4&&x<=r.right+4&&y>=r.top-4&&y<=r.bottom+4) return b; } return null; }
+export function show(on){ tileCache=null; $('ptable').hidden=!on; $('gest').style.display=on?'none':''; $('status').style.visibility=on?'hidden':''; $('atomLabels').hidden=!on; if(!on){ $('energy').hidden=true; $('atip').hidden=true; $('chal').hidden=true; [...MOLS].forEach(m=>m.g.visible=false);} else MOLS.forEach(m=>m.g.visible=true); }
+let tileCache=null; addEventListener('resize',()=>tileCache=null);
+function tileAt(x,y){ if(!tileCache) tileCache=[...document.querySelectorAll('#ptable .pt')].map(b=>[b,b.getBoundingClientRect()]); for(const [b,r] of tileCache){ if(!r.width) continue; if(x>=r.left-4&&x<=r.right+4&&y>=r.top-4&&y<=r.bottom+4) return b; } return null; }
 function pick(x,y,ex){ let best=null,bd=1e9; for(const m of MOLS){ if(m===ex) continue; const d=Math.hypot(m.x-x,m.y-y); if(d<m.R+(ex?ex.R+10:34)&&d<bd){bd=d;best=m;} } return best; }
 
 /* ---------- per-frame update from hands ---------- */
@@ -269,7 +271,7 @@ export function update(hands,dt){
     for(const o of MOLS){ if(o===m||o===E_.held||m===E_.held) continue; const dx=m.x-o.x,dy=m.y-o.y,d=Math.hypot(dx,dy)||1, min=m.R+o.R-6; if(d<min){ m.x+=dx/d*(min-d)*.05; m.y+=dy/d*(min-d)*.05; } }
     m.x=Math.max(m.R,Math.min(FX.W-m.R,m.x)); m.y=Math.max(110+m.R,Math.min(FX.H-150,m.y));
     m.g.position.set(m.x,-m.y,0);
-    m.lab.style.transform=`translate(${m.x}px,${m.y+m.R+6}px) translateX(-50%)`; }
+    { const tr=`translate(${m.x|0}px,${(m.y+m.R+6)|0}px) translateX(-50%)`; if(m.lab._tr!==tr){ m.lab._tr=tr; m.lab.style.transform=tr; } } }
   for(let i=tweens.length-1;i>=0;i--){ const t=tweens[i]; t.t+=dt/1.4; const s=Math.min(1,t.t), e=s*s*(3-2*s);
     const x=(1-e)*(1-e)*t.x0+2*(1-e)*e*t.mx+e*e*t.x1, y=(1-e)*(1-e)*t.y0+2*(1-e)*e*t.my+e*e*t.y1; t.ball.position.set(x,-y,10); t.ball.scale.setScalar(EL[t.e].r*.62*SC);
     if(s>=1){ scene.remove(t.ball); tweens.splice(i,1); } }

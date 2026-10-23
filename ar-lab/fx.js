@@ -36,7 +36,7 @@ void main(){vec2 p=gl_PointCoord-.5;float c=cos(vR),s=sin(vR);p=mat2(c,-s,s,c)*p
  if(heat>.5){ ta=smoothstep(.18,.8,t.a); float core=smoothstep(.55,.95,t.a);
   vec3 h=mix(vec3(.55,.7,1.6),vec3(1.5,1.3,.85),smoothstep(0.,.08,vA)); h=mix(h,vec3(1.35,.8,.2),smoothstep(.08,.3,vA)); h=mix(h,vec3(1.1,.32,.05),smoothstep(.3,.6,vA)); h=mix(h,vec3(.3,.03,.01),smoothstep(.6,.95,vA));
   h=mix(h,vec3(1.6,1.45,1.1),core*(1.-smoothstep(.1,.5,vA))); col*=h; }
- float a=ta*vC.a*fade; gl_FragColor=add>.5?vec4(col*a,a):vec4(col*t.rgb,a);
+ float a=ta*vC.a*fade; if(!(a>.002)) discard; col=clamp(col,0.,3.); if(add<.5) a=min(a,.3); gl_FragColor=add>.5?vec4(col*a,a):vec4(col*t.rgb,a);
  #include <colorspace_fragment>
 }`;
 class Layer{
@@ -105,11 +105,13 @@ class Streaks{
 
 /* ---- water: spring-bound particles + metaball refraction ---- */
 export const WATER={max:700,n:0};
-{ const A=()=>new Float32Array(WATER.max); for(const k of ['x','y','vx','vy','life','mode','phi','rr','idx']) WATER[k]=A(); WATER.pos=new Float32Array(WATER.max*3); }
+{ const A=()=>new Float32Array(WATER.max); for(const k of ['x','y','vx','vy','life','mode','phi','rr','idx','sid']) WATER[k]=A(); WATER.pos=new Float32Array(WATER.max*3); }
 WATER.orb=null; WATER.path=[];
+/* waterbending: mode 3 = resting pool on the ground line FX.groundY, mode 4 = strand s (one per fingertip) pulled up out of it */
+export const POOL={cx:0,n:0}; WATER.strands=[0,1,2,3,4].map(()=>({on:false,rx:0,tx:0,ty:0,w:6,n:0}));
 export function waterSpawn(x,y,vx,vy,mode=0,life=4){ const W=WATER; if(W.n>=W.max*FX.Q) return -1; const i=W.n++;
   W.x[i]=x;W.y[i]=y;W.vx[i]=vx;W.vy[i]=vy;W.mode[i]=mode;W.life[i]=life;W.phi[i]=rnd(0,6.28);W.rr[i]=Math.sqrt(Math.random());W.idx[i]=Math.random(); return i; }
-function waterKill(i){ const W=WATER,j=--W.n; if(i===j) return; for(const k of ['x','y','vx','vy','life','mode','phi','rr','idx']) W[k][i]=W[k][j]; }
+function waterKill(i){ const W=WATER,j=--W.n; if(i===j) return; for(const k of ['x','y','vx','vy','life','mode','phi','rr','idx','sid']) W[k][i]=W[k][j]; }
 export function waterThrow(vx,vy,mode){ const W=WATER; let n=0; for(let i=0;i<W.n;i++) if(W.mode[i]===mode||(mode<0&&W.mode[i]>0)){ W.mode[i]=0; W.vx[i]=vx*rnd(.85,1.15)+rnd(-80,80); W.vy[i]=vy*rnd(.85,1.15)+rnd(-80,80); W.life[i]=3; n++; } return n; }
 export function waterCount(mode){ let n=0; for(let i=0;i<WATER.n;i++) if(WATER.mode[i]===mode) n++; return n; }
 function splash(x,y,vx,vy){ for(let k=0;k<3;k++) waterSpawn(x,y-4,vx*.2+rnd(-150,150),-Math.abs(vy)*rnd(.15,.35)-rnd(60,200),0,rnd(.4,.9));
@@ -122,6 +124,11 @@ function waterStep(dt){ const W=WATER,H=FX.H,Wd=FX.W,t=FX.t,o=W.orb,path=W.path,
     else if(m===2&&path.length>1){ W.life[i]=Math.max(W.life[i],1); const f=W.idx[i]*(path.length-1), a=path[Math.floor(f)], b=path[Math.min(path.length-1,Math.ceil(f))], fr=f%1;
       const wob=Math.sin(t*9+W.phi[i]*3)*(6+18*W.idx[i]);
       const tx=a.x+(b.x-a.x)*fr+Math.cos(W.phi[i])*wob, ty=a.y+(b.y-a.y)*fr+Math.sin(W.phi[i])*wob; ax=(tx-W.x[i])*90-W.vx[i]*10; ay=(ty-W.y[i])*90-W.vy[i]*10; }
+    else if(m===3&&FX.groundY){ W.life[i]=5; const gy=FX.groundY, w=Math.min(FX.W*.92,Math.max(90,POOL.n*2.6)), depth=8+Math.min(30,POOL.n*.08);
+      const tx=Math.max(8,Math.min(FX.W-8,POOL.cx+(W.idx[i]-.5)*w)), ty=gy-W.rr[i]*depth+Math.sin(t*2+W.phi[i]*5)*1.5; ax=(tx-W.x[i])*10-W.vx[i]*4; ay=(ty-W.y[i])*40-W.vy[i]*7; }
+    else if(m===4&&W.strands[W.sid[i]]?.on&&FX.groundY){ W.life[i]=5; const S=W.strands[W.sid[i]], f=W.idx[i], gy=FX.groundY;
+      const wob=Math.sin(t*6+f*7+W.phi[i])*S.w*(1-f*.6), bx=S.rx+(S.tx-S.rx)*f, by=gy+(S.ty-gy)*f;
+      ax=(bx+wob-W.x[i])*85-W.vx[i]*9; ay=(by-W.y[i])*85-W.vy[i]*9; }
     else { if(m!==0) W.mode[i]=0; ay=1500; W.vx[i]*=Math.pow(.995,dt*60); }
     if(hasF){const [fx,fy]=field(W.x[i],W.y[i]); ax+=fx*1.4; ay+=fy*1.4;}
     W.vx[i]+=ax*dt; W.vy[i]+=ay*dt; W.x[i]+=W.vx[i]*dt; W.y[i]+=W.vy[i]*dt;
@@ -129,9 +136,11 @@ function waterStep(dt){ const W=WATER,H=FX.H,Wd=FX.W,t=FX.t,o=W.orb,path=W.path,
       for(const b of FX.basins){ if(W.x[i]>b.x-10&&W.x[i]<b.x+b.w+10&&W.y[i]>b.y-40&&W.y[i]<b.y+b.h+20){ inB=true; W.life[i]=Math.max(W.life[i],2);
         if(W.x[i]<b.x+6){W.x[i]=b.x+6;W.vx[i]=Math.abs(W.vx[i])*.4;} if(W.x[i]>b.x+b.w-6){W.x[i]=b.x+b.w-6;W.vx[i]=-Math.abs(W.vx[i])*.4;}
         if(W.y[i]>b.y+b.h-6){W.y[i]=b.y+b.h-6;W.vy[i]=-Math.abs(W.vy[i])*.2;W.vx[i]+=rnd(-30,30);} } }
-      if(!inB){ if(W.y[i]>H-4){ if(Math.abs(W.vy[i])>350&&Math.random()<.5) splash(W.x[i],H-4,W.vx[i],W.vy[i]); W.y[i]=H-4; W.vy[i]*=-.25; W.vx[i]*=.6; W.life[i]=Math.min(W.life[i],.6); }
+      if(!inB&&FX.groundY&&W.y[i]>FX.groundY-2&&POOL.n<320){ if(POOL.n<3) POOL.cx=W.x[i]; else POOL.cx+=(W.x[i]-POOL.cx)*.01; W.mode[i]=3; W.life[i]=5; if(Math.abs(W.vy[i])>500&&Math.random()<.15) splash(W.x[i],FX.groundY,W.vx[i],W.vy[i]); }
+      else if(!inB){ if(W.y[i]>H-4){ if(Math.abs(W.vy[i])>350&&Math.random()<.5) splash(W.x[i],H-4,W.vx[i],W.vy[i]); W.y[i]=H-4; W.vy[i]*=-.25; W.vx[i]*=.6; W.life[i]=Math.min(W.life[i],.6); }
         if(W.x[i]<4||W.x[i]>Wd-4){ if(Math.abs(W.vx[i])>400&&Math.random()<.4) splash(W.x[i]<4?4:Wd-4,W.y[i],-W.vx[i]*.3,W.vx[i]); W.x[i]=Math.max(4,Math.min(Wd-4,W.x[i])); W.vx[i]*=-.3; } } }
     W.pos[i*3]=W.x[i]; W.pos[i*3+1]=-W.y[i]; }
+  { let p=0; const sc=[0,0,0,0,0]; for(let i=0;i<W.n;i++){ if(W.mode[i]===3) p++; else if(W.mode[i]===4) sc[W.sid[i]]++; } POOL.n=p; sc.forEach((c,s)=>W.strands[s].n=c); }
   W.geo.setDrawRange(0,W.n); W.geo.attributes.position.needsUpdate=true; }
 
 /* ---- rocks ---- */
@@ -169,9 +178,10 @@ function rockStep(dt){ const H=FX.H,W=FX.W;
 const QUAD_VS=`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
 const CAMFN=`uniform sampler2D cam;uniform float hasCam,mirror;uniform vec2 fr;
 vec3 camAt(vec2 uv){ if(hasCam<.5) return mix(vec3(.02,.01,.05),vec3(.1,.05,.2),uv.y); vec2 v=vec2(.5+(uv.x-.5)*fr.x*(mirror>.5?-1.:1.),.5+(uv.y-.5)*fr.y); return texture2D(cam,v).rgb; }`;
+let CAMU;
 function initBG(){
   camTex=new THREE.VideoTexture(video); camTex.colorSpace=THREE.SRGBColorSpace;
-  const U={cam:{value:camTex},hasCam:{value:0},mirror:{value:0},fr:{value:new THREE.Vector2(1,1)}};
+  const U=CAMU={cam:{value:camTex},hasCam:{value:0},mirror:{value:0},fr:{value:new THREE.Vector2(1,1)}};
   bgMat=new THREE.ShaderMaterial({uniforms:U,vertexShader:QUAD_VS,depthTest:false,depthWrite:false,
     fragmentShader:CAMFN+`varying vec2 vUv;void main(){gl_FragColor=vec4(camAt(vUv),1.);
  #include <colorspace_fragment>
@@ -189,11 +199,11 @@ function initBG(){
 void main(){ float d=texture2D(dens,vUv).r; float m=smoothstep(.4,.46,d); if(m<.01) discard;
  float dx=texture2D(dens,vUv+vec2(px.x,0.)).r-texture2D(dens,vUv-vec2(px.x,0.)).r, dy=texture2D(dens,vUv+vec2(0.,px.y)).r-texture2D(dens,vUv-vec2(0.,px.y)).r;
  vec3 n=normalize(vec3(-dx*5.,-dy*5.,.6+d*.4));
- vec3 bg=camAt(vUv+n.xy*.06+vec2(sin(time*2.+vUv.y*30.)*.003,0.));
- vec3 col=mix(bg*vec3(.7,.88,1.),vec3(.12,.42,.75),.3+.15*(1.-n.z));
+ vec3 bg=camAt(vUv+n.xy*.09+vec2(sin(time*2.+vUv.y*30.)*.004,cos(time*1.7+vUv.x*25.)*.003));
+ float edge=1.-smoothstep(.4,.52,d); vec3 col=bg*vec3(.86,.95,1.02)+vec3(.0,.03,.06); col=mix(col,vec3(.1,.3,.45),.08+.25*(1.-n.z)); col*=1.-edge*.28;
  float spec=pow(max(dot(normalize(reflect(vec3(0.,0.,-1.),n)),normalize(vec3(-.45,.55,.7))),0.),40.);
- float rim=pow(1.-n.z,2.5); col+=spec*vec3(2.2)+rim*vec3(.35,.65,1.)*.8 + smoothstep(.48,.36,d)*.0;
- gl_FragColor=vec4(col,m*.94);
+ float rim=pow(1.-n.z,3.); float caus=pow(max(0.,sin(vUv.x*37.+time*1.3+n.x*14.+sin(vUv.y*23.))*sin(vUv.y*29.-time*1.1+n.y*14.)),8.)*.12; col+=spec*vec3(1.8)+rim*vec3(.55,.8,1.)*.55+caus + smoothstep(.48,.36,d)*.0;
+ gl_FragColor=vec4(col,m*.9);
  #include <colorspace_fragment>
 }`});
   const wq=new THREE.Mesh(new THREE.PlaneGeometry(2,2),wComp); wq.frustumCulled=false; wq.renderOrder=3; scene.add(wq);
@@ -240,7 +250,7 @@ export function resize(){ if(!renderer) return; FX.W=innerWidth; FX.H=innerHeigh
   const ws=.5; wRT.setSize(Math.ceil(FX.W*ws),Math.ceil(FX.H*ws)); WATER.mat.uniforms.sz.value=30*ws*(1+.3*(1-FX.Q))*2; wComp.uniforms.px.value.set(1.5/(FX.W*ws),1.5/(FX.H*ws)); updFr(); }
 export function step(dt){ FX.t+=dt;
   for(let i=FX.fields.length-1;i>=0;i--){ const f=FX.fields[i]; f.life-=dt/(f.dur||1); if(f.life<=0) FX.fields.splice(i,1); }
-  for(const k in L) L[k].step(dt); waterStep(dt); rockStep(dt);
+  for(const k in L) L[k].step(dt); waterStep(dt); rockStep(dt); airStep(dt);
   wComp.uniforms.time.value=FX.t;
   if(FX.shake>0){ FX.shake*=Math.pow(.02,dt); cam.position.set(rnd(-1,1)*FX.shake,rnd(-1,1)*FX.shake,0); if(FX.shake<.3){FX.shake=0;cam.position.set(0,0,0);} }
   FX.light.intensity*=Math.pow(.05,dt);
@@ -249,4 +259,37 @@ export function step(dt){ FX.t+=dt;
   renderer.setRenderTarget(wRT); renderer.setClearColor(0,1); renderer.clear(); renderer.render(wScene,cam); renderer.setRenderTarget(null);
   if(FX.low||FX.Q<.45) renderer.render(scene,cam); else composer.render(); }
 export function lightAt(x,y,c,i){ FX.light.position.set(x,-y,220); FX.light.color.setRGB(...c); FX.light.intensity=Math.max(FX.light.intensity,i); }
+/* ---- airbending: refractive swirling air balls ---- */
+export const AIRB=[];
+const AIR_FS=()=>CAMFN+`uniform vec2 c,res;uniform float r,ph,sp,al;
+void main(){ vec2 d=(gl_FragCoord.xy-c)/r; float l=length(d); if(l>1.) discard;
+ float th=ph*(1.-l)*(1.-l)*.9+sp*2.4*(1.-l); float cs=cos(th),sn=sin(th); vec2 dd=mat2(cs,-sn,sn,cs)*d;
+ vec2 suv=(c+dd*r*(.8+.2*l*l))/res; vec3 col=camAt(suv);
+ float ang=atan(d.y,d.x), band=.5+.5*sin(ang*3.-l*8.+ph);
+ float rim=smoothstep(.72,1.,l)*(1.-smoothstep(.97,1.,l));
+ col=col*1.04+vec3(.8,.9,1.)*(rim*(.1+.12*sp)+band*sp*.07*(1.-l));
+ gl_FragColor=vec4(col,smoothstep(1.,.9,l)*al);
+ #include <colorspace_fragment>
+}`;
+export function airBall(x,y,r=16){ if(AIRB.length>=3){ const o=AIRB.find(b=>!b.held)||AIRB[0]; airKill(o); }
+  const m=new THREE.ShaderMaterial({uniforms:{...CAMU,c:{value:new THREE.Vector2()},res:{value:new THREE.Vector2(1,1)},r:{value:1},ph:{value:0},sp:{value:0},al:{value:0}},vertexShader:`void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,fragmentShader:AIR_FS(),transparent:true,depthTest:false,depthWrite:false});
+  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(1,1),m); mesh.renderOrder=4; mesh.frustumCulled=false; scene.add(mesh);
+  const b={x,y,r,spin:0,ph:0,vx:0,vy:0,held:true,free:false,life:1,mesh,al:0}; AIRB.push(b); return b; }
+function airKill(b){ scene.remove(b.mesh); b.mesh.material.dispose(); b.mesh.geometry.dispose(); AIRB.splice(AIRB.indexOf(b),1); }
+export function airClear(){ while(AIRB.length) airKill(AIRB[0]); }
+const MOTE=[[.62,.55,.42],[.45,.52,.3],[.7,.68,.62],[.5,.4,.28]];
+export function mote(x,y,vx,vy,s=1){ L.dust.spawn(x,y,vx,vy,{c:MOTE[(Math.random()*4)|0],a:.7,size:rnd(2.5,5)*s,grow:0,life:rnd(.5,.9),drag:.96,field:1}); }
+function airStep(dt){ for(const b of [...AIRB]){
+  if(!b.fed) b.spin*=Math.pow(b.free?.7:.35,dt); b.fed=false;
+  if(b.free){ const k=b.spin*.06*dt, c=Math.cos(k), s=Math.sin(k); [b.vx,b.vy]=[b.vx*c-b.vy*s,b.vx*s+b.vy*c]; b.x+=b.vx*dt; b.y+=b.vy*dt; b.life-=dt*.35;
+    if((b.pushT=(b.pushT||0)-dt)<=0){ b.pushT=.08; addField({type:'push',x:b.x,y:b.y,r:b.r*2.4,vx:b.vx*.6,vy:b.vy*.6,dur:.12}); }
+    if(b.x<-b.r||b.x>FX.W+b.r||b.y<-b.r||b.y>FX.H+b.r) b.life=0; }
+  else if(!b.held){ if(Math.abs(b.spin)<1.5) b.r*=Math.pow(.4,dt); b.life-=dt*.25; }
+  b.al+=((b.life>0&&b.r>6?1:0)-b.al)*Math.min(1,dt*8);
+  if(b.life<=0||b.r<6){ b.al-=dt*4; if(b.al<=.02){ airKill(b); continue; } }
+  b.ph+=b.spin*dt; const sp=Math.min(1,Math.abs(b.spin)/10);
+  const n=(.4+sp*3)*FX.Q; for(let i=0;i<n;i++){ const a=rnd(0,6.28), rr=b.r*rnd(.55,1.08), dir=Math.sign(b.spin)||1, v=Math.abs(b.spin)*rr*.9+20;
+    mote(b.x+Math.cos(a)*rr,b.y+Math.sin(a)*rr,-Math.sin(a)*v*dir+b.vx*.8-Math.cos(a)*15,Math.cos(a)*v*dir+b.vy*.8-Math.sin(a)*15,.8+b.r/80); }
+  const u=b.mesh.material.uniforms, d=dprNow; u.c.value.set(b.x*d,(FX.H-b.y)*d); u.res.value.set(FX.W*d,FX.H*d); u.r.value=b.r*d; u.ph.value=b.ph; u.sp.value=sp; u.al.value=Math.max(0,b.al);
+  b.mesh.position.set(b.x,-b.y,0); b.mesh.scale.set(b.r*2.1,b.r*2.1,1); } }
 export function counts(){ let n=WATER.n+L.streak.n; for(const k in L) n+=L[k].n; return n; }

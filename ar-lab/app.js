@@ -1,4 +1,5 @@
 import * as STL from './still.js';
+import * as TR from './train.js';
 import * as FXE from './fx.js';
 import {FX} from './fx.js';
 import * as EL from './elements.js';
@@ -224,7 +225,7 @@ function frameForDetect(){
   if(meter){ let sum=0,n=0; for(let i=0;i<d.length;i+=64){sum+=d[i]*.3+d[i+1]*.59+d[i+2]*.11;n++;} S.luma=sum/n;
     S.boostOn=S.luma<95; updBoostBtn();
     let c=0,cn=0,e2=0,en=0; for(let y=0;y<H;y+=6) for(let x=0;x<W;x+=6){ const k=(y*W+x)*4, l=d[k]*.3+d[k+1]*.59+d[k+2]*.11; if(x>W*.3&&x<W*.7&&y>H*.3&&y<H*.7){c+=l;cn++;} else if(x<W*.12||x>W*.88||y<H*.12){e2+=l;en++;} }
-    S.backlit=(e2/en)-(c/cn)>45&&(c/cn)<120; $('lightwarn').hidden=!S.backlit&&!(S.luma<60); $('lightwarn').textContent=S.backlit?'☀️ Backlit: face the light':'🌙 Very dark: add light'; }
+    S.backlit=(e2/en)-(c/cn)>45&&(c/cn)<120; lightWarn(S.backlit?'☀️ Backlit':S.luma<60?'🌙 Dim light':null); }
   if(apply){ if(Math.abs(lutFor-S.luma)>6) buildLUT(S.luma); for(let i=0;i<d.length;i+=4){d[i]=LUT[d[i]];d[i+1]=LUT[d[i+1]];d[i+2]=LUT[d[i+2]];} pctx.putImageData(img,0,0); }
   return proc;
 }
@@ -285,9 +286,9 @@ function trackHands(now,dt){
   const fdt=Math.max(dt,1/120);
   if(!got.length){ S.lostT+=dt; if(S.lostT<.3&&S.handsNow?.length){ skel.style.opacity=1-S.lostT/.3; } if(S.lostT>.3){ S.handSeen=false; S.palmT=0; $('palm').style.opacity=0; drawSkel([]); FL.forEach(f=>f.forEach(o=>o.x=null)); HANDS.forEach(h=>{h.palm=null;h.g='none';});
       if(S.pinch&&S.lostT>.8){S.pinch=false;release();} if(S.src==='hand') S.handsNow=[];
-      if(S.src==='hand'||S.lostT>3) hint(S.luma<95?'It\'s dark: face a lamp or window. Boost is helping.':'Show your hand: palm to camera, 30–60 cm away'); }
+      if(S.src==='hand'||S.lostT>3) hint('Show your hand to the camera'); }
     return; }
-  S.lostT=0; skel.style.opacity=1; hint(S.backlit?'Backlit: the light is behind you. Turn so the light is in front of you.':null);
+  S.lostT=0; skel.style.opacity=1; hint(null);
   // keep slots stable: match by nearest wrist
   if(got.length===2&&HANDS[0].palm&&HANDS[1].palm){ const d=(a,h)=>Math.hypot(a[0].x-h.pts[0].x,a[0].y-h.pts[0].y);
     if(d(got[0],HANDS[1])+d(got[1],HANDS[0])<d(got[0],HANDS[0])+d(got[1],HANDS[1])) got.reverse(); }
@@ -307,10 +308,10 @@ function trackHands(now,dt){
   else { S.palmT=0; $('palm').style.opacity=0; }
 }
 const GHINT={
- water:[['open','Open palm','summon water orb'],['poke','Point 1 finger + drag','stream / whip'],['swipe','Flick','throw it'],['circle','Circle','whirlpool'],['combo','Clap 2 hands','tidal burst']],
- fire:[['poke','☝️ Point','fingertip flame: poke real things to burn them'],['open','Open palm','fire jet'],['vee','✌️ Two fingers','ember ball'],['swipe','Flick','throw fireball'],['circle','Circle','fire tornado'],['combo','Clap 2 hands','explosion']],
+ water:[['vee','✌️ Two fingers','pour onto the floor'],['open','Open palm + lift','5 strands, 1 per finger'],['open','Curl / spread fingers','shape the strands'],['open','Push down fast','sink it'],['swipe','Flick','whip']],
+ fire:[['poke','☝️ Point, hold still','flame grows with focus'],['open','Open palm + push','short burst'],['vee','✌️ Two fingers','ember ball'],['swipe','Flick','throw fireball'],['circle','Circle','fire tornado'],['combo','Clap 2 hands','explosion']],
  earth:[['open','Palm lifts up','raise a rock'],['vee','✌️ Two fingers on rock','grab it'],['swipe','Flick','throw it'],['fist','Hold a fist on rock','crush to dust'],['combo','Clap 2 hands','rock wall']],
- air:[['poke','☝️ Point + move','wind trail'],['swipe','Swipe','gust'],['circle','Circle','vortex (moves everything)'],['combo','Clap 2 hands','cyclone']],
+ air:[['vee','✌️ Two fingers / 2 palms','air ball'],['circle','Keep circling','spin it up'],['swipe','Flick (spinning)','throw it'],['open','Open palm swipe','gust']],
  atoms:[['poke','Point at a tile / atom','take it, drag it'],['poke','Drop on another','bond or react'],['vee','✌️ over molecule','rotate it'],['fist','Fist hold on molecule','split to atoms']],
  gear:[['poke','☝️ Poke an item','press: light / pour / drop'],['poke','Poke, hold, move','carry it'],['poke','Hold over lit burner','heat it']],
  chem:[['poke','Point','grab element'],['open','Open palm 1 s','ignite']],
@@ -323,7 +324,7 @@ function setMode(m){ E.mode=m; document.querySelectorAll('#modes button').forEac
   const chem=m==='chem'; $('shelf').hidden=!chem; $('targets').hidden=!chem; $('cursor').hidden=!chem; $('ignite').hidden=!chem;
   EL.clearAll(); buildHud(); AT.show(m==='atoms'); GE.show(m==='gear'); window.labEvent?.('mode:'+m);
   requestAnimationFrame(()=>{ const r={}; document.querySelectorAll('.tg').forEach(t=>r[t.dataset.id]=t.getBoundingClientRect()); EL.chemProps(chem,r); });
-  status(m==='atoms'?'Atoms: pinch an element tile, bring atoms together to bond. Open palm rotates.':chem?'Chem lab: pinch an element, drop it on the dish, burner or paper.':'Elements: '+m.toUpperCase()+'. Try the moves on the left.'); }
+  status(m==='atoms'?'Atoms: pinch an element tile, bring atoms together to bond. Open palm rotates.':chem?'Chem lab: pinch an element, drop it on the dish, burner or paper.':({water:'✌️ pour · open palm + lift = strands',fire:'☝️ hold still = flame · push palm = burst',earth:'lift palm = rock · ✌️ grab',air:'✌️ air ball · circle to spin · flick to throw'})[m]||'Tap ⋯ for moves, 🎓 to train'); }
 
 /* ---------- virtual hand (touch / controller) -> same gesture pipeline ---------- */
 function pose(x,y,g,s=90){ const ext=[[0,-.45],[0,-.75],[0,-1]], cur=[[0,-.3],[0,-.05],[0,.15]];
@@ -370,7 +371,7 @@ addEventListener('gamepadconnected',e=>status(`Controller connected: stick moves
 /* ---------- touch ---------- */
 const hud=$('hud'), touches=new Map();
 function maybeRock(x,y){ if(!FXE.ROCKS.some(k=>Math.hypot(k.x-x,k.y-y)<k.r*2.2)){ const k=FXE.rockSpawn(x,y); if(k){k.y=y+40;k.mode='rise';} } }
-addEventListener('pointerdown',e=>{ if(hud.hidden||e.target.closest('#bar,#card,#camerr,#modes,#calbox,#gate,#aClear,#aChal,#chal')) return; S.src='touch';
+addEventListener('pointerdown',e=>{ if(hud.hidden||e.target.closest('#bar,#card,#camerr,#modes,#calbox,#gate,#aClear,#aChal,#chal,#more,#train,#ptable')) return; S.src='touch';
   if(E.mode==='chem'){ S.cursor.x=e.clientX;S.cursor.y=e.clientY; grab(); return; }
   touches.set(e.pointerId,{x:e.clientX,y:e.clientY}); const n=touches.size;
   if(n===1&&E.mode==='earth') maybeRock(e.clientX,e.clientY);
@@ -390,8 +391,8 @@ function loop(now){
   pollPad(dt);
   const hs=(S.handsNow||[]).filter(h=>h.palm);
   pokeTap(hs,dt); for(const h of hs) if(h.changed&&h.g!=='relaxed'&&h.g!=='none') window.labEvent?.(`g:${h.g}:${E.mode}`);
-  try{ if(E.mode==='atoms') AT.update(hs,dt); EL.update(E.mode==='chem'||E.mode==='atoms'||E.mode==='gear'?[]:hs,dt); GE.update(E.mode==='gear'?hs:[],dt); const elm=['water','fire','earth','air'].includes(E.mode), still=STL.update(dt,now); BU.B.still=still&&elm; FX.clip=BU.B.still?BU.zones(hs[0]?.pinchPt):null; stillHud(still);
-    BU.update(dt,now,E.mode==='fire'||E.mode==='gear'||BU.B.still); EL.chemStep(dt); FXE.step(dt); }catch(e){ console.warn(e); }
+  try{ if(E.mode==='atoms') AT.update(hs,dt); EL.update(E.mode==='chem'||E.mode==='atoms'||E.mode==='gear'?[]:hs,dt); GE.update(E.mode==='gear'?hs:[],dt); const elm=['water','fire','earth','air'].includes(E.mode), still=STL.update(dt,now); BU.B.still=still&&elm; BU.B.tip=hs[0]?.pinchPt||null; BU.B.debug=document.body.classList.contains('more'); FX.clip=BU.B.still?BU.zones(hs[0]?.pinchPt):null; stillHud(still);
+    BU.update(dt,now,E.mode==='fire'||E.mode==='gear'||BU.B.still); EL.chemStep(dt); FXE.step(dt); TR.update(dt,hs.length>0); }catch(e){ console.warn(e); }
   if(E.mode==='chem'){ cur.style.left=S.cursor.x+'px'; cur.style.top=S.cursor.y+'px';
     document.querySelectorAll('.tg').forEach(t=>t.classList.toggle('hot',!!S.held&&hit('.tg',S.cursor.x,S.cursor.y)===t)); }
   fpsAcc+=dt;fpsN++; qAcc+=dt;qN++;
@@ -417,9 +418,9 @@ function startTrackLoop(){ if(S.rvfc||!('requestVideoFrameCallback' in HTMLVideo
 const MODES_LIST=['water','fire','earth','air','atoms','gear','chem'];
 let started=false;
 window.startLab=()=>{ if(started) return; started=true; hud.hidden=false; refreshLocks();
-  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); STL.init(video); setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
+  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); STL.init(video); TR.init({pose,say:E.say,setMode}); E.onEv=n=>{ TR.onEv(n); window.labEvent?.(n); }; setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
   status('Pick a mode. Hands: ☝️ point = poke/press, ✌️ two fingers = grab, open palm, flick, circle. No camera? Drag with one or two fingers.'); };
-$('modes').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setMode(b.dataset.m); });
+$('modes').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b&&b.dataset.m){ setMode(b.dataset.m); TR.T.on&&TR.T.el!==b.dataset.m&&TR.stop(); } });
 $('boost').onclick=()=>{ S.boost={auto:'on',on:'off',off:'auto'}[S.boost]; updBoostBtn(); };
 $('calib').onclick=startCalib; $('calSkip').onclick=()=>{S.calib=null;$('calbox').hidden=true;};
 $('flip').onclick=()=>{ S.facing=S.facing==='user'?'environment':'user'; startCamera(); };
@@ -434,5 +435,9 @@ $('bodyBtn').onclick=async()=>{ $('bodyBtn').textContent='Body: …'; const on=a
 const SL={auto:'Stationary: auto',on:'Stationary: on',off:'Stationary: off'};
 function stillHud(s){ const b=$('stillBtn'); if(!b) return; const t=SL[STL.ST.mode]+(STL.ST.mode==='auto'?(s?' (still)':' (moving)'):''); if(b.textContent!==t) b.textContent=t; b.classList.toggle('on',s); }
 $('stillBtn').onclick=()=>{ STL.askMotion(); STL.setMode({auto:'on',on:'off',off:'auto'}[STL.ST.mode]); E.say(STL.ST.mode==='off'?'Free mode: elements anywhere':'Prop the phone up: only items in frame get elements'); };
+function lightWarn(m){ const w=$('lightwarn'), now=performance.now();
+  if(!m){ w.hidden=true; return; } if(w.hidden&&now-(S.lwT||-1e9)>60000){ S.lwT=now; w.textContent=m; w.hidden=false; w.style.opacity=1; clearTimeout(S.lwTo); S.lwTo=setTimeout(()=>{ w.style.opacity=0; setTimeout(()=>w.hidden=true,500); },4000); } }
+$('more').onclick=()=>{ document.body.classList.toggle('more'); $('more').textContent=document.body.classList.contains('more')?'✕':'⋯'; };
+$('trainBtn').onclick=$('trainBtn2').onclick=()=>{ document.body.classList.remove('more'); $('more').textContent='⋯'; TR.menu(); };
 $('wipeBtn').onclick=()=>window.wipeNow?.();
-window.__lab2={STL,GE,BU,BO,S};
+window.__lab2={TR,POOL:FXE.POOL,AIRB:FXE.AIRB,STL,GE,BU,BO,S};
