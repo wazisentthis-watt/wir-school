@@ -184,3 +184,8 @@ body:not(.more) #bar,body:not(.more) #gest,body:not(.more) #gnow{display:none!im
 #tray button{display:flex;align-items:center;gap:6px;width:100%;font-size:11px;margin:0 0 4px;background:#ffffff10;border:1px solid #ffffff1c;border-radius:10px;color:#fff;padding:6px;text-align:left}
 #tray button span{font-size:20px} #tray button.on{background:#7fd8ff33;border-color:#7fd8ff}
 #tray p{opacity:.7;font-size:10px;margin:6px 2px} #tray .clr{justify-content:center;opacity:.8}
+
+/* v9 calm: fewer HUD elements, one clear hint line */
+body.calm #gest,body.calm #gnow,body.calm #v7q,body.calm #fps,body.calm #trainBtn,body.calm #modes .m-atoms,body.calm #modes .m-gear,body.calm #modes .m-chem{display:none!important}
+body.calm.more #modes .m-atoms,body.calm.more #modes .m-gear,body.calm.more #modes .m-chem{display:inline-block!important}
+body.calm #status{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:92vw}

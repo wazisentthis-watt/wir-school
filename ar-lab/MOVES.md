@@ -127,3 +127,12 @@ Tests: `node tests/v7.test.mjs` (34 checks).
 - **Calmer fire**: fewer and smaller flames, slower spread. Fire on screen is capped (`FIRE.cap`, at most 2 burning objects). To put it out, curl your hand, make a fist, or hold your palm down over the flame; water mode douses it with steam.
 - **Element orb**: a golf-ball-sized orb rests just above your palm. Tilt your palm to roll it, and use your fingertips to nudge or twirl it (the spin marks show it turning). If you move fast without guiding it, it wobbles and drops, then respawns. A stability ring shows how steady it is. Tap the chip at the top right to cycle easy / normal / master / off. The charge-blast and the throw moves launch the orb. New lesson: "Lio of the Steady Palm".
 - **Detection**: frames are contrast-normalized, the detection threshold is lower (.2), and results go through temporal voting. Lite2 switches on automatically when fps allows (or use `?det=lite2`). Long-press an object to identify it: a CLIP guess plus a label picker, remembered per profile.
+
+## v9: simpler and calmer
+- **Steadier hands**: hand tracking is heavily smoothed and has a small dead zone, so tiny jitters do nothing.
+- **Fewer moves**: each element mode keeps only a few clear moves (fire: flick-open, push, curl; water: ripple, pulse, push, flick-open; earth: scoop, flick-open, push; air: push, pulse, flick-open). Cup, fist, point and the two-palm clap still work everywhere.
+- **The orb starts on easy**: strong centering and heavy damping, and it reacts to smoothed palm motion, so it rarely drops.
+- **Particles stay put**: about a third as many, slower, with drag so they settle, and they stay within about 200px of where they started. Loose water drops are shorter-lived. Blasts push more gently and over a smaller area.
+- **Atoms**: molecules follow your hand more slowly, spin less and stay on screen.
+- **Less on screen**: the mode bar shows Water, Fire, Earth and Air (Atoms, Gear and Chem are under ⋯). The gesture list, quest chip and fps counter are hidden. One clear hint line.
+- All settings live in `calm.js`; `CALM.on=false` restores v8 behavior.

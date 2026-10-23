@@ -1,5 +1,6 @@
 /* WIR AR Lab particle engine: textured GPU sprites, curl noise, force fields, metaball water with
    camera refraction, CC0 rock meshes, wind streaks, bloom. Screen-pixel coords (y down). */
+import {CALM,calmVel} from './calm.js';
 import {FIRE} from './fire.js';
 import * as THREE from 'three';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
@@ -50,7 +51,7 @@ void main(){vec2 p=gl_PointCoord-.5;float c=cos(vR),s=sin(vR);p=mat2(c,-s,s,c)*p
 class Layer{
   constructor({map,max,add=true,heat=false,fin=.08,order=5,rate=1,lifeK=1,sizeK=1,aK=1,growK=1}){ Object.assign(this,{max,n:0,rate,lifeK,sizeK,aK,growK,heat});
     const A=(k)=>new Float32Array(max*k);
-    this.x=A(1);this.y=A(1);this.vx=A(1);this.vy=A(1);this.life=A(1);this.maxl=A(1);this.drag=A(1);this.grav=A(1);this.grow=A(1);this.spin=A(1);this.cu=A(1);this.base=A(1);this.fld=A(1);
+    this.x=A(1);this.y=A(1);this.vx=A(1);this.vy=A(1);this.life=A(1);this.maxl=A(1);this.drag=A(1);this.grav=A(1);this.grow=A(1);this.spin=A(1);this.cu=A(1);this.base=A(1);this.fld=A(1);this.ox=A(1);this.oy=A(1);
     this.pos=A(3);this.col=A(4);this.sz=A(1);this.rot=A(1);this.age=A(1);
     const g=this.g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.BufferAttribute(this.pos,3));g.setAttribute('acol',new THREE.BufferAttribute(this.col,4));
@@ -58,19 +59,19 @@ class Layer{
     this.mat=new THREE.ShaderMaterial({uniforms:{map:{value:map},dpr:{value:1},heat:{value:heat?1:0},add:{value:add&&!heat?1:0},fin:{value:fin},gain:{value:1},sat:{value:1},outline:{value:.35}},vertexShader:VS,fragmentShader:FS,
       transparent:true,depthTest:false,depthWrite:false,blending:add&&!heat?THREE.AdditiveBlending:THREE.NormalBlending});
     this.pts=new THREE.Points(g,this.mat); this.pts.frustumCulled=false; this.pts.renderOrder=order; }
-  spawn(x,y,vx,vy,o={}){ if(this.heat&&L.fire.n+L.flame.n>=FIRE.cap*FX.Q) return -1; if(this.n>=this.max*FX.Q||(this.rate<1&&Math.random()>this.rate)) return -1; if(FX.clip&&this.clip&&!inClip(x,y)) return -1; const i=this.n++, c=o.c||[1,1,1];
-    this.x[i]=x;this.y[i]=y;this.vx[i]=vx;this.vy[i]=vy;this.life[i]=this.maxl[i]=(o.life||1)*this.lifeK;this.drag[i]=o.drag??.985;this.grav[i]=o.grav||0;
+  spawn(x,y,vx,vy,o={}){ if(this.heat&&L.fire.n+L.flame.n>=FIRE.cap*FX.Q) return -1; if(this.n>=this.max*FX.Q*(CALM.on?CALM.cap:1)||(this.rate<1&&Math.random()>this.rate)) return -1; if(FX.clip&&this.clip&&!inClip(x,y)) return -1; const i=this.n++, c=o.c||[1,1,1];
+    const sk=CALM.on?CALM.speed:1; this.x[i]=x;this.y[i]=y;this.ox[i]=x;this.oy[i]=y;this.vx[i]=vx*sk;this.vy[i]=vy*sk;this.life[i]=this.maxl[i]=(o.life||1)*this.lifeK;this.drag[i]=o.drag??.985;this.grav[i]=o.grav||0;
     this.grow[i]=(o.grow||0)*this.growK;this.spin[i]=o.spin??rnd(-2,2);this.cu[i]=o.curl||0;this.base[i]=(o.size||20)*this.sizeK;this.rot[i]=rnd(0,6.28);this.fld[i]=o.field??1;
     this.col[i*4]=c[0];this.col[i*4+1]=c[1];this.col[i*4+2]=c[2];this.col[i*4+3]=(o.a??1)*this.aK; return i; }
   kill(i){ const j=--this.n; if(i===j) return;
-    for(const k of ['x','y','vx','vy','life','maxl','drag','grav','grow','spin','cu','base','rot','fld']) this[k][i]=this[k][j];
+    for(const k of ['x','y','vx','vy','life','maxl','drag','grav','grow','spin','cu','base','rot','fld','ox','oy']) this[k][i]=this[k][j];
     for(let q=0;q<4;q++) this.col[i*4+q]=this.col[j*4+q]; }
   step(dt){ const t=FX.t, hasF=FX.fields.length;
     for(let i=this.n-1;i>=0;i--){ if((this.life[i]-=dt)<=0){this.kill(i);continue;}
       const dr=Math.pow(this.drag[i],dt*60); this.vx[i]*=dr; this.vy[i]=this.vy[i]*dr+this.grav[i]*dt;
       if(this.cu[i]){const [cx,cy]=curl(this.x[i],this.y[i],t);this.vx[i]+=cx*this.cu[i]*dt;this.vy[i]+=cy*this.cu[i]*dt;}
       if(hasF&&this.fld[i]){const [ax,ay]=field(this.x[i],this.y[i]);this.vx[i]+=ax*dt*this.fld[i];this.vy[i]+=ay*dt*this.fld[i];}
-      this.x[i]+=this.vx[i]*dt; this.y[i]+=this.vy[i]*dt; this.rot[i]+=this.spin[i]*dt;
+      if(CALM.on){ const v=calmVel(this.x[i],this.y[i],this.vx[i],this.vy[i],this.ox[i],this.oy[i],dt); this.vx[i]=v[0]; this.vy[i]=v[1]; } this.x[i]+=this.vx[i]*dt; this.y[i]+=this.vy[i]*dt; this.rot[i]+=this.spin[i]*dt;
       if(FX.clip&&this.clip&&!inClip(this.x[i],this.y[i])){ this.life[i]=Math.min(this.life[i],.06); }
       const age=1-this.life[i]/this.maxl[i]; this.age[i]=age; this.sz[i]=this.base[i]*(1+this.grow[i]*age);
       this.pos[i*3]=this.x[i]; this.pos[i*3+1]=-this.y[i]; }
@@ -113,14 +114,14 @@ class Streaks{
 
 /* ---- water: spring-bound particles + metaball refraction ---- */
 export const WATER={max:700,n:0};
-{ const A=()=>new Float32Array(WATER.max); for(const k of ['x','y','vx','vy','life','mode','phi','rr','idx','sid']) WATER[k]=A(); WATER.pos=new Float32Array(WATER.max*3); }
+{ const A=()=>new Float32Array(WATER.max); for(const k of ['x','y','vx','vy','life','mode','phi','rr','idx','sid','ox','oy']) WATER[k]=A(); WATER.pos=new Float32Array(WATER.max*3); }
 WATER.orb=null; WATER.path=[];
 /* waterbending: mode 3 = resting pool on the ground line FX.groundY, mode 4 = strand s (one per fingertip) pulled up out of it */
 export const POOL={cx:0,n:0}; WATER.strands=[0,1,2,3,4].map(()=>({on:false,rx:0,tx:0,ty:0,w:6,n:0}));
-export function waterSpawn(x,y,vx,vy,mode=0,life=4){ const W=WATER; if(W.n>=W.max*FX.Q) return -1; const i=W.n++;
-  W.x[i]=x;W.y[i]=y;W.vx[i]=vx;W.vy[i]=vy;W.mode[i]=mode;W.life[i]=life;W.phi[i]=rnd(0,6.28);W.rr[i]=Math.sqrt(Math.random());W.idx[i]=Math.random(); return i; }
-function waterKill(i){ const W=WATER,j=--W.n; if(i===j) return; for(const k of ['x','y','vx','vy','life','mode','phi','rr','idx','sid']) W[k][i]=W[k][j]; }
-export function waterThrow(vx,vy,mode){ const W=WATER; let n=0; for(let i=0;i<W.n;i++) if(W.mode[i]===mode||(mode<0&&W.mode[i]>0)){ W.mode[i]=0; W.vx[i]=vx*rnd(.85,1.15)+rnd(-80,80); W.vy[i]=vy*rnd(.85,1.15)+rnd(-80,80); W.life[i]=3; n++; } return n; }
+export function waterSpawn(x,y,vx,vy,mode=0,life=4){ const W=WATER; if(W.n>=W.max*FX.Q*(CALM.on?.45:1)) return -1; const i=W.n++; if(CALM.on&&mode===0){ vx*=CALM.speed; vy*=CALM.speed; life=Math.min(life,1.6); } /* v9: fewer, slower, short-lived loose drops */
+  W.x[i]=x;W.y[i]=y;W.ox[i]=x;W.oy[i]=y;W.vx[i]=vx;W.vy[i]=vy;W.mode[i]=mode;W.life[i]=life;W.phi[i]=rnd(0,6.28);W.rr[i]=Math.sqrt(Math.random());W.idx[i]=Math.random(); return i; }
+function waterKill(i){ const W=WATER,j=--W.n; if(i===j) return; for(const k of ['x','y','vx','vy','life','mode','phi','rr','idx','sid','ox','oy']) W[k][i]=W[k][j]; }
+export function waterThrow(vx,vy,mode){ const W=WATER; let n=0; for(let i=0;i<W.n;i++) if(W.mode[i]===mode||(mode<0&&W.mode[i]>0)){ const sk=CALM.on?CALM.speed:1; W.mode[i]=0; W.vx[i]=(vx*rnd(.9,1.1)+rnd(-40,40))*sk; W.vy[i]=(vy*rnd(.9,1.1)+rnd(-40,40))*sk; W.life[i]=CALM.on?1.6:3; W.ox[i]=W.x[i]; W.oy[i]=W.y[i]; n++; } return n; }
 export function waterCount(mode){ let n=0; for(let i=0;i<WATER.n;i++) if(WATER.mode[i]===mode) n++; return n; }
 function splash(x,y,vx,vy){ for(let k=0;k<3;k++) waterSpawn(x,y-4,vx*.2+rnd(-150,150),-Math.abs(vy)*rnd(.15,.35)-rnd(60,200),0,rnd(.4,.9));
   L.glow.spawn(x,y,0,0,{c:[.5,.75,1],a:.35,size:40,life:.25}); }
@@ -139,7 +140,7 @@ function waterStep(dt){ const W=WATER,H=FX.H,Wd=FX.W,t=FX.t,o=W.orb,path=W.path,
       ax=(bx+wob-W.x[i])*85-W.vx[i]*9; ay=(by-W.y[i])*85-W.vy[i]*9; }
     else { if(m!==0) W.mode[i]=0; ay=1500; W.vx[i]*=Math.pow(.995,dt*60); }
     if(hasF){const [fx,fy]=field(W.x[i],W.y[i]); ax+=fx*1.4; ay+=fy*1.4;}
-    W.vx[i]+=ax*dt; W.vy[i]+=ay*dt; W.x[i]+=W.vx[i]*dt; W.y[i]+=W.vy[i]*dt;
+    W.vx[i]+=ax*dt; W.vy[i]+=ay*dt; if(CALM.on&&m===0){ const v=calmVel(W.x[i],W.y[i],W.vx[i],W.vy[i],W.ox[i],W.oy[i],dt,CALM.R*1.3); W.vx[i]=v[0]; W.vy[i]=v[1]; } W.x[i]+=W.vx[i]*dt; W.y[i]+=W.vy[i]*dt;
     if(W.mode[i]===0){ let inB=false;
       for(const b of FX.basins){ if(W.x[i]>b.x-10&&W.x[i]<b.x+b.w+10&&W.y[i]>b.y-40&&W.y[i]<b.y+b.h+20){ inB=true; W.life[i]=Math.max(W.life[i],2);
         if(W.x[i]<b.x+6){W.x[i]=b.x+6;W.vx[i]=Math.abs(W.vx[i])*.4;} if(W.x[i]>b.x+b.w-6){W.x[i]=b.x+b.w-6;W.vx[i]=-Math.abs(W.vx[i])*.4;}

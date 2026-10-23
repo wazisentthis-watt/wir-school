@@ -3,14 +3,14 @@
 import {orbNew,orbStep,orbLaunch,palmTilt,restPoint,DIFF,R0} from './orb.js';
 import {FX,L,rnd,lightAt} from './fx.js';
 import {E,boom} from './elements.js';
-export const OB={O:orbNew(),diff:'normal',prev:null,carry:0,spinT:0,minX:1e9,maxX:-1e9};
-try{ OB.diff=localStorage.getItem('wirlab.orb')||'normal'; }catch{}
+export const OB={O:orbNew(),diff:'easy',prev:null,carry:0,spinT:0,minX:1e9,maxX:-1e9};
+try{ OB.diff=localStorage.getItem('wirlab.orb9')||'easy'; }catch{}
 let cv,cx,chip; const MODES=['fire','water','earth','air'];
 export const active=()=>OB.diff!=='off'&&MODES.includes(E.mode);
 export function init(){ cv=document.createElement('canvas'); cv.id='orbc'; Object.assign(cv.style,{position:'fixed',inset:0,pointerEvents:'none',zIndex:6}); document.body.appendChild(cv);
   const fit=()=>{ cv.width=innerWidth; cv.height=innerHeight; }; fit(); addEventListener('resize',fit); cx=cv.getContext('2d');
   chip=document.createElement('button'); chip.id='orbchip'; chip.title='Orb difficulty'; Object.assign(chip.style,{position:'fixed',right:'12px',top:'110px',zIndex:41,background:'#0008',color:'#fff',border:0,borderRadius:'18px',height:'36px',padding:'0 10px',font:'12px system-ui'});
-  const lbl=()=>chip.textContent='◉ '+OB.diff; lbl(); chip.onclick=()=>{ const L2=['easy','normal','master','off']; OB.diff=L2[(L2.indexOf(OB.diff)+1)%4]; try{localStorage.setItem('wirlab.orb',OB.diff);}catch{} lbl(); };
+  const lbl=()=>chip.textContent='◉ '+OB.diff; lbl(); chip.onclick=()=>{ const L2=['easy','normal','master','off']; OB.diff=L2[(L2.indexOf(OB.diff)+1)%4]; try{localStorage.setItem('wirlab.orb9',OB.diff);}catch{} lbl(); };
   document.body.appendChild(chip); }
 const TIPS=[4,8,12,16,20];
 export function step(hs,dt){ if(!cx) return; cx.clearRect(0,0,cv.width,cv.height); if(!active()){ OB.O.state='gone'; return; }

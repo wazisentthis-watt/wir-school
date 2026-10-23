@@ -1,3 +1,4 @@
+import {CALM} from './calm.js';
 /* Elements mode (water / fire / earth / air) + chemistry effects, all on the fx.js engine. */
 import {step as moveStep,defaultCal} from './moves.js';
 import {keeperNew,keeperFeed,keeperStep} from './keeper.js';
@@ -26,7 +27,7 @@ export function readHand(H,pts,dt,cal){
   const iu=up(0),mu=up(1),ru=up(2),pu=up(3);
   // Kinetic-chain move engine (moves.js): static pose open/poke/cup/fist/relaxed (no ✌️) + temporal moves, per-user calibrated.
   if(!cal.mv) cal.mv=defaultCal();
-  const R=moveStep(H,pts,FX.t,cal.mv,dt); let g=R.g;
+  const R=moveStep(H,pts,FX.t,cal.mv,dt); if(CALM.on&&CALM.moves[E.mode]) R.ev=R.ev.filter(e=>CALM.moves[E.mode].includes(e.k)); /* v9: few clear moves */ let g=R.g;
   H.n=R.n; H.mvs=R.state; H.mv=R.ev.map(e=>e.k); H.mvo=R.ev; for(const e of R.ev) E.ev('move:'+e.k);
   const prevG=H.g; H.g=poseDebounce(H.db=H.db||{g:H.g},g); H.pinch=H.g==='cup';
   H.pinchPt=H.g==='cup'?{x:(palm.x*2+pts[12].x)/3,y:(palm.y*2+pts[12].y)/3}:{x:pts[8].x,y:pts[8].y};
@@ -196,7 +197,7 @@ function heldBonus(){ // already holding this element in hand = bigger blast (it
 function chargeMote(m,x,y,vx,vy,col){ if(m==='water') waterSpawn(x,y,vx,vy,0,.4); else if(m==='air') mote(x,y,vx,vy); else if(m==='earth') L.dust.spawn(x,y,vx*.5,vy*.5,{c:[.6,.5,.4],a:.5,size:rnd(8,14),life:.3});
   else L.fire.spawn(x,y,vx,vy,{size:rnd(10,18),life:.25,grow:.5,a:.8}); }
 export function launchBlast(x,y,p,m=E.mode){ p=Math.max(.3,p); E.blasts.push({x,y,r:24+30*p,p,m,t:0,dur:.9}); FX.flash=Math.max(FX.flash||0,.25+.25*p); FX.shake=4+6*p; lightAt(x,y,ELC[m]||[1,1,1],3+4*p);
-  addField({type:'blast',x,y,r:260+200*p,str:3000+3000*p,dur:.3}); E.say(({fire:'Flame blast!',water:'Tide blast!',earth:'Stone blast!',air:'Wind blast!'})[m]||'Blast!'); }
+  addField({type:'blast',x,y,r:(260+200*p)*(CALM.on?.6:1),str:(3000+3000*p)*(CALM.on?.45:1),dur:.3}); /* v9: gentler, local push */ E.say(({fire:'Flame blast!',water:'Tide blast!',earth:'Stone blast!',air:'Wind blast!'})[m]||'Blast!'); }
 // the blast flies "out of the screen": it grows fast (coming at the viewer), drifts up a little, and its trail streaks outward
 function stepBlasts(dt){ for(let i=E.blasts.length-1;i>=0;i--){ const b=E.blasts[i]; b.t+=dt; const u=b.t/b.dur, k=FX.Q, col=ELC[b.m]||[1,1,1];
     b.r*=1+dt*(3.2+b.p); b.y-=dt*60; const a0=Math.max(0,1-u);

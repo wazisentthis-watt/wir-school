@@ -1,3 +1,4 @@
+import {CALM,CalmFilter,HINT} from './calm.js';
 import * as MV from './moves.js';
 import * as STL from './still.js';
 import * as TR from './train.js';
@@ -276,7 +277,7 @@ function stepCalib(h,dt){ const c=S.calib; if(!c||!h?.pts) return; const s=CAL_S
   saveMv(); localStorage.setItem('wirlab.calib',JSON.stringify({v:2,ext:+S.ext.toFixed(3),swipe:Math.round(S.swipeT),on:S.pinchOn,off:S.pinchOff}));
   window.PROFILE?.sync(); window.labEvent?.('calibrated');
   S.calib=null; $('calbox').hidden=true; status(`Calibrated to your hand (finger threshold ${S.ext.toFixed(2)}, flick ${Math.round(S.swipeT)} px/s). Saved to your profile.`); }
-const HANDS=[{},{}]; const FL=[0,1].map(()=>[...Array(42)].map(()=>new OneEuro()));
+const HANDS=[{},{}]; const FL=[0,1].map(()=>[...Array(42)].map(()=>new CalmFilter())); /* v9: heavy smoothing + dead zone */
 function smooth(slot,pts,dt){ const f=FL[slot]; return pts.map((p,i)=>({x:f[i*2].f(p.x,dt),y:f[i*2+1].f(p.y,dt)})); }
 try{ S.mvCal=JSON.parse(localStorage.getItem('wirlab.moves')||'null'); }catch{} if(!S.mvCal?.lo) S.mvCal=MV.defaultCal();
 function saveMv(){ try{ localStorage.setItem('wirlab.moves',JSON.stringify({lo:S.mvCal.lo.map(v=>+v.toFixed(3)),hi:S.mvCal.hi.map(v=>+v.toFixed(3)),faceSign:0,sens:S.mvCal.sens})); }catch{} }
@@ -434,7 +435,7 @@ function startTrackLoop(){ if(S.rvfc||!('requestVideoFrameCallback' in HTMLVideo
 const MODES_LIST=['water','fire','earth','air','atoms','gear','chem'];
 let started=false;
 window.startLab=()=>{ if(started) return; started=true; hud.hidden=false; refreshLocks();
-  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); TAG.init(toScreen,E.say); window.__tag=TAG; IT.init(E.say); STL.init(video); TR.init({pose,say:E.say,setMode}); E.onEv=n=>{ TR.onEv(n); window.labEvent?.(n); }; { const pe=window.labEvent; window.labEvent=n=>{ try{pe?.(n);}catch{} try{V7.onEv(n);}catch(e){console.warn(e);} try{ORB.onEv(n);}catch(e){console.warn(e);} }; V7.init({E,FX,L:FXE.L,setMode}); ORB.init(); window.__orb=ORB; window.__v7=V7; } setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
+  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); TAG.init(toScreen,E.say); window.__tag=TAG; IT.init(E.say); STL.init(video); TR.init({pose,say:E.say,setMode}); E.onEv=n=>{ TR.onEv(n); window.labEvent?.(n); }; { const pe=window.labEvent; window.labEvent=n=>{ try{pe?.(n);}catch{} try{V7.onEv(n);}catch(e){console.warn(e);} try{ORB.onEv(n);}catch(e){console.warn(e);} }; V7.init({E,FX,L:FXE.L,setMode}); ORB.init(); window.__orb=ORB; window.__v7=V7; } if(CALM.on){ document.body.classList.add('calm'); const sm0=setMode; setMode=(m,...a)=>{ const r=sm0(m,...a); if(HINT[m]) status(HINT[m]); return r; }; } setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
   status('Pick a mode. Hands: ☝️ point = poke/press, 🤲 cup = hold, flowing moves (ripple, pulse, scoop…) in ⋯.  No camera? Drag with one or two fingers.'); };
 $('modes').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b&&b.dataset.m){ setMode(b.dataset.m); TR.T.on&&TR.T.el!==b.dataset.m&&TR.stop(); } });
 $('boost').onclick=()=>{ S.boost={auto:'on',on:'off',off:'auto'}[S.boost]; updBoostBtn(); };

@@ -253,16 +253,16 @@ export function update(hands,dt){
       else if(t&&t.dataset.f){ E_.held=buildSpecies(t.dataset.f,p.x,p.y-60); say(pretty(t.dataset.f)); }
       else if(t) t.click();
       else E_.held=pick(p.x,p.y); }
-    if(E_.held&&H.g==='poke'){ const m=E_.held; m.x+=(p.x-m.x)*.5; m.y+=(Math.min(p.y-(H.src==='touch'?0:0),FX.H-140)-m.y)*.5; const t=pick(m.x,m.y,m);
+    if(E_.held&&H.g==='poke'){ const m=E_.held; m.x+=(p.x-m.x)*.25; m.y+=(Math.min(p.y-(H.src==='touch'?0:0),FX.H-140)-m.y)*.25; /* v9 calmer follow */ const t=pick(m.x,m.y,m);
       MOLS.forEach(o=>o.lab.classList.toggle('hot',o===t)); }
     if(E_.held&&H.g!=='poke'){ const D=E_.held; E_.held=null; MOLS.forEach(o=>o.lab.classList.remove('hot'));
       const T=pick(D.x,D.y,D);
       if(T){ const bothDone=complete(D)&&complete(T); let r=null; if(bothDone||(D.kind==='atom'&&EL[D.atoms[0].e].kind==='m'&&T.kind==='cov')) r=tryReact(D,T);
         if(!r) tryBond(D,T); } }
     // open palm near a molecule rotates it with the hand
-    if(H.g==='cup'||H.g==='open'){ const m=pick(H.palm.x,H.palm.y)||pick(H.palm.x,H.palm.y-60); if(m){ m.spin.y+=H.vx*.0009; m.spin.x+=H.vy*.0009; } }
+    if(H.g==='cup'||H.g==='open'){ const m=pick(H.palm.x,H.palm.y)||pick(H.palm.x,H.palm.y-60); if(m){ m.spin.y+=H.vx*.0004; m.spin.x+=H.vy*.0004; } }
     if(H.g==='fist'){ const m=pick(H.palm.x,H.palm.y); if(m&&m.kind!=='atom'){ m.fistT=(m.fistT||0)+dt; if(m.fistT>.7) split(m); } } }
-  for(const m of MOLS){ if(m!==E_.held){ m.spin.multiplyScalar(Math.pow(.6,dt)); if(m.spin.length()<.25) m.spin.y+=.2*dt; }
+  for(const m of MOLS){ if(m!==E_.held){ m.spin.multiplyScalar(Math.pow(.3,dt)); m.x=Math.max(m.R,Math.min(FX.W-m.R,m.x)); m.y=Math.max(m.R,Math.min(FX.H-m.R,m.y)); if(m.spin.length()<.25) m.spin.y+=.2*dt; }
     const dq=new THREE.Quaternion().setFromEuler(new THREE.Euler(m.spin.x*dt,m.spin.y*dt,0)); m.q.premultiply(dq);
     if(m.kind==='atom'){ m.g.quaternion.identity(); m.orbits?.forEach(o=>o.spin.rotation.z+=o.w*dt); const a=m.atoms[0];
       if(m.valN&&Math.random()<.5) L.glow.spawn(m.x,m.y,0,0,{c:[1,.85,.35],size:m.R*2.6,life:.08,a:.12,field:0}); }

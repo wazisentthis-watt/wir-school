@@ -6,7 +6,7 @@
    - leaving the support edge (or being flung up) = it drops, fizzles, and respawns after a beat
    Units: px, s. Everything scales with hand size s (palm wrist→middle-knuckle length). */
 export const DIFF={
- easy:  {k:70,c:7,edge:1.05,inertia:.55,g:2000,roll:1.0,fk:.9, fr:1.1,spinK:.05,respawn:.9},
+ easy:  {k:150,c:16,edge:1.8,inertia:.22,g:2000,roll:.5,fk:.6, fr:1.1,spinK:.04,respawn:.5,lp:6}, /* v9: very forgiving: strong centering, heavy damping, smoothed palm accel */
  normal:{k:36,c:4.5,edge:.75,inertia:1,  g:2000,roll:1.2,fk:1.2,fr:1.0,spinK:.06,respawn:1.2},
  master:{k:16,c:2.6,edge:.55,inertia:1.25,g:2000,roll:1.5,fk:1.5,fr:.9,spinK:.07,respawn:1.6},
 };
@@ -24,7 +24,8 @@ export function orbStep(O,H,dt,P=DIFF.normal){ O.ev.length=0; O.t+=dt;
   // held
   if(!H){ return drop(O,0,0); }
   const s=H.s, g=P.g*s/100, k=P.k*(.6+.8*(H.cup||0)), edge=P.edge*s, rad=R0*s;
-  let fx=-H.ax*P.inertia + g*P.roll*H.tilt - k*O.rx - P.c*O.vx, fy=0, tq=0;
+  let ax=H.ax, ayH=H.ay; if(P.lp){ O.sax=(O.sax??ax)+(ax-(O.sax??ax))*Math.min(1,dt*P.lp); O.say=(O.say??ayH)+(ayH-(O.say??ayH))*Math.min(1,dt*P.lp); ax=O.sax; ayH=O.say; }
+  let fx=-ax*P.inertia + g*P.roll*H.tilt - k*O.rx - P.c*O.vx, fy=0, tq=0;
   // fingertip force fields (relative to the palm's own motion)
   const ox=H.x+O.rx, oy=H.y+O.ry;
   for(const T of H.tips||[]){ const dx=T.x-ox, dy=T.y-oy, d=Math.hypot(dx,dy), R=P.fr*s; if(d>R) continue;
@@ -32,7 +33,7 @@ export function orbStep(O,H,dt,P=DIFF.normal){ O.ev.length=0; O.t+=dt;
     fx+=rvx*P.fk*f*1.6*side; fy+=rvy*P.fk*f*.8*side;
     tq+=(dx*rvy-dy*rvx)/Math.max(rad,d)/Math.max(rad,d)*f; }
   // vertical: gravity holds it on the palm floor unless the palm drops faster than gravity, or a finger flicks it up
-  let ay=g - H.ay*P.inertia + fy - k*.25*Math.min(0,O.ry) - P.c*O.vy*(O.ry<0?1:0);
+  let ay=g - ayH*P.inertia + fy - k*.25*Math.min(0,O.ry) - P.c*O.vy*(O.ry<0?1:0);
   O.vx+=fx*dt; O.rx+=O.vx*dt; O.vy+=ay*dt; O.ry+=O.vy*dt; if(O.ry>0){ O.ry=0; if(O.vy>0) O.vy=0; }
   O.w+=tq*P.spinK*60*dt; O.w*=Math.pow(.5,dt); O.ang+=(O.vx/rad+O.w)*dt;
   const st=Math.max(0,1-Math.abs(O.rx)/edge)*Math.max(0,1+O.ry/(edge*1.3)); O.stab+=(st-O.stab)*Math.min(1,dt*8); O.held+=dt;
