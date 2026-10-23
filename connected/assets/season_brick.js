@@ -17,11 +17,11 @@ function ensureLine(){if(line)return;const g=G();const hb=(g.P.model.getObjectBy
  const geo=new THREE.CylinderGeometry(.006,.006,1,6);line=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({color:0xcfd3da,emissive:0xbfc6d0,emissiveIntensity:.5,metalness:1,roughness:.25,transparent:true,opacity:.75}));
  line.name='S3_DamagedHand_SilverLine_PLACEHOLDER';hb.add(line);line.visible=false;fitLine(hb);}
 function fitLine(hb){const ws=new THREE.Vector3();hb.getWorldScale(ws);const len=.14/ws.y;line.scale.set(1/ws.x,len,1/ws.z);line.position.set(.035/ws.x,.85*(hb.userData.len||0.25)/ws.y,.0);}
-function cycleSeason(){si=(si+1)%SEASONS.length;const s=SEASONS[si];
+function cycleSeason(){if(window.__setForm&&window.__realForms){const g=G();window.__setForm(((g.st.metalForm||1))%4);B&&(B.season='S'+(((g.st.metalForm||1))%4+1));return;}si=(si+1)%SEASONS.length;const s=SEASONS[si];
  if(s==='S4'){badge('S4: The Lion (coming) — no model yet; showing S3 body');}else badge(s==='S1'?'S1 · Street Metal (default)':'S3 · heavier, damaged right hand (PLACEHOLDER) · PROPOSAL');
  const g=G();g.st.season=s;ensureLine();if(line)line.visible=s!=='S1';
  const bs=g.board&&g.board.children[0];if(bs){if(base===null)base=bs.position.y;bs.position.y=base-(s==='S1'?0:BOARD_DROP/(g.board.scale.y||1));}}
-function seasonPost(){if(!G()||SEASONS[si]==='S1')return;const bm=bones();for(const [n,b] of Object.entries(bm)){const k=S3N[n];b.scale.set(b.scale.x*k[0],b.scale.y*k[1],b.scale.z*k[2]);}}
+function seasonPost(){if(window.__realForms)return;if(!G()||SEASONS[si]==='S1')return;const bm=bones();for(const [n,b] of Object.entries(bm)){const k=S3N[n];b.scale.set(b.scale.x*k[0],b.scale.y*k[1],b.scale.z*k[2]);}}
 let badgeEl;function badge(t){if(!badgeEl){badgeEl=document.createElement('div');badgeEl.style.cssText='position:absolute;right:10px;top:10px;font:600 12px system-ui;color:#e8e8f0;background:rgba(10,8,20,.7);padding:4px 10px;border-radius:10px;z-index:30';document.body.appendChild(badgeEl);}badgeEl.textContent='SEASON '+t+' · [T] cycle';}
 // ---------- brick minigame ----------
 const STAGES=[
@@ -42,7 +42,7 @@ function openBrick(){const c=document.createElement('canvas');c.id='brickc';c.st
  B={c,g:c.getContext('2d'),stage:0,corner:0,force:0,holding:false,lat:0,cmdT:-1,drift:[0,0],chips:[],cracks:[],msg:'',msgT:0,shattered:false,cupShake:0,crumbleHits:[0,0,0,0],crack:0,stopArmed:false,t:0,season:(G().st.season||'S1')};
  B.btns=[];ambience(true);c.addEventListener('pointerdown',pd);c.addEventListener('pointerup',pu);requestAnimationFrame(drawBrick);}
 function closeBrick(pocket){if(!B)return;ambience(false);B.c.remove();const m=pocket?'Pocketed the brick. No penalty — try again anytime.':'Put the brick away.';B=null;const t=document.getElementById('toast');if(t){t.innerHTML=m;t.style.opacity=1;}}
-function hand(){return B.season!=='S1';} // S3/S4 hand: latency + drift (PROPOSAL)
+function hand(){return B.season==='S3'||B.season==='S4';} // S3/S4 hand: latency + drift (PROPOSAL)
 function press(){if(B.shattered){B.shattered=false;B.chips=[];B.crack=0;B.crumbleHits=[0,0,0,0];return;}B.holding=true;B.force=0;
  B.lat=hand()?(.08+Math.random()*.45):0;B.drift=hand()&&Math.random()<.35?[(Math.random()-.5)*.35,(Math.random()-.5)*.35]:[0,0];B.cmdT=B.t;if(B.stage===3)B.stopArmed=true;}
 function release(){if(!B||!B.holding)return;B.holding=false;const f=B.force,live=B.t-B.cmdT>B.lat;const [cx,cy]=CORNERS[B.corner];const px=cx+B.drift[0],py=cy+B.drift[1];

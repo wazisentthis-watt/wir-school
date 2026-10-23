@@ -1,0 +1,39 @@
+<!doctype html><html><head><meta charset="utf-8"><title>PROPOSAL - Sun Yard V0.1 skater test</title>
+<link rel="icon" href="data:,">
+<style>html,body{touch-action:none;margin:0;height:100%;overflow:hidden;background:#000;font-family:"Trebuchet MS",system-ui,sans-serif}
+#hud{position:fixed;top:14px;left:14px;color:#fff6e6;background:linear-gradient(160deg,rgba(60,24,40,.62),rgba(120,50,30,.42));backdrop-filter:blur(6px);padding:12px 16px;border-radius:14px;font-size:14px;line-height:1.45;min-width:190px;border:1px solid rgba(255,200,120,.35);box-shadow:0 6px 24px rgba(0,0,0,.25)}
+#hud .ttl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;opacity:.85}
+#hud .spd{font-size:40px;font-weight:800;color:#ffd36b;text-shadow:0 0 14px rgba(255,160,40,.8);line-height:1.05}
+#hud .spd small{font-size:14px;color:#ffe9c2;text-shadow:none}
+#hud .row{display:flex;gap:10px;align-items:center}
+#hud .st{padding:1px 9px;border-radius:9px;background:#ff8a2a;color:#2a1208;font-weight:800;font-size:12px}
+#hud .st-Air{background:#ffd84a}#hud .st-Grind{background:#7fe0ff}#hud .st-Vert{background:#ff6a5a}#hud .st-Wallride{background:#ff9a4a}
+#hud .warn{color:#ff9a8a;font-weight:bold}
+#hud .bal{display:inline-block;position:relative;width:90px;height:6px;background:rgba(255,255,255,.25);border-radius:3px;vertical-align:middle}
+#hud .bal i{position:absolute;top:-3px;width:4px;height:12px;background:#7fe0ff;border-radius:2px;margin-left:-2px}
+#balbar{position:fixed;left:50%;bottom:20%;transform:translateX(-50%);width:340px;display:none;text-align:center;color:#eafaff;font:bold 12px monospace;letter-spacing:.12em;text-shadow:0 1px 3px #000}
+#balbar.on{display:block}
+#balbar .trk{position:relative;height:14px;margin-top:4px;border-radius:7px;background:linear-gradient(90deg,#ff5a4a 0,#ffd84a 15%,rgba(127,224,255,.55) 35%,rgba(127,224,255,.55) 65%,#ffd84a 85%,#ff5a4a 100%);border:2px solid rgba(255,255,255,.7)}
+#balbar .trk b{position:absolute;left:50%;top:-4px;width:2px;height:22px;margin-left:-1px;background:#fff}
+#balbar .trk i{position:absolute;top:-6px;width:10px;height:26px;margin-left:-5px;background:#7fe0ff;border:2px solid #fff;border-radius:4px;box-shadow:0 0 10px #7fe0ff}
+#balbar .trk i.hot{background:#ff5a4a;box-shadow:0 0 12px #ff5a4a}
+canvas{touch-action:none}
+#touchui{position:fixed;inset:0;touch-action:none;user-select:none;-webkit-user-select:none}
+#touchui #tz-l,#touchui #tz-r{position:absolute;top:0;bottom:0;width:50%;touch-action:none}
+#touchui #tz-l{left:0}#touchui #tz-r{right:0}
+#touchui #tz-r span{position:absolute;right:16px;bottom:120px;color:rgba(255,240,220,.55);font:11px monospace}
+#t-base{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:2px solid rgba(255,230,190,.55);background:rgba(60,24,40,.25);display:none;pointer-events:none}
+#t-base.on{display:block}
+#t-knob{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;background:rgba(255,211,107,.8);transform:translate(-50%,-50%)}
+#t-btns{position:absolute;right:14px;bottom:14px;display:grid;grid-template-columns:repeat(4,56px);gap:8px}
+#t-btns button{height:56px;border-radius:50%;border:2px solid rgba(255,230,190,.7);background:rgba(60,24,40,.45);color:#ffe9c2;font:bold 13px monospace;touch-action:none}
+#t-btns button.on{background:rgba(255,154,74,.8);color:#2a1208}
+body.touch #help{display:none}
+#tag{position:fixed;top:14px;right:14px;color:#ffd84a;background:rgba(40,16,10,.6);padding:6px 12px;font-weight:bold;border:2px solid #ffd84a;border-radius:8px;font-family:monospace}
+#help{position:fixed;bottom:10px;left:14px;color:#fff1dc;font-size:11px;background:rgba(40,16,20,.45);padding:6px 10px;border-radius:8px;font-family:monospace}</style></head>
+<body><div id="tag">PROPOSAL · not final · private test build</div>
+<div id="hud"></div>
+<div id="balbar">BALANCE · LS ← →<div class="trk"><b></b><i></i></div></div>
+<div id="help">Pad: LS steer · RS pop/flip · RT push · LT brake (flat) · LT pump (hold dropping in, release climbing out) · LB grab · RB+RS powers (stub) · A recover · X interact (air: wallride) · Y stance · B dismount · on a rail: RS ←/→ side pop · wallride + X near a rail: transfer<br>
+Keys: A/D steer · W push · S brake/pump · V speed cam · Space pop · Arrows flip · Q grab · E+Arrows powers · R recover · F interact · C stance · B dismount</div>
+<script type="module" src="./game.js"></script></body></html>
