@@ -1,0 +1,11 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>WIR School — Campus</title><style>body{margin:0;font-family:system-ui,sans-serif;background:#0b0b14;color:#eee;overflow:hidden}#c{position:fixed;inset:0}
+button{background:#6b4cff;color:#fff;border:0;border-radius:8px;padding:9px 14px;margin:0;font-size:15px}
+#hud{position:fixed;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;z-index:3}
+#prompt{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:#000a;padding:10px 16px;border-radius:10px;display:none}
+#pad{position:fixed;bottom:14px;left:14px;display:none;grid-template-columns:repeat(3,54px);gap:4px}#pad button{height:50px}
+@media (pointer:coarse){#pad{display:grid}}</style></head><body>
+<canvas id="c"></canvas><div id="hud"><div><b>WIR School Campus</b> <small>· WASD/arrows · E to enter</small></div><button id="bAR">AR</button></div>
+<div id="prompt"></div>
+<div id="pad"><span></span><button data-k="f">▲</button><span></span><button data-k="l">◀</button><button data-k="e">Enter</button><button data-k="r">▶</button><span></span><button data-k="b">▼</button><span></span></div>
+<script type="module" src="campus.js"></script></body></html>
