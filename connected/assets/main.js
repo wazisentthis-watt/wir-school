@@ -2,6 +2,7 @@
 // Sources: [S1] Metal InDa RIFFT, [S3] Valence Life, [S4] Retro Bowl, [S5] Stay On Page, attunement packet.
 // Anything not stated in those sources is labelled PROPOSAL. Code is original; libs MIT, assets CC0.
 import * as THREE from 'three';
+import {makeGalliumLimb} from './gallium_limb.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RGBELoader} from 'three/addons/loaders/RGBELoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -167,7 +168,8 @@ let board;function makeBoard(){const g=new THREE.Group();const deck=new THREE.Me
  const wm=new THREE.MeshStandardMaterial({color:VIOLET,emissive:VIOLET,emissiveIntensity:.25,roughness:.4});// violet wheels (S1 sprite note)
  for(const [x,z] of [[-.13,-.33],[.13,-.33],[-.13,.33],[.13,.33]]){const w=new THREE.Mesh(new THREE.CylinderGeometry(.06,.06,.05,14),wm);w.rotation.z=Math.PI/2;w.position.set(x,.06,z);g.add(w);} // FOUR wheels, never a hoverboard
  g.traverse(o=>o.castShadow=true);return g;}
-const tether=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),new THREE.LineBasicMaterial({color:VIOLET}));tether.visible=false;
+// PROPOSAL: thin violet line replaced by Galaxy Gallium LIMB (see gallium_limb.js); tether kept as an invisible stub so physics/control code is unchanged
+const tether=new THREE.Group();tether.visible=false;let galLimb=null;const _hand=new THREE.Vector3();
 const merkaba=new THREE.Mesh(new THREE.OctahedronGeometry(.9,0),new THREE.MeshStandardMaterial({color:0x000,emissive:VIOLET,emissiveIntensity:2,wireframe:true}));merkaba.visible=false;
 
 // NPCs with routines [S3 living city]; traffic (Kenney cars)
@@ -364,7 +366,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  } else if(st.swing){const s=st.swing;s.spent+=dt*.03;st.gal=Math.max(0,st.gal-dt*.03);if(st.gal<=0){st.swing=null;tether.visible=false;}
   vel.y-=22*dt;vel.addScaledVector(wish,dt*14);pp.addScaledVector(vel,dt);if(pp.y<groundY){pp.y=groundY;if(vel.y<0)vel.y=0;}const d=pp.clone().sub(s.a);if(d.length()>s.len){d.setLength(s.len);pp.copy(s.a).add(d);const n=d.clone().normalize();vel.addScaledVector(n,-vel.dot(n));}
   if(tap('Space')){st.swing=null;tether.visible=false;vel.y+=6;st.comboPend++;}
-  tether.geometry.setFromPoints([pp.clone().setY(pp.y+1.2),s.a]);setViolet(1);st.ori=Math.min(1,st.ori+dt*.2);
+  setViolet(1);st.ori=Math.min(1,st.ori+dt*.2);
  } else {
   const acc=st.board?(onGround?SK.acc:2):(onGround?18:4);const hv=new THREE.Vector3(vel.x,0,vel.z);const target=wish.clone().multiplyScalar(maxS*il);
   if(st.board&&onGround&&il<.05)hv.multiplyScalar(1-dt*SK.coast); else hv.lerp(target,Math.min(1,acc*dt/Math.max(1,maxS)*2));
@@ -390,6 +392,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  if(st.board){board.position.copy(pp);if(st.wall)board.quaternion.copy(P.o.quaternion);else{board.rotation.set(0,yaw,0);}}
  // violet decays (only on active moves)
  for(const mt of seamMats)mt.emissiveIntensity=Math.max(0,mt.emissiveIntensity-dt*3);
+ if(galLimb){const hb=P.handBone;if(hb)hb.getWorldPosition(_hand);else _hand.copy(P.o.position).setY(P.o.position.y+1.2);galLimb.tick(dt,{swing:st.swing,hand:_hand,model:P.model,st,groundY,playerPos:P.o.position});} // PROPOSAL Gallium limb visuals
  // systems
  doFight(dt);doStrings(dt);doFootball(dt);rivalAI(dt);
  for(const s of slabs){if(s.t<1){s.t+=dt;s.m.position.y=Math.min(.8,s.m.position.y+s.vy*dt);}else if(s.t<6)s.t+=dt;else{s.m.position.y-=dt;if(s.m.position.y<-1){scene.remove(s.m);s.dead=true;}}}
@@ -443,14 +446,14 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  P.model.rotation.y+=((st.board&&!st.flying?-1.35:0)-P.model.rotation.y)*Math.min(1,dt*10); // sideways skate stance on the deck
  if(onGround||st.board)seatFeet(dt);else P.model.position.y+=(P.footY+(st.board?DECK_TOP:0)-P.model.position.y)*Math.min(1,dt*8);
 }
-let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());try{update(dt);}catch(e){if(fails++<3){console.error(e);window.__errors.push(String(e));}}if(LITE)renderer.render(scene,camera);else composer.render();}
+let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());try{update(dt);window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<3){console.error(e);window.__errors.push(String(e));}}if(LITE)renderer.render(scene,camera);else composer.render();}
 
 (async()=>{const msg=t=>$('loadmsg').textContent=t;
  try{await buildWorld(msg);msg('Characters (Quaternius CC0)…');robotGLTF=await loadG('assets/models/RobotExpressive.glb');msg('3D Metal…');metalGLTF=await loadG('assets/models/metal/metal_rigged_PLACEHOLDER.glb');boardGLTF=await loadG('assets/models/metal/metal_skateboard_4wheel_PLACEHOLDER.glb');
   P=makeMetal();scene.add(P.o);P.o.position.copy(SPOTS.home.c).add(new THREE.Vector3(0,groundY,8));camPos.copy(P.o.position).add(new THREE.Vector3(0,4,8));
-  board=new THREE.Group();board.add(boardGLTF.scene);boardGLTF.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;if(/Wheel/i.test(m.material.name)){m.material.emissive=new THREE.Color(VIOLET);m.material.emissiveIntensity=.15;}}});board.visible=false;board.scale.setScalar(BOARD_S);scene.add(board,tether,merkaba);
+  board=new THREE.Group();board.add(boardGLTF.scene);boardGLTF.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;if(/Wheel/i.test(m.material.name)){m.material.emissive=new THREE.Color(VIOLET);m.material.emissiveIntensity=.15;}}});board.visible=false;board.scale.setScalar(BOARD_S);scene.add(board,tether,merkaba);galLimb=makeGalliumLimb(scene);P.handBone=P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearm.R');
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
-  window.__game={WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);}};// test harness only (not a gameplay teleport)
+  window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);}};// test harness only (not a gameplay teleport)
   loop();}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
