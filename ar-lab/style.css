@@ -189,3 +189,4 @@ body:not(.more) #bar,body:not(.more) #gest,body:not(.more) #gnow{display:none!im
 body.calm #gest,body.calm #gnow,body.calm #v7q,body.calm #fps,body.calm #trainBtn,body.calm #modes .m-atoms,body.calm #modes .m-gear,body.calm #modes .m-chem{display:none!important}
 body.calm.more #modes .m-atoms,body.calm.more #modes .m-gear,body.calm.more #modes .m-chem{display:inline-block!important}
 body.calm #status{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:92vw}
+body.table #orbc,body.table #orbchip,body.table #v7n{display:none!important}

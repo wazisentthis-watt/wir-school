@@ -136,3 +136,10 @@ Tests: `node tests/v7.test.mjs` (34 checks).
 - **Atoms**: molecules follow your hand more slowly, spin less and stay on screen.
 - **Less on screen**: the mode bar shows Water, Fire, Earth and Air (Atoms, Gear and Chem are under ⋯). The gesture list, quest chip and fps counter are hidden. One clear hint line.
 - All settings live in `calm.js`; `CALM.on=false` restores v8 behavior.
+
+## v10: table mode (place it, it stays)
+- Tap **📐 Table** in the mode bar. Point the phone at a table and move it slowly. A grid and a ring show where the table is. Tap the table surface to set it; it also locks on its own when the phone has been held steady for a few seconds (using the phone's tilt sensor).
+- **Place**: tap the table, or point and hold still for about 1 s, to drop a tiny pinch of the current element (one small bead plus 3 crumbs). At most 12 pieces at a time.
+- Placed things **stay put**: nothing moves, spawns or launches on its own. Poking or flicking into a piece slides it slowly along the table (high friction, at most 60 px/s), and it never leaves the table. Rescan, Clear and ✕ are on the chip.
+- In table mode, element effects, the orb and blasts are off. Outside it they still work.
+- Globally, particle amounts are now 20% of v8 and speeds 40%.

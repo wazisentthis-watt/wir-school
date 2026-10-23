@@ -1,8 +1,8 @@
 /* v9 "calm" layer: one place for the settings that make the lab simpler and steadier. Pure (no DOM) so tests can import it. */
 export const CALM={
   on:true,
-  cap:.35,      // particle layers keep at most 35% of their old max
-  speed:.55,    // particles launch at 55% speed
+  cap:.2,       // particle layers keep at most 35% of their old max
+  speed:.4,     // particles launch at 55% speed
   drag:2.2,     // extra drag per second (velocity *= e^-drag·dt) so things settle
   R:200,        // particles stay within this many px of where they were born
   dz:3.5,       // hand dead zone in px: smaller jitter than this does nothing

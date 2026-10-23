@@ -1,3 +1,4 @@
+import * as TB from './table.js';
 import {CALM,CalmFilter,HINT} from './calm.js';
 import * as MV from './moves.js';
 import * as STL from './still.js';
@@ -408,6 +409,7 @@ function loop(now){
   pollPad(dt);
   const hs=(S.handsNow||[]).filter(h=>h.palm);
   pokeTap(hs,dt); for(const h of hs) if(h.changed&&h.g!=='relaxed'&&h.g!=='none') window.labEvent?.(`g:${h.g}:${E.mode}`);
+  if(TB.update(hs,dt)){ try{ FXE.step(dt); TR.update(dt,hs.length>0); }catch(e){ console.warn(e); } } else
   try{ if(E.mode==='atoms') AT.update(hs,dt); EL.update(E.mode==='chem'||E.mode==='atoms'||E.mode==='gear'?[]:hs,dt); GE.update(E.mode==='gear'?hs:[],dt); const elm=['water','fire','earth','air'].includes(E.mode), still=STL.update(dt,now); BU.B.still=still&&elm; BU.B.tip=hs[0]?.pinchPt||null; BU.B.palms=hs.filter(h=>h.palm).map((h,i)=>({id:i,x:h.palm.x,y:h.palm.y,s:h.scale,g:h.g,mv:h.mv||[],st:h.mvs||{}})); IT.update(hs,dt); BU.B.debug=document.body.classList.contains('more'); FX.clip=BU.B.still?BU.zones(hs[0]?.pinchPt).concat(IT.zones(),handZones(hs)):null; stillHud(still);
     BU.update(dt,now,E.mode==='fire'||E.mode==='gear'||BU.B.still); EL.chemStep(dt); V7.tick(hs); E.orbOn=ORB.active(); ORB.step(hs,dt); FXE.step(dt); TR.update(dt,hs.length>0); }catch(e){ console.warn(e); }
   if(E.mode==='chem'){ cur.style.left=S.cursor.x+'px'; cur.style.top=S.cursor.y+'px';
@@ -435,7 +437,7 @@ function startTrackLoop(){ if(S.rvfc||!('requestVideoFrameCallback' in HTMLVideo
 const MODES_LIST=['water','fire','earth','air','atoms','gear','chem'];
 let started=false;
 window.startLab=()=>{ if(started) return; started=true; hud.hidden=false; refreshLocks();
-  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); TAG.init(toScreen,E.say); window.__tag=TAG; IT.init(E.say); STL.init(video); TR.init({pose,say:E.say,setMode}); E.onEv=n=>{ TR.onEv(n); window.labEvent?.(n); }; { const pe=window.labEvent; window.labEvent=n=>{ try{pe?.(n);}catch{} try{V7.onEv(n);}catch(e){console.warn(e);} try{ORB.onEv(n);}catch(e){console.warn(e);} }; V7.init({E,FX,L:FXE.L,setMode}); ORB.init(); window.__orb=ORB; window.__v7=V7; } if(CALM.on){ document.body.classList.add('calm'); const sm0=setMode; setMode=(m,...a)=>{ const r=sm0(m,...a); if(HINT[m]) status(HINT[m]); return r; }; } setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
+  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); TAG.init(toScreen,E.say); window.__tag=TAG; IT.init(E.say); STL.init(video); TR.init({pose,say:E.say,setMode}); E.onEv=n=>{ TR.onEv(n); window.labEvent?.(n); }; { const pe=window.labEvent; window.labEvent=n=>{ try{pe?.(n);}catch{} try{V7.onEv(n);}catch(e){console.warn(e);} try{ORB.onEv(n);}catch(e){console.warn(e);} }; V7.init({E,FX,L:FXE.L,setMode}); ORB.init(); window.__orb=ORB; TB.init({say:E.say}); window.__tb=TB; window.__v7=V7; } if(CALM.on){ document.body.classList.add('calm'); const sm0=setMode; setMode=(m,...a)=>{ const r=sm0(m,...a); TB.setMat(m); if(HINT[m]) status(HINT[m]); return r; }; } setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
   status('Pick a mode. Hands: ☝️ point = poke/press, 🤲 cup = hold, flowing moves (ripple, pulse, scoop…) in ⋯.  No camera? Drag with one or two fingers.'); };
 $('modes').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b&&b.dataset.m){ setMode(b.dataset.m); TR.T.on&&TR.T.el!==b.dataset.m&&TR.stop(); } });
 $('boost').onclick=()=>{ S.boost={auto:'on',on:'off',off:'auto'}[S.boost]; updBoostBtn(); };
