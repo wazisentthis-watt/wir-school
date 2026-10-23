@@ -1234,12 +1234,13 @@ function poseHand(side,lm){ const g=HANDS.g[side]; const W=.42*cam.aspect, Hh=.4
   const P=lm.map(toV); P.forEach((v,i)=>g.userData.j[i].position.copy(v)); BONES.forEach(([a,b],i)=>{ const m=g.userData.b[i], v=P[b].clone().sub(P[a]); m.position.copy(P[a]).addScaledVector(v,.5); m.scale.set(1,Math.max(.001,v.length()),1); m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),v.normalize()); }); g.visible=true; }
 const D2=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 function gestureOf(lm){ const sz=D2(lm[0],lm[9])||.1; const ext=i=>D2(lm[0],lm[i])>D2(lm[0],lm[i-2])*1.08; const pinch=D2(lm[4],lm[8])/sz<.33;
-  const e=[ext(8),ext(12),ext(16),ext(20)]; if(pinch) return 'pinch'; if(e.every(x=>x)&&D2(lm[8],lm[20])/sz>.55) return 'palm'; if(e[0]&&!e[1]&&!e[2]&&!e[3]) return 'point'; if(!e.some(x=>x)) return 'fist'; return 'other'; }
+  const e=[ext(8),ext(12),ext(16),ext(20)]; if(pinch) return 'pinch'; const spread=D2(lm[8],lm[20])/sz, gaps=Math.max(D2(lm[8],lm[12]),D2(lm[12],lm[16]),D2(lm[16],lm[20]))/sz;
+  if(e.every(x=>x)&&spread<.42&&gaps<.17) return 'flat'; if(e.every(x=>x)&&spread>.6) return 'palm'; if(e[0]&&!e[1]&&!e[2]&&!e[3]) return 'point'; if(!e.some(x=>x)) return 'fist'; return 'other'; }
 function clickDom(x,y){ const el=document.elementFromPoint(x,y); if(el&&el!==canvas&&el.closest('button,select,[data-k],[data-c],a')){ (el.closest('button,select,a,[data-k],[data-c]')).click?.(); return true; } return false; }
 function handsFrame(res,dt){ const seen={L:false,R:false}; const now=performance.now()/1000;
   (res.landmarks||[]).forEach((lm,i)=>{ const side=(1-lm[0].x)<.5?'L':'R'; if(seen[side]) return; seen[side]=true; HANDS.lm[side]=lm; poseHand(side,lm); });
   for(const s of ['L','R']){ HANDS.vis[s]=seen[s]; if(!seen[s]){ HANDS.g[s].visible=false; HANDS.st[s]={}; } }
-  const prim=seen.R?'R':seen.L?'L':null; if(!prim){ hcur.style.display='none'; center.set(0,0); return; }
+  const prim=seen.R?'R':seen.L?'L':null; if(!prim){ locomote(seen,dt,now); hcur.style.display='none'; center.set(0,0); return; }
   const lm=HANDS.lm[prim], tip=lm[8], sx=(1-tip.x), sy=tip.y; center.set(sx*2-1,-(sy*2-1)); hcur.style.display='block'; hcur.style.left=(sx*innerWidth)+'px'; hcur.style.top=(sy*innerHeight)+'px';
   for(const s of ['L','R']){ if(!seen[s]) continue; const g=gestureOf(HANDS.lm[s]), S2=HANDS.st[s], p={x:1-HANDS.lm[s][8].x,y:HANDS.lm[s][8].y};
     if(g!==S2.g){ // gesture change
@@ -1253,6 +1254,7 @@ function handsFrame(res,dt){ const seen={L:false,R:false}; const now=performance
     if(g==='point'&&s===prim){ const a=panelOpen?null:aimedEnt(); const e=a&&a.e; if(e&&e===HANDS.dwell.e){ HANDS.dwell.t+=dt; if(HANDS.dwell.t>1&&!S2.fired){ S2.fired=true; interact(); } } else { HANDS.dwell={e,t:0}; }
       if(panelOpen&&held_t>1&&!S2.fired){ S2.fired=true; clickDom(p.x*innerWidth,p.y*innerHeight); } }
     S2.lp=p; }
+  locomote(seen,dt,now);
   const st2=HANDS.st[prim]; hcur.style.borderColor=st2.g==='pinch'?'#c27a3a':st2.g==='palm'?'#6b5040':'#f3e7d3';
   hstat.style.background='rgba(44,53,112,.92)'; hstat.textContent=`✋ hands seen: ${['L','R'].filter(s=>seen[s]).length} (${['L','R'].filter(s=>seen[s]).join('+')}) · ${st2.g||''}`+(st2.g==='point'?` · hold ${Math.max(0,1-HANDS.dwell.t).toFixed(1)}s`:''); }
 const IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
@@ -1276,21 +1278,99 @@ async function startHands(){ if(HANDS.on||HANDS.starting) return stopHands(); HA
     const withTimeout=(pr,ms)=>Promise.race([pr,new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
     let delegate=IOS?'CPU':'GPU'; try{ HANDS.lmk=await withTimeout(mk(delegate),25000); }catch(e1){ delegate='CPU'; hsay('✋ GPU tracker failed ('+e1.message+'), trying CPU…'); HANDS.lmk=await mk('CPU'); }
     HANDS.delegate=delegate; HANDS.on=true; HANDS.starting=false; HANDS.frames=0; $('handsBtn')&&($('handsBtn').textContent='✋ Hands ON'); hbig.style.display='none';
-    hsay(`✋ Step 3/3: tracking (${delegate}). Hold a hand up 30–50 cm from the screen.`);
+    hsay(`✋ Step 3/3: tracking (${delegate}). Hold a hand up 30–50 cm from the screen.`); if(!localStorage.getItem('wirHandsTut')){ localStorage.setItem('wirHandsTut','1'); handsTutorial(); }
     log('✋ Hands mode on. Your camera picture is never shown or saved. Pinch tap = grab/use · pinch drag = look · point & hold 1 s = press · fist = use held / Return · open LEFT palm hold = Contact · open RIGHT palm hold = Tether.');
     say("I see your camera. Hold your hands up where I can see them. Pinch to grab, and hold an open palm when you want to make Contact.",{key:'handson',cool:30});
   }catch(err){ HANDS.starting=false; try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){} hsay('✋ Hands failed: '+(err.message||err)+'. Touch/keys still work. Tell Domowaye this exact message.',true); } }
 function stopHands(){ HANDS.on=false; HANDS.starting=false; hbig.style.display='block'; try{ HANDS.video?.srcObject?.getTracks().forEach(t=>t.stop()); HANDS.video?.remove(); }catch(e){} HANDS.video=null; HANDS.g.L.visible=HANDS.g.R.visible=false; hcur.style.display='none'; hstat.style.display='none'; center.set(0,0); $('handsBtn')&&($('handsBtn').textContent='✋ Hands'); log('✋ Hands mode off. Camera released.'); }
 let lastTS=0; function handsTick(dt){ if(HANDS.on&&HANDS.lmk&&HANDS.video&&HANDS.video.readyState>=2){ let ts=Math.round(performance.now()); if(ts<=lastTS) ts=lastTS+1; lastTS=ts; try{ const r=HANDS.lmk.detectForVideo(HANDS.video,ts); HANDS.frames++; handsFrame(r,dt); if(!(r.landmarks||[]).length) hsay(`✋ Tracking (${HANDS.delegate}) · frames ${HANDS.frames} · hands seen: 0. Raise a hand in front of the front camera, good light.`); }catch(e){ if(!HANDS.errShown){ HANDS.errShown=true; hsay('✋ Tracker error: '+(e.message||e),true); } } } else if(HANDS.stub){ handsFrame(HANDS.stub,dt); } }
+
+// ---- flat-hand locomotion (only deliberate flat hands: fingers extended AND together) ----
+const LOCO={L:{},R:{},walk:0,strafe:0,turn:0,tilt:0,back:0,label:'',lastChop:0};
+function locomote(seen,dt,now){ let walk=0,strafe=0,turn=0,tilt=0,labels=[];
+  const flat={}; for(const s of ['L','R']){ const lm=seen[s]&&HANDS.lm[s]; const L=LOCO[s]; if(!lm||gestureOf(lm)!=='flat'){ L.since=null; L.n=null; L.chops=[]; continue; }
+    const c={x:1-(lm[0].x+lm[9].x)/2,y:(lm[0].y+lm[9].y)/2}, sc=D2(lm[0],lm[9]);
+    if(L.since==null){ L.since=now; L.n=null; L.chops=[]; L.sc=sc; L.min=sc; L.max=sc; L.dir=0; L.cy=c.y; L.ymin=c.y; L.ymax=c.y; }
+    if(now-L.since<.35){ L.n={...c}; L.sc0=sc; continue; } // settle: neutral = where you held it
+    flat[s]=true; L.sc=L.sc*.6+sc*.4; L.cy=L.cy*.6+c.y*.4;
+    // chop = repeated forward swing: hand scale rising (toward camera) or wrist swinging down, then back. Count each reversal past threshold.
+    L.max=Math.max(L.max,L.sc); L.min=Math.min(L.min,L.sc); L.ymax=Math.max(L.ymax,L.cy); L.ymin=Math.min(L.ymin,L.cy);
+    const up=(L.sc-L.min)/L.min>.12||(L.cy-L.ymin)>.06, down=(L.max-L.sc)/L.max>.12||(L.ymax-L.cy)>.06;
+    if(L.dir<=0&&up){ L.dir=1; L.max=L.sc; L.ymax=L.cy; L.chops.push(now); } else if(L.dir>=0&&down&&L.dir===1){ L.dir=-1; L.min=L.sc; L.ymin=L.cy; }
+    L.chops=L.chops.filter(x=>now-x<2); L.dx=c.x-L.n.x; L.dy=c.y-L.n.y; L.dsc=(L.sc-L.sc0)/L.sc0; }
+  const chopsL=(LOCO.L.chops||[]).length, chopsR=(LOCO.R.chops||[]).length, rate=Math.max(chopsL,chopsR)/2; // chops per second
+  if(rate>=1){ walk=Math.min(1,.35+rate*.25); LOCO.lastChop=now; labels.push('WALK'+(rate>2?' FAST':'')); }
+  const chopping=now-LOCO.lastChop<.6, dz=v=>Math.abs(v)<.06?0:(v-Math.sign(v)*.06);
+  if(flat.L&&flat.R&&!chopping&&LOCO.L.dsc<-.15&&LOCO.R.dsc<-.15){ walk=-.6; labels.push('STEP BACK'); }
+  else if(!chopping){ if(flat.R){ turn=dz(LOCO.R.dx)*3; tilt=dz(LOCO.R.dy)*2; if(turn) labels.push(turn>0?'TURN R':'TURN L'); if(tilt) labels.push(tilt>0?'LOOK DOWN':'LOOK UP'); }
+    if(flat.L&&!(flat.R&&LOCO.L.dsc<-.15)){ strafe=Math.max(-1,Math.min(1,dz(LOCO.L.dx)*4)); if(strafe) labels.push(strafe>0?'STRAFE R':'STRAFE L'); } }
+  const k=1-Math.exp(-dt*8); LOCO.walk+=(walk-LOCO.walk)*k; LOCO.strafe+=(strafe-LOCO.strafe)*k; LOCO.turn+=(turn-LOCO.turn)*k; LOCO.tilt+=(tilt-LOCO.tilt)*k;
+  if(!panelOpen){ yaw-=LOCO.turn*1.6*dt; pitch=Math.max(-1.4,Math.min(1.4,pitch-LOCO.tilt*1.0*dt)); if(jId==null){ joy.y=-LOCO.walk; joy.x=LOCO.strafe; } }
+  LOCO.label=labels.join(' · '); gread.textContent=LOCO.label||(flat.L||flat.R?'FLAT · hold still = neutral':''); gread.style.display=gread.textContent?'block':'none'; }
+const gread=document.createElement('div'); gread.id='gread'; gread.style.cssText='position:fixed;left:50%;top:42%;transform:translateX(-50%);font:bold 20px system-ui;color:#f3e7d3;background:rgba(194,122,58,.85);padding:4px 10px;border-radius:8px;display:none;z-index:14;pointer-events:none'; document.body.appendChild(gread);
+function handsTutorial(){ openPanel(`<h2>✋ Hands: quick guide</h2><p style="font-size:13px">Prop the phone up, arm's length away, good light in front of you. Only <b>flat hands</b> (fingers straight and <b>together</b>) move you. Wiggling fingers does nothing.</p>
+<ul style="font-size:13px"><li><b>Walk:</b> flat hand, chop forward toward the screen again and again, like swinging your arm when you walk. Faster chops = faster walk.</li>
+<li><b>Turn / look:</b> hold your RIGHT hand flat for a moment (that spot becomes center), then lean it left/right to turn, up/down to look. Back to center = stop.</li>
+<li><b>Strafe:</b> LEFT hand flat, slide it left/right.</li><li><b>Step back:</b> both hands flat, push both away from the screen.</li>
+<li><b>Grab / use:</b> quick pinch. <b>Look by dragging:</b> pinch and drag. <b>Press:</b> point and hold 1 s. <b>Use held item / Return:</b> fist.</li>
+<li><b>Attunement:</b> open palm with fingers <b>spread</b>, held: LEFT = Contact, RIGHT = Tether. (Spread = Strings. Together = walking.)</li></ul><p style="font-size:12px">The orange word in the middle of the screen shows what I read (WALK, TURN L…). Drop your hands to stop.</p>`); }
+// ---- GO LIVE: free voice chat with the scripted Domowaye (Web Speech API). No server, no key, no cost. ----
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const LIVE={on:false,cont:false,rec:null,busy:false};
+function liveStatus(s){ const el=$('liveS'); if(el){ el.textContent=s; el.style.display=s?'block':'none'; } }
+function liveReply(text){ T.voice=true; $('tVoice')&&($('tVoice').textContent='🔈 Voice: on'); return text; }
+function liveHear(raw){ const q=(raw||'').toLowerCase().trim(); if(!q) return; log('🎙 You: '+raw); liveReply(); walkToPlayer();
+  const has=r=>r.test(q);
+  if(has(/\b(what('?s| is)? next|next step|what do i do)\b/)) return whatNext();
+  if(has(/\b(explain|what is this|what's this|why|how does)\b/)) return explainThis();
+  if(has(/\bquiz|test me\b/)) return quiz();
+  if(has(/\b(laws?|rules of attunement)\b/)) return say('Seven laws. '+CANON.laws.map(l=>l[0]).join(', ')+'. All seven are established canon. Ask me about any one.',{});
+  for(const l of CANON.laws) if(q.includes(l[0].toLowerCase())) return say(`${l[0]}. ${l[2].replace(/"/g,'')} That one's established.`,{});
+  if(has(/\b(contact|touch it|sense it)\b/)) return attContact('L');
+  if(has(/\b(tether|route|cool it|pull the heat)\b/)) return attTether('R');
+  if(has(/\b(return|let go|release)\b/)) return attReturn();
+  if(has(/\b(notice|crown|what's around)\b/)) return attNotice();
+  if(has(/\b(stack|my elements)\b/)) return ATT.stack?say('Your Stack: '+CANON.stack.map(([k,l])=>l+' '+ATT.stack[k]).join(', ')+'. Say "change stack" to redo it.'):openStack();
+  if(has(/change stack/)) return openStack();
+  if(has(/\b(oscar|carrot|greenhouse)\b/)) { say("Oscar's wing is his, Carrots in the Cosmos. His rules, no Strings. Go on in."); return openOscar(); }
+  if(has(/\b(hot|temperature|how warm|boiling)\b/)) return say(`Hot plate's at ${HP.T.toFixed(0)} degrees, set to ${HP.set}. The beaker on it is ${beaker.liq.temp.toFixed(0)} degrees with ${Math.round(beaker.liq.vol)} millilitres of ${beaker.liq.kind}. Water won't pass 100 while it's still there.`);
+  if(has(/\b(blood|lesson one|lesson 1)\b/)) return setMode('l1'); if(has(/\b(dna|gel|lesson two|lesson 2)\b/)) return setMode('l2');
+  if(has(/\b(wir sample|unknown|lesson three|lesson 3)\b/)) return setMode('l3'); if(has(/\bfree play\b/)) return setMode('free');
+  if(has(/\b(attun|strings?)\b/)) return say("Strings are your nervous system carried past the skin. Plumbing, not power. They shape what's already there, they never make matter or energy, and every route you open you return. Say contact, tether, or return.");
+  if(has(/\b(hands?|camera)\b/)) return say("Tap Start hands. Flat hand chops to walk, right hand flat leans to turn. Spread palm is for Strings.");
+  if(has(/\b(is (it|that) real|canon|made up)\b/)) return say("If it's real Earth science I say so. If RB1 hasn't decided something, I say it's open. I won't make it up.");
+  if(has(/\b(hi|hello|hey)\b/)) return say("Hey. I'm listening. Ask what's next, ask me to explain, quiz you, or say contact or tether.");
+  return say(`I heard "${raw}". I'm the scripted me right now, so I know lab words: what's next, explain, quiz, temperature, the laws, contact, tether, return, stack, Oscar, lesson one, two, three.`); }
+function liveStart(cont){ if(!SR){ liveStatus('🎙 Voice input not supported in this browser. Try Chrome, or Safari on iOS 14.5+ (Settings › Siri must allow dictation).'); log('🎙 Go Live: SpeechRecognition not available in this browser.'); return; }
+  if(LIVE.rec) try{ LIVE.rec.abort(); }catch(e){}
+  const r=new SR(); r.lang='en-US'; r.interimResults=true; r.continuous=!!cont; r.maxAlternatives=1; LIVE.rec=r; LIVE.on=true; LIVE.cont=!!cont; liveReply();
+  r.onresult=e=>{ let fin='',intr=''; for(let i=e.resultIndex;i<e.results.length;i++){ const x=e.results[i]; if(x.isFinal) fin+=x[0].transcript; else intr+=x[0].transcript; }
+    if(window.speechSynthesis?.speaking&&LIVE.cont) return; // don't hear herself
+    liveStatus('🎙 '+(fin||intr)); if(fin) liveHear(fin); };
+  r.onerror=e=>{ liveStatus('🎙 '+(e.error==='not-allowed'?'Microphone blocked. Allow the mic for this site.':e.error==='no-speech'?'Didn\'t hear anything.':'Voice error: '+e.error)); };
+  r.onend=()=>{ if(LIVE.on&&LIVE.cont){ setTimeout(()=>{ try{ r.start(); }catch(e){} },300); } else { LIVE.on=false; $('liveBtn')&&($('liveBtn').textContent='🎙 Go Live'); } };
+  try{ r.start(); liveStatus(cont?'🎙 LIVE (continuous). Talk to Domowaye. Tap Go Live again to stop.':'🎙 Listening… let go when done.'); $('liveBtn').textContent=cont?'🎙 LIVE ●':'🎙 …'; }catch(e){ liveStatus('🎙 Could not start: '+e.message); } }
+function liveStop(){ LIVE.on=false; LIVE.cont=false; try{ LIVE.rec?.stop(); }catch(e){} $('liveBtn')&&($('liveBtn').textContent='🎙 Go Live'); setTimeout(()=>liveStatus(''),2500); }
 // ---- UI hooks ----
-{ const bar=document.createElement('div'); bar.style.cssText='position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:12;display:flex;gap:4px;flex-wrap:wrap;justify-content:center';
-  bar.innerHTML='<button id="attBtn">🧵 ATTUNE</button><button id="handsBtn">✋ Hands</button><button id="oscBtn" class="alt">🥕 Oscar</button><span id="attS" style="background:rgba(243,231,211,.92);border-radius:8px;padding:4px 6px;font-size:11px"></span>'; document.body.appendChild(bar);
-  $('attBtn').onclick=openAttune; $('handsBtn').onclick=startHands; $('oscBtn').onclick=()=>openOscar(); }
+{ const bar=document.createElement('div'); bar.id='attbar'; bar.style.cssText='position:fixed;left:50%;top:8px;transform:translateX(-50%);z-index:12;display:flex;gap:4px;flex-wrap:wrap;justify-content:center';
+  bar.innerHTML='<button id="attBtn">🧵 ATTUNE</button><button id="handsBtn">✋ Hands</button><button id="oscBtn" class="alt">🥕 Oscar</button><button id="liveBtn">🎙 Go Live</button><button id="pttBtn" class="alt">🎤 Hold to talk</button><button id="nbBtn" class="alt">📓</button><button id="guideBtn" class="alt">?</button><span id="attS" style="background:rgba(243,231,211,.92);border-radius:8px;padding:4px 6px;font-size:11px"></span>'; document.body.appendChild(bar);
+  $('attBtn').onclick=openAttune; $('handsBtn').onclick=startHands; $('oscBtn').onclick=()=>openOscar();
+  $('liveBtn').onclick=()=>{ LIVE.on&&LIVE.cont?liveStop():liveStart(true); };
+  const ptt=$('pttBtn'); const pd=e=>{ e.preventDefault(); liveStart(false); }, pu=e=>{ e.preventDefault(); try{ LIVE.rec?.stop(); }catch(_){} };
+  ptt.addEventListener('pointerdown',pd); ptt.addEventListener('pointerup',pu); ptt.addEventListener('pointerleave',pu);
+  $('nbBtn').onclick=()=>$('nb').classList.toggle('open'); $('guideBtn').onclick=handsTutorial;
+  const ls=document.createElement('div'); ls.id='liveS'; ls.style.cssText='position:fixed;left:50%;bottom:40%;transform:translateX(-50%);background:rgba(44,53,112,.92);color:#f3e7d3;padding:6px 10px;border-radius:8px;font-size:14px;display:none;z-index:14;max-width:90vw;text-align:center'; document.body.appendChild(ls);
+  const css=document.createElement('style'); css.textContent=`@media (max-width:600px){#attbar{top:4px;width:98vw;gap:2px}#attbar button{font-size:11px;padding:4px 6px;margin:0}#attS{font-size:9px!important;width:100%;text-align:center}
+   #status{top:auto!important;bottom:150px;left:4px;max-width:44vw!important;font-size:9px!important;padding:4px!important;opacity:.9}#status #eq{display:none}
+   #nb{display:none!important;top:84px!important;right:4px!important;width:92vw!important;max-height:40vh!important}#nb.open{display:flex!important}
+   #tbox{top:84px!important;bottom:auto!important;width:94vw!important;max-height:24vh;overflow:auto;font-size:12px!important}
+   #corner{display:none}#startHands{bottom:150px!important;right:6px!important;font-size:14px!important;padding:9px 10px!important}
+   div[style*="top:52px"]{top:auto!important;bottom:205px;font-size:11px!important}#prompt{top:66%!important;font-size:11px}#panel{width:96vw!important;max-height:80vh!important}}`; document.head.appendChild(css); }
 addEventListener('keydown',e=>{ if(panelOpen) return; if(e.code==='KeyG') attContact('L'); if(e.code==='KeyV') attTether('R'); if(e.code==='KeyR') attReturn(); if(e.code==='KeyN') attNotice(); if(e.code==='KeyY') openStack(); if(e.code==='KeyO') openOscar(); if(e.code==='KeyH') startHands(); });
 
 hudRefresh(); loop();
 window.WIRLAB={st,STATIONS,LIB,cam,items,HP,HB,FR,CF,fires,inv,beaker,get held(){return held;},
-  tp(x,z,y,p){ cam.position.set(x,1.65,z); yaw=y; pitch=p; }, interact, useHeld, swapSlot, aim:()=>{ const h=aim(); const e=h&&entOf(h.object); return e?nm(e):null; }, speed(v){ TIMESCALE.v=v; }, newTube, closePanel, startFire, setPlate(v){HP.set=v;}, setBlock(v){HB.set=v;}, triangles:()=>renderer.info.render.triangles, calls:()=>renderer.info.render.calls, T, talkMenu, quiz, setMode, whatNext, explainThis, teacherPos:()=>T.pos.clone(), ATT, HANDS, attContact, attTether, attReturn, attNotice, openStack, openAttune, openOscar, startAttLesson, setStack(s){ATT.stack=s;}, handsStub(r){ HANDS.stub=r; if(!r){HANDS.g.L.visible=HANDS.g.R.visible=false;} }, center:()=>[center.x,center.y], beakerTemp:()=>beaker.liq.temp};
+  tp(x,z,y,p){ cam.position.set(x,1.65,z); yaw=y; pitch=p; }, interact, useHeld, swapSlot, aim:()=>{ const h=aim(); const e=h&&entOf(h.object); return e?nm(e):null; }, speed(v){ TIMESCALE.v=v; }, newTube, closePanel, startFire, setPlate(v){HP.set=v;}, setBlock(v){HB.set=v;}, triangles:()=>renderer.info.render.triangles, calls:()=>renderer.info.render.calls, T, talkMenu, quiz, setMode, whatNext, explainThis, teacherPos:()=>T.pos.clone(), ATT, HANDS, attContact, attTether, attReturn, attNotice, openStack, openAttune, openOscar, startAttLesson, setStack(s){ATT.stack=s;}, handsStub(r){ HANDS.stub=r; if(!r){HANDS.g.L.visible=HANDS.g.R.visible=false;} }, center:()=>[center.x,center.y], LOCO, liveHear, liveStart, handsTutorial, yawPitch:()=>[yaw,pitch], camPos:()=>[cam.position.x,cam.position.z], beakerTemp:()=>beaker.liq.temp};
 
 </script>
 </body></html>
