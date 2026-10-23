@@ -1221,9 +1221,9 @@ function openOscar(ci){ if(ci==null){ openPanel(`<h2>🥕 Oscar Absurd's Greenho
 // The camera image is NEVER drawn. Only 21 landmark points per hand are used to pose two gloved 3D hands.
 const HANDS={on:false,vis:{L:false,R:false},lm:{L:null,R:null},g:{},st:{L:{},R:{}},video:null,lmk:null,primary:'R',dwell:{e:null,t:0},
   tipWorld(side){ const g=this.g[side]; if(!g) return null; const j=g.userData.j[8]; return j.getWorldPosition(new THREE.Vector3()); } };
-const gloveMat=new THREE.MeshStandardMaterial({color:0x6f8fd8,roughness:.75});
+const gloveMat0=new THREE.MeshStandardMaterial({color:0x6f8fd8,roughness:.75});
 const BONES=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[0,17],[17,18],[18,19],[19,20]];
-function makeHand(){ const g=new THREE.Group(); g.userData.j=[]; g.userData.b=[]; for(let i=0;i<21;i++){ const s=new THREE.Mesh(new THREE.SphereGeometry(i%4===0&&i?.007:.009,8,6),gloveMat); s.userData.noRay=true; g.add(s); g.userData.j.push(s); }
+function makeHand(){ const g=new THREE.Group(); g.userData.j=[]; g.userData.b=[]; const gloveMat=gloveMat0.clone(); g.userData.mat=gloveMat; for(let i=0;i<21;i++){ const s=new THREE.Mesh(new THREE.SphereGeometry(i%4===0&&i?.007:.009,8,6),gloveMat); s.userData.noRay=true; g.add(s); g.userData.j.push(s); }
   for(const b of BONES){ const m=new THREE.Mesh(new THREE.CylinderGeometry(.0065,.0065,1,6),gloveMat); m.userData.noRay=true; g.add(m); g.userData.b.push(m); } g.visible=false; cam.add(g); return g; }
 HANDS.g.L=makeHand(); HANDS.g.R=makeHand();
 const hcur=document.createElement('div'); hcur.id='hcur'; hcur.style.cssText='position:fixed;width:22px;height:22px;margin:-11px;border:3px solid #f3e7d3;border-radius:50%;display:none;z-index:15;pointer-events:none'; document.body.appendChild(hcur);
@@ -1234,13 +1234,13 @@ function poseHand(side,lm){ const g=HANDS.g[side]; const W=.42*cam.aspect, Hh=.4
   const P=lm.map(toV); P.forEach((v,i)=>g.userData.j[i].position.copy(v)); BONES.forEach(([a,b],i)=>{ const m=g.userData.b[i], v=P[b].clone().sub(P[a]); m.position.copy(P[a]).addScaledVector(v,.5); m.scale.set(1,Math.max(.001,v.length()),1); m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),v.normalize()); }); g.visible=true; }
 const D2=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 function gestureOf(lm){ const sz=D2(lm[0],lm[9])||.1; const ext=i=>D2(lm[0],lm[i])>D2(lm[0],lm[i-2])*1.08; const pinch=D2(lm[4],lm[8])/sz<.33;
-  const e=[ext(8),ext(12),ext(16),ext(20)]; if(pinch) return 'pinch'; const spread=D2(lm[8],lm[20])/sz, gaps=Math.max(D2(lm[8],lm[12]),D2(lm[12],lm[16]),D2(lm[16],lm[20]))/sz;
-  if(e.every(x=>x)&&spread<.42&&gaps<.17) return 'flat'; if(e.every(x=>x)&&spread>.6) return 'palm'; if(e[0]&&!e[1]&&!e[2]&&!e[3]) return 'point'; if(!e.some(x=>x)) return 'fist'; return 'other'; }
+  const e=[ext(8),ext(12),ext(16),ext(20)]; if(pinch&&D2(lm[4],lm[12])/sz<.4&&!e[3]) return 'tips'; if(pinch) return 'pinch'; const spread=D2(lm[8],lm[20])/sz, gaps=Math.max(D2(lm[8],lm[12]),D2(lm[12],lm[16]),D2(lm[16],lm[20]))/sz;
+  if(e.every(x=>x)&&spread<.42&&gaps<.17) return 'flat'; if(e.every(x=>x)&&spread>.6) return 'palm'; if(e[0]&&!e[1]&&!e[2]&&!e[3]) return 'point'; if(e[0]&&e[1]&&!e[2]&&!e[3]&&D2(lm[8],lm[12])/sz>.25) return 'peace'; if(!e.some(x=>x)){ const cr=[8,12,16,20].reduce((a,i)=>a+D2(lm[i],lm[9]),0)/4/sz; return cr<.55?'fist':'claw'; } return 'other'; }
 function clickDom(x,y){ const el=document.elementFromPoint(x,y); if(el&&el!==canvas&&el.closest('button,select,[data-k],[data-c],a')){ (el.closest('button,select,a,[data-k],[data-c]')).click?.(); return true; } return false; }
 function handsFrame(res,dt){ const seen={L:false,R:false}; const now=performance.now()/1000;
-  (res.landmarks||[]).forEach((lm,i)=>{ const side=(1-lm[0].x)<.5?'L':'R'; if(seen[side]) return; seen[side]=true; HANDS.lm[side]=lm; poseHand(side,lm); });
+  const LMS=(res.landmarks||[]).slice(0,2), two=LMS.length===2, ord=two?LMS.map(l=>1-(l[0].x+l[9].x)/2):null; LMS.forEach((lm,i)=>{ const side=two?(ord[i]<=ord[1-i]?'L':'R'):(1-lm[0].x)<.5?'L':'R'; if(seen[side]) return; seen[side]=true; HANDS.lm[side]=lm; poseHand(side,lm); });
   for(const s of ['L','R']){ HANDS.vis[s]=seen[s]; if(!seen[s]){ HANDS.g[s].visible=false; HANDS.st[s]={}; } }
-  const prim=seen.R?'R':seen.L?'L':null; if(!prim){ locomote(seen,dt,now); hcur.style.display='none'; center.set(0,0); return; }
+  const prim0=0; const prim=seen.R?'R':seen.L?'L':null; const relaxed=s=>{ const o=s==='L'?'R':'L'; return !seen[o]||/other|claw/.test(gestureOf(HANDS.lm[o])); }; if(!prim){ DEX.cur=null; locomote(seen,dt,now); handsDot(); hcur.style.display='none'; center.set(0,0); return; }
   const lm=HANDS.lm[prim], tip=lm[8], sx=(1-tip.x), sy=tip.y; center.set(sx*2-1,-(sy*2-1)); hcur.style.display='block'; hcur.style.left=(sx*innerWidth)+'px'; hcur.style.top=(sy*innerHeight)+'px';
   for(const s of ['L','R']){ if(!seen[s]) continue; const g=gestureOf(HANDS.lm[s]), S2=HANDS.st[s], p={x:1-HANDS.lm[s][8].x,y:HANDS.lm[s][8].y};
     if(g!==S2.g){ // gesture change
@@ -1248,17 +1248,17 @@ function handsFrame(res,dt){ const seen={L:false,R:false}; const now=performance
       if(S2.g==='palm'&&ATT.tether&&s===ATT.tether.side&&g==='fist') attReturn();
       S2.g=g; S2.t0=now; S2.p0=p; S2.fired=false; S2.lp=p; }
     const held_t=now-S2.t0;
-    if(g==='pinch'&&!panelOpen&&s===prim&&held_t>.25){ const lp=S2.lp||p; yaw-=(p.x-lp.x)*2.2; pitch=Math.max(-1.4,Math.min(1.4,pitch-(p.y-lp.y)*1.6)); }
-    if(g==='fist'&&held_t>.5&&!S2.fired){ S2.fired=true; if(ATT.tether) attReturn(); else if(!panelOpen) useHeld(); }
-    if(g==='palm'&&held_t>.8&&!S2.fired&&!panelOpen){ S2.fired=true; if(s==='L') attContact('L'); else attTether('R'); }
+    if(g==='pinch'&&!panelOpen&&s===prim&&held_t>.25&&DEX.cur!=='pour'){ const lp=S2.lp||p; yaw-=(p.x-lp.x)*2.2; pitch=Math.max(-1.4,Math.min(1.4,pitch-(p.y-lp.y)*1.6)); }
+    if(g==='fist'&&held_t>.5&&!S2.fired&&relaxed(s)){ S2.fired=true; if(ATT.tether) attReturn(); else if(!panelOpen) useHeld(); }
+    if(g==='palm'&&held_t>.8&&!S2.fired&&!panelOpen&&relaxed(s)){ S2.fired=true; if(s==='L') attContact('L'); else attTether('R'); }
     if(g==='point'&&s===prim){ const a=panelOpen?null:aimedEnt(); const e=a&&a.e; if(e&&e===HANDS.dwell.e){ HANDS.dwell.t+=dt; if(HANDS.dwell.t>1&&!S2.fired){ S2.fired=true; interact(); } } else { HANDS.dwell={e,t:0}; }
       if(panelOpen&&held_t>1&&!S2.fired){ S2.fired=true; clickDom(p.x*innerWidth,p.y*innerHeight); } }
     S2.lp=p; }
-  locomote(seen,dt,now);
+  dexFrame(seen,now); locomote(seen,dt,now); handsDot();
   const st2=HANDS.st[prim]; hcur.style.borderColor=st2.g==='pinch'?'#c27a3a':st2.g==='palm'?'#6b5040':'#f3e7d3';
   hstat.style.background='rgba(44,53,112,.92)'; hstat.textContent=`✋ hands seen: ${['L','R'].filter(s=>seen[s]).length} (${['L','R'].filter(s=>seen[s]).join('+')}) · ${st2.g||''}`+(st2.g==='point'?` · hold ${Math.max(0,1-HANDS.dwell.t).toFixed(1)}s`:''); }
 const IOS=/iP(hone|ad|od)/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-function hsay(s,err){ hstat.style.display='block'; hstat.innerHTML=s; hstat.style.background=err?'rgba(150,30,30,.95)':'rgba(44,53,112,.92)'; if(err) log('✋ '+s.replace(/<[^>]+>/g,'')); }
+function hsay(s,err){ try{ if(document.body.classList.contains('clean')&&(err||/Step|failed|blocked/.test(s))) toast(s.replace(/<[^>]+>/g,''),err); handsDot(); }catch(_){} hstat.style.display='block'; hstat.innerHTML=s; hstat.style.background=err?'rgba(150,30,30,.95)':'rgba(44,53,112,.92)'; if(err) log('✋ '+s.replace(/<[^>]+>/g,'')); }
 async function startHands(){ if(HANDS.on||HANDS.starting) return stopHands(); HANDS.starting=true;
   if(!isSecureContext){ HANDS.starting=false; return hsay('✋ Camera blocked: page is not https. Open the https link instead of the downloaded file.',true); }
   if(!navigator.mediaDevices?.getUserMedia){ HANDS.starting=false; return hsay('✋ This browser has no camera access (getUserMedia missing). In iPhone, use Safari or Chrome, not an in-app browser.',true); }
@@ -1278,7 +1278,7 @@ async function startHands(){ if(HANDS.on||HANDS.starting) return stopHands(); HA
     const withTimeout=(pr,ms)=>Promise.race([pr,new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
     let delegate=IOS?'CPU':'GPU'; try{ HANDS.lmk=await withTimeout(mk(delegate),25000); }catch(e1){ delegate='CPU'; hsay('✋ GPU tracker failed ('+e1.message+'), trying CPU…'); HANDS.lmk=await mk('CPU'); }
     HANDS.delegate=delegate; HANDS.on=true; HANDS.starting=false; HANDS.frames=0; $('handsBtn')&&($('handsBtn').textContent='✋ Hands ON'); hbig.style.display='none';
-    hsay(`✋ Step 3/3: tracking (${delegate}). Hold a hand up 30–50 cm from the screen.`); if(!localStorage.getItem('wirHandsTut')){ localStorage.setItem('wirHandsTut','1'); handsTutorial(); }
+    hsay(`✋ Step 3/3: tracking (${delegate}). Hold a hand up 30–50 cm from the screen.`); if(!localStorage.getItem('wirHandsTut')){ localStorage.setItem('wirHandsTut','1'); openDex(); }
     log('✋ Hands mode on. Your camera picture is never shown or saved. Pinch tap = grab/use · pinch drag = look · point & hold 1 s = press · fist = use held / Return · open LEFT palm hold = Contact · open RIGHT palm hold = Tether.');
     say("I see your camera. Hold your hands up where I can see them. Pinch to grab, and hold an open palm when you want to make Contact.",{key:'handson',cool:30});
   }catch(err){ HANDS.starting=false; try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){} hsay('✋ Hands failed: '+(err.message||err)+'. Touch/keys still work. Tell Domowaye this exact message.',true); } }
@@ -1288,7 +1288,7 @@ let lastTS=0; function handsTick(dt){ if(HANDS.on&&HANDS.lmk&&HANDS.video&&HANDS
 // ---- flat-hand locomotion (only deliberate flat hands: fingers extended AND together) ----
 const LOCO={L:{},R:{},walk:0,strafe:0,turn:0,tilt:0,back:0,label:'',lastChop:0};
 function locomote(seen,dt,now){ let walk=0,strafe=0,turn=0,tilt=0,labels=[];
-  const flat={}; for(const s of ['L','R']){ const lm=seen[s]&&HANDS.lm[s]; const L=LOCO[s]; if(!lm||gestureOf(lm)!=='flat'){ L.since=null; L.n=null; L.chops=[]; continue; }
+  const flat={}; for(const s of ['L','R']){ const lm=seen[s]&&HANDS.lm[s]; const L=LOCO[s]; if(!lm||gestureOf(lm)!=='flat'||!vertH(lm)){ L.since=null; L.n=null; L.chops=[]; continue; }
     const c={x:1-(lm[0].x+lm[9].x)/2,y:(lm[0].y+lm[9].y)/2}, sc=D2(lm[0],lm[9]);
     if(L.since==null){ L.since=now; L.n=null; L.chops=[]; L.sc=sc; L.min=sc; L.max=sc; L.dir=0; L.cy=c.y; L.ymin=c.y; L.ymax=c.y; }
     if(now-L.since<.35){ L.n={...c}; L.sc0=sc; continue; } // settle: neutral = where you held it
@@ -1300,6 +1300,8 @@ function locomote(seen,dt,now){ let walk=0,strafe=0,turn=0,tilt=0,labels=[];
     L.chops=L.chops.filter(x=>now-x<2); L.dx=c.x-L.n.x; L.dy=c.y-L.n.y; L.dsc=(L.sc-L.sc0)/L.sc0; }
   const chopsL=(LOCO.L.chops||[]).length, chopsR=(LOCO.R.chops||[]).length, rate=Math.max(chopsL,chopsR)/2; // chops per second
   if(rate>=1){ walk=Math.min(1,.35+rate*.25); LOCO.lastChop=now; labels.push('WALK'+(rate>2?' FAST':'')); }
+  LOCO.mode=''; if(flat.L&&flat.R&&walk>0){ if(chopsR===0&&chopsL>=2){ turn=.7; LOCO.mode='walkR'; labels.push('TURN R'); } else if(chopsL===0&&chopsR>=2){ turn=-.7; LOCO.mode='walkL'; labels.push('TURN L'); } }
+  if(LOCO.stopUntil&&now<LOCO.stopUntil){ walk=strafe=turn=tilt=0; labels.length=0; labels.push('STOP'); }
   const chopping=now-LOCO.lastChop<.6, dz=v=>Math.abs(v)<.06?0:(v-Math.sign(v)*.06);
   if(flat.L&&flat.R&&!chopping&&LOCO.L.dsc<-.15&&LOCO.R.dsc<-.15){ walk=-.6; labels.push('STEP BACK'); }
   else if(!chopping){ if(flat.R){ turn=dz(LOCO.R.dx)*3; tilt=dz(LOCO.R.dy)*2; if(turn) labels.push(turn>0?'TURN R':'TURN L'); if(tilt) labels.push(tilt>0?'LOOK DOWN':'LOOK UP'); }
@@ -1368,9 +1370,134 @@ function liveStop(){ LIVE.on=false; LIVE.cont=false; try{ LIVE.rec?.stop(); }cat
    div[style*="top:52px"]{top:auto!important;bottom:205px;font-size:11px!important}#prompt{top:66%!important;font-size:11px}#panel{width:96vw!important;max-height:80vh!important}}`; document.head.appendChild(css); }
 addEventListener('keydown',e=>{ if(panelOpen) return; if(e.code==='KeyG') attContact('L'); if(e.code==='KeyV') attTether('R'); if(e.code==='KeyR') attReturn(); if(e.code==='KeyN') attNotice(); if(e.code==='KeyY') openStack(); if(e.code==='KeyO') openOscar(); if(e.code==='KeyH') startHands(); });
 
+// ================= LAB DEX (Coach-approved gesture set, from his photos) + CLEAN SCREEN + IN-WORLD HELP =================
+const vertH=lm=>Math.abs(lm[12].y-lm[0].y)>Math.abs(lm[12].x-lm[0].x);
+const DEXL=[['wrap','Two-hand wrap','Both hands cupped around it, fingers interlocked → carry a big item (flask, bottle, extinguisher, beaker)'],
+ ['tips','Fingertip pinch','Thumb + index + middle tips together, from above → pick a slim item (tube, pipette, slides, tongs)'],
+ ['claw2','Two-hand claw','Both hands curled into hooks, apart → grab from above (beaker rim, lift a lid / door)'],
+ ['cursor','Point + fist','Index out on one hand, other hand a fist → menu cursor'],
+ ['pause','Two fists','Both fists side by side, hold → pause / open menu (again = resume)'],
+ ['select','Peace + fist','V sign on one hand, other a fist → select the button under the V (nothing under it = resume)'],
+ ['ready','Walk-ready','Both hands flat, facing each other, fingers together → ready; chop forward = walk'],
+ ['walkR','Walk + turn right','Right flat hand held up still, left hand chopping → walk while turning right'],
+ ['walkL','Walk + turn left','Mirror: left flat hand still, right hand chopping → walk while turning left'],
+ ['pour','Pour / hold over','One hand pinching above, other hand flat palm-up underneath → pour held liquid into the vessel / tray / scale you aim at'],
+ ['stop','STOP','Both hands wide open, fingers spread, palms out → stop moving and set held item down gently']];
+const DEX={cur:null,t0:0,fired:false,hit:{},flash:0};
+const DEXC={wrap:0xc9a04a,tips:0xd07a3a,claw2:0x8a5aa8,cursor:0x3aa0a0,pause:0x9aa0a8,select:0x3ac07a,ready:0x5a7ad8,walkR:0x5a7ad8,walkL:0x5a7ad8,pour:0x3a8ad8,stop:0xd84a3a};
+const GC={flat:0x5a7ad8,palm:0xe0b050,pinch:0xd07a3a,tips:0xd07a3a,fist:0x4a4f70,point:0x3aa0a0,peace:0x3ac07a,claw:0x8a5aa8,other:0x6f8fd8};
+const BIG=/extinguisher|beaker|ethanolBottle|bottle|flask|rack/, SMALL=/tube|pipette|slides|tongs/;
+function dexToast(s){ toast(s); }
+function dexFire(id){ DEX.hit[id]=performance.now(); DEX.flash=.25; const a=aimedEnt(), e=a&&a.e;
+  if(id==='pause'){ if(panelOpen) closePanel(); else openHelp(); return; }
+  if(id==='select'){ if(panelOpen){ const r=hcur.getBoundingClientRect(); if(!clickDom(r.left+r.width/2,r.top+r.height/2)) closePanel(); } else interact(); return; }
+  if(panelOpen) return;
+  if(id==='stop'){ LOCO.stopUntil=performance.now()/1000+.8; LOCO.walk=LOCO.strafe=LOCO.turn=LOCO.tilt=0; joy.x=joy.y=0;
+    if(held){ const h=aim(); const n=h&&h.face?h.face.normal.clone().transformDirection(h.object.matrixWorld):null; if(h&&n&&n.y>.6) place(h); else toast('✋ Holding on. Aim at a flat surface to set it down gently.'); } return; }
+  if(id==='tips'){ if(held) return; if(e&&e.pick){ if(SMALL.test(e.kind||'')) interact(); else toast('Too big for fingertips. Use a two-hand wrap.'); } return; }
+  if(id==='wrap'){ if(held) return; if(e&&e.pick){ if(BIG.test(e.kind||'')||!SMALL.test(e.kind||'')) interact(); else toast('Small item: use a fingertip pinch.'); } return; }
+  if(id==='claw2'){ if(e&&(e.kind==='mover'||e.kind==='beaker'||e.pick||e.use)) interact(); return; }
+  if(id==='pour'){ if(!held) return toast('Pour: pick something up first.'); if(e&&e.kind==='beaker'&&held.liq&&e!==held){ const v=Math.min(50,held.liq.vol); if(v<=0) return toast('Nothing left to pour.'); const T2=(e.liq.temp*e.liq.vol+held.liq.temp*v)/(e.liq.vol+v); held.liq.vol-=v; e.liq.vol+=v; e.liq.temp=T2; log(`Poured ${v} mL ${held.liq.kind} into the other beaker, slowly, over the rim.`); return; }
+    if(e) return interact(); return toast('Pour: aim at a vessel, tray, scale or sink.'); } }
+function dexFrame(seen,now){ const gL=seen.L&&HANDS.st.L.g, gR=seen.R&&HANDS.st.R.g; let id=null;
+  if(gL&&gR){ const lL=HANDS.lm.L, lR=HANDS.lm.R, sz=(D2(lL[0],lL[9])+D2(lR[0],lR[9]))/2, cd=D2(lL[9],lR[9])/sz, dy=Math.abs(lL[9].y-lR[9].y)/sz, has=(a,b)=>(gL===a&&gR===b)||(gL===b&&gR===a);
+    if(gL==='palm'&&gR==='palm') id='stop';
+    else if(gL==='fist'&&gR==='fist'&&dy<1.2) id='pause';
+    else if(has('point','fist')) id='cursor';
+    else if(has('peace','fist')) id='select';
+    else if((gL==='pinch'||gL==='tips')&&gR==='flat'&&!vertH(lR)&&lR[9].y>lL[9].y || (gR==='pinch'||gR==='tips')&&gL==='flat'&&!vertH(lL)&&lL[9].y>lR[9].y) id='pour';
+    else if(/claw|other/.test(gL)&&/claw|other/.test(gR)&&cd<1.6) id='wrap';
+    else if(gL==='claw'&&gR==='claw') id='claw2';
+    else if(gL==='flat'&&gR==='flat'&&vertH(lL)&&vertH(lR)){ id=LOCO.mode==='walkR'?'walkR':LOCO.mode==='walkL'?'walkL':'ready'; } }
+  else if(gL==='tips'||gR==='tips') id='tips';
+  if(id!==DEX.cur){ DEX.cur=id; DEX.t0=now; DEX.fired=false; }
+  const hold={stop:.4,pause:.6,select:.4,tips:.5,wrap:.6,claw2:.6,pour:.8}[id];
+  if(id&&!/ready|walk|cursor/.test(id)){ if(hold!=null&&now-DEX.t0>hold&&!DEX.fired){ DEX.fired=true; dexFire(id); } } else if(id) DEX.hit[id]=performance.now();
+  // cursor follows the pointing / V hand
+  if(id==='cursor'||id==='select'){ const s=(id==='cursor'?gL==='point':gL==='peace')?'L':'R', t=HANDS.lm[s][8]; hcur.style.display='block'; hcur.style.left=((1-t.x)*innerWidth)+'px'; hcur.style.top=(t.y*innerHeight)+'px'; center.set((1-t.x)*2-1,-(t.y*2-1)); }
+  // diegetic feedback: glove tint per pose, combo colour on both, short pulse when an action fires
+  DEX.flash=Math.max(0,DEX.flash-1/60); for(const s of ['L','R']){ const g=HANDS.g[s]; if(!seen[s]) continue; const c=id?DEXC[id]:GC[HANDS.st[s].g]||GC.other; g.userData.mat.color.lerp(new THREE.Color(c),.25); g.scale.setScalar(1+DEX.flash*.6); }
+  if(!panelOpen&&!(id==='cursor'||id==='select')&&!(HANDS.st.R.g==='point'||HANDS.st.L.g==='point')) hcur.style.display='none';
+  dexPanelTick(gL,gR,id); }
+function openDex(){ openPanel(`<h2>✋ Lab Dex practice</h2><p style="font-size:12px">Prop the phone up at arm's length, good light. Make each pose; its light turns green when I read it. Front camera is mirrored, so your RIGHT hand is on the right.</p>
+ <div id="dexNow" style="font:bold 13px system-ui;margin:4px 0;color:#2c3570">Now: —</div>
+ ${DEXL.map((d,i)=>`<div style="display:flex;gap:6px;align-items:flex-start;margin:3px 0;font-size:12px"><span id="dexL_${d[0]}" style="flex:0 0 14px;height:14px;border-radius:50%;background:#bbb;margin-top:2px"></span><div><b>${i+1}. ${d[1]}</b> ${d[2]}</div></div>`).join('')}
+ <p style="font-size:11px"><b>Still there:</b> one flat hand: RIGHT lean = turn/look, LEFT slide = strafe · both flat pushed away = step back · quick pinch = grab/use · pinch-drag = look · point & hold 1 s = press · fist alone = use held item / Return · ONE spread palm held with the other hand down or relaxed: LEFT = Contact, RIGHT = Tether (both spread = STOP).</p>`); dexPanelTick(HANDS.st.L.g,HANDS.st.R.g,DEX.cur); }
+function dexPanelTick(gL,gR,id){ const n=$('dexNow'); if(!n) return; n.textContent=`Now: L ${gL||'—'} · R ${gR||'—'}${id?' → '+DEXL.find(d=>d[0]===id)[1]:''}${LOCO.label?' · '+LOCO.label:''}`;
+  for(const d of DEXL){ const el=$('dexL_'+d[0]); if(el) el.style.background=DEX.hit[d[0]]&&performance.now()-DEX.hit[d[0]]<1500?'#3ac07a':DEX.hit[d[0]]?'#9ad0a8':'#bbb'; } }
+// ---- clean screen: only the lab, a small help button and a hands dot; everything else on demand ----
+const toastEl=document.createElement('div'); toastEl.id='toast'; toastEl.style.cssText='position:fixed;left:50%;bottom:18px;transform:translateX(-50%);max-width:86vw;background:rgba(30,30,40,.78);color:#f3e7d3;font:13px system-ui;padding:6px 10px;border-radius:10px;opacity:0;transition:opacity .5s;z-index:30;pointer-events:none;text-align:center'; document.body.appendChild(toastEl);
+let toastT=0; function toast(s,err){ toastEl.textContent=s; toastEl.style.background=err?'rgba(150,30,30,.85)':'rgba(30,30,40,.78)'; toastEl.style.opacity='1'; clearTimeout(toastT); toastT=setTimeout(()=>toastEl.style.opacity='0',err?5000:2600); }
+const helpB=document.createElement('button'); helpB.id='helpBtn'; helpB.textContent='?'; helpB.title='Help / menu'; helpB.style.cssText='position:fixed;right:10px;top:10px;z-index:31;width:34px;height:34px;border-radius:50%;padding:0;font:bold 17px system-ui;background:rgba(243,231,211,.55);color:#2c3570;border:1px solid rgba(44,53,112,.4)'; document.body.appendChild(helpB);
+const hdot=document.createElement('div'); hdot.id='hdot'; hdot.title='hands'; hdot.style.cssText='position:fixed;right:50px;top:22px;width:10px;height:10px;border-radius:50%;background:rgba(150,150,150,.5);z-index:31;pointer-events:none'; document.body.appendChild(hdot);
+helpB.addEventListener('click',e=>{ e.stopPropagation(); panelOpen?closePanel():openHelp(); });
+function openHelp(){ const on=document.body.classList.contains('clean'); openPanel(`<h2>⏸ Menu</h2><div style="display:flex;flex-wrap:wrap;gap:6px">
+ <button data-h="resume">▶ Resume</button><button data-h="hands">${HANDS.on?'✋ Stop hands':'✋ Start hands (front camera)'}</button><button data-h="dex">🖐 Lab Dex practice</button>
+ <button data-h="live">${LIVE.on&&LIVE.cont?'🎙 Stop Go Live':'🎙 Go Live (voice)'}</button><button data-h="talk">🧕🏾 Talk to Domowaye</button><button data-h="att">🧵 Attune</button><button data-h="osc" class="alt">🥕 Oscar's wing</button>
+ <button data-h="nb" class="alt">📓 Notebook</button><button data-h="hud" class="alt">${on?'Show full HUD':'Clean screen'}</button></div>
+ <p style="font-size:12px">In the lab you can also press: the red <b>HELP</b> call button on the wall (calls Domowaye), the <b>SOP card</b> at every station, the <b>safety poster</b> by the shower/eyewash, and the <b>Lab Dex poster</b>. Hands: two fists = this menu, V + fist = select / resume.</p>
+ <p style="font-size:11px">Keys: WASD move · mouse look · E use · F use held · Esc close · ? or M menu · G/V/R Contact/Tether/Return</p>`);
+  panel.querySelectorAll('[data-h]').forEach(b=>b.onclick=()=>{ const k=b.dataset.h; closePanel();
+    if(k==='hands') startHands(); if(k==='dex') openDex(); if(k==='live') $('liveBtn').click(); if(k==='talk') talkMenu(); if(k==='att') openAttune(); if(k==='osc') openOscar();
+    if(k==='nb'){ document.body.classList.add('shownb'); $('nb').classList.add('open'); toast('Notebook open. Menu › Notebook again to hide.'); }
+    if(k==='hud') document.body.classList.toggle('clean'); }); }
+document.body.classList.add('clean');
+{ const css=document.createElement('style'); css.textContent=`body.clean #status,body.clean #nb:not(.open),body.clean #prompt,body.clean #corner,body.clean #attbar,body.clean #gread,body.clean #hstat,body.clean #startHands,body.clean #liveS{display:none!important}
+ body.clean #tbox{opacity:0;pointer-events:none;transition:opacity .6s}body.clean #tbox.flash{opacity:.92;pointer-events:auto}body.clean #touch{opacity:.35}`; document.head.appendChild(css); }
+hstat.id='hstat';
+{ const tt=$('ttext'); if(tt) new MutationObserver(()=>{ const b=$('tbox'); b.classList.add('flash'); clearTimeout(b._t); b._t=setTimeout(()=>b.classList.remove('flash'),5000); }).observe(tt,{childList:true,characterData:true,subtree:true}); }
+addEventListener('keydown',e=>{ if(e.key==='?'||(e.code==='KeyM'&&!panelOpen)){ panelOpen?closePanel():openHelp(); } });
+function handsDot(){ hdot.style.background=!HANDS.on?(HANDS.starting?'#e0b050':'rgba(150,150,150,.5)'):(HANDS.vis.L||HANDS.vis.R?'#3ac07a':'#6f8fd8'); }
+// ---- in-world help objects ----
+function signTex(w,h,draw){ const c=document.createElement('canvas'); c.width=w; c.height=h; draw(c.getContext('2d'),w,h); const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t; }
+function wrapText(g,s,x,y,maxW,lh){ let line=''; for(const w of s.split(' ')){ const t=line?line+' '+w:w; if(g.measureText(t).width>maxW){ g.fillText(line,x,y); y+=lh; line=w; } else line=t; } g.fillText(line,x,y); return y+lh; }
+function wallSign(tex,w,h,x,y,z,ry){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshStandardMaterial({map:tex,roughness:.5})); m.position.set(x,y,z); m.rotation.y=ry; scene.add(m); return m; }
+const SOP={ppe:['Gloves on before touching any sample','Lab coat buttoned, goggles on','Tie hair back, no open shoes','Change gloves if torn or dirty'],
+ bench:['Gloves on first','Take one sample tube out, close the fridge','Label every new tube','Samples back to 4°C when done'],
+ pipette:['Set the volume first','New tip for every sample','Press to first stop, draw slowly','Dispense to second stop','Eject tip into the waste'],
+ scale:['Close the doors, wait for 0.000','Tare with the empty container','Add sample, read when stable','Clean spills right away'],
+ vortex:['Cap the tube tightly','Touch tube to the cup, short bursts','Never vortex an open tube'],
+ centrifuge:['Balance: opposite slot, equal mass','Close the lid before starting','Never open while spinning','Wait for a full stop'],
+ column:['Load sample in binding buffer','Spin, discard flow-through','Wash twice','Elute in clean water into a new tube'],
+ heat:['Set temperature, wait for it','Caps closed (they pop!)','Use the timer','Hot block: don\'t touch the wells'],
+ hotplate:['Nothing flammable nearby','Heat glass gradually','Use tongs or heat gloves','It stays hot after OFF'],
+ precip:['Salt first, then ice-cold ethanol','Mix gently, chill','Spin to pellet','Pour off, air-dry, resuspend'],
+ stain:['Work in the fume hood, sash low','Smear thin, let it dry','Stain for the listed time','Rinse, blot, label the slide'],
+ scope:['Start on the lowest objective','Focus with coarse, then fine','1000x needs immersion oil','Clean the lens when done'],
+ spectro:['At least 10 µL of sample','Close the chamber','Run a blank first','Record the reading in the notebook'],
+ pcr:['Clean DNA template only','Primers + master mix on ice','Close the lid, run program','Check result on a gel'],
+ gel:['Ladder in lane 1','Load slowly, don\'t pierce the well','DNA runs to red (+)','Power off before opening the lid'],
+ meter:['Rinse probe with water','Calibrate at pH 4, 7, 10','Dip, wait for stable reading','Rinse and store in solution']};
+const sopTex=key=>signTex(256,180,(g,w,h)=>{ g.fillStyle='#fbf8ee'; g.fillRect(0,0,w,h); g.strokeStyle='#2c3570'; g.lineWidth=8; g.strokeRect(4,4,w-8,h-8); g.fillStyle='#2c3570'; g.font='bold 26px system-ui'; g.fillText('📋 SOP',16,40); g.font='16px system-ui'; let y=68; for(const [i,s] of (SOP[key]||['Ask Domowaye']).slice(0,4).entries()) y=wrapText(g,`${i+1}. ${s}`,16,y,w-30,20); g.fillStyle='#c27a3a'; g.font='bold 14px system-ui'; g.fillText('press to read',w-110,h-14); });
+function openSOP(key){ const S2=STATIONS[key]; openPanel(`<h2>📋 SOP · ${S2?S2.name:key}</h2><ol style="font-size:14px">${(SOP[key]||[]).map(s=>`<li>${s}</li>`).join('')}</ol><p style="font-size:12px">Laminated standard operating procedure card. Real lab practice (ESTABLISHED).</p><button id="sopUse">Use this station</button>`); $('sopUse').onclick=()=>{ closePanel(); S2&&S2.open(); }; }
+const box3=new THREE.Box3(), done=new Set();
+for(const e of ents.slice()){ if(e.kind!=='station'||!e.key||done.has(e.obj)) continue; done.add(e.obj); box3.setFromObject(e.obj); if(box3.isEmpty()) continue; const c=box3.getCenter(new THREE.Vector3());
+  const card=new THREE.Mesh(new THREE.BoxGeometry(.13,.09,.004),[0,0,0,0,new THREE.MeshStandardMaterial({map:sopTex(e.key),roughness:.3}),0].map(m=>m||new THREE.MeshStandardMaterial({color:0xfbf8ee})));
+  const toC=new THREE.Vector3(-c.x,0,-c.z); if(toC.lengthSq()<.01) toC.set(0,0,1); toC.normalize(); const ext=box3.getSize(new THREE.Vector3());
+  card.position.set(c.x+toC.x*Math.min(.3,ext.x/2+.02), box3.max.y+.06, c.z+toC.z*Math.min(.3,ext.z/2+.02)); card.lookAt(card.position.x+toC.x,card.position.y,card.position.z+toC.z); card.rotateX(-.25); scene.add(card);
+  ent(card,{name:`SOP card · ${STATIONS[e.key]?.name||e.key}`,kind:'sop',verb(){return 'Read';},use(){ openSOP(e.key); return true; }}); }
+// safety poster by shower/eyewash (left wall)
+const safT=signTex(400,520,(g,w,h)=>{ g.fillStyle='#fff'; g.fillRect(0,0,w,h); g.fillStyle='#1a8a3a'; g.fillRect(0,0,w,70); g.fillStyle='#fff'; g.font='bold 34px system-ui'; g.fillText('EMERGENCY',20,48); g.fillStyle='#111'; g.font='bold 20px system-ui'; let y=105;
+  for(const s of ['EYES: eyewash, hold lids open, 15 min','SKIN: safety shower, remove clothing, 15 min','FIRE: alarm, extinguisher P-A-S-S, get out','SPILL: warn others, contain, tell the teacher','CUT / EXPOSURE: wash, report every time']) y=wrapText(g,'• '+s,20,y,w-40,28)+8;
+  g.fillStyle='#c0392b'; g.font='bold 22px system-ui'; g.fillText('Tell Domowaye. Always report.',20,h-24); });
+const safP=wallSign(safT,.5,.65,-RW+.02,1.6,1.45,Math.PI/2);
+ent(safP,{name:'emergency / safety poster',kind:'poster',verb(){return 'Read';},use(){ openPanel(`<h2>🟩 Emergency info</h2><ul style="font-size:14px"><li><b>Chemical in eyes:</b> eyewash right away, hold eyelids open, flush 15 minutes.</li><li><b>Chemical on skin/clothes:</b> safety shower, take off the splashed clothing, rinse 15 minutes.</li><li><b>Fire:</b> pull the alarm. Small fire only: extinguisher, P-A-S-S (Pull, Aim at the base, Squeeze, Sweep). Otherwise get out.</li><li><b>Spill:</b> warn people nearby, contain it, tell the teacher. Biohazard: bleach.</li><li><b>Cuts, needle-sticks, exposure:</b> wash, then report. Every time.</li></ul><p style="font-size:12px">Real lab safety practice (ESTABLISHED).</p>`); return true; }});
+// help call button (left wall next to the poster)
+const helpG=new THREE.Group(); helpG.position.set(-RW+.03,1.3,.95); helpG.rotation.y=Math.PI/2; scene.add(helpG);
+{ const plate=new THREE.Mesh(new THREE.BoxGeometry(.16,.22,.02),new THREE.MeshStandardMaterial({color:0xf0c030})); helpG.add(plate);
+  const btn=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.03,20),new THREE.MeshStandardMaterial({color:0xc0392b})); btn.rotation.x=Math.PI/2; btn.position.set(0,-.02,.02); helpG.add(btn); helpG.userData.btn=btn;
+  const lab=wallSign(signTex(128,40,(g,w,h)=>{ g.fillStyle='#f0c030'; g.fillRect(0,0,w,h); g.fillStyle='#111'; g.font='bold 26px system-ui'; g.fillText('HELP',30,30); }),.12,.04,0,.08,.011,0); scene.remove(lab); helpG.add(lab); }
+ent(helpG,{name:'HELP call button',kind:'helpbtn',verb(){return 'Press';},use(){ const b=helpG.userData.btn; b.position.z=.008; setTimeout(()=>b.position.z=.02,250); walkToPlayer(); say("I'm coming. What do you need? Ask me what's next, or to explain.",{key:'helpcall',cool:3}); return true; }});
+// Lab Dex practice poster (right wall)
+const dexT=signTex(420,760,(g,w,h)=>{ g.fillStyle='#f3e7d3'; g.fillRect(0,0,w,h); g.fillStyle='#2c3570'; g.fillRect(0,0,w,64); g.fillStyle='#f3e7d3'; g.font='bold 30px system-ui'; g.fillText('🖐 LAB DEX',20,44); g.fillStyle='#111'; let y=92;
+  for(const [i,d] of DEXL.entries()){ g.font='bold 16px system-ui'; g.fillText(`${i+1}. ${d[1]}`,16,y); g.font='12px system-ui'; y=wrapText(g,d[2],30,y+15,w-46,14)+5; } });
+const dexP=wallSign(dexT,.55,1.0,RW-.02,1.6,0,-Math.PI/2);
+ent(dexP,{name:'Lab Dex practice poster',kind:'poster',verb(){return 'Practice';},use(){ openDex(); return true; }});
+targetsDirty=true;
+
 hudRefresh(); loop();
 window.WIRLAB={st,STATIONS,LIB,cam,items,HP,HB,FR,CF,fires,inv,beaker,get held(){return held;},
-  tp(x,z,y,p){ cam.position.set(x,1.65,z); yaw=y; pitch=p; }, interact, useHeld, swapSlot, aim:()=>{ const h=aim(); const e=h&&entOf(h.object); return e?nm(e):null; }, speed(v){ TIMESCALE.v=v; }, newTube, closePanel, startFire, setPlate(v){HP.set=v;}, setBlock(v){HB.set=v;}, triangles:()=>renderer.info.render.triangles, calls:()=>renderer.info.render.calls, T, talkMenu, quiz, setMode, whatNext, explainThis, teacherPos:()=>T.pos.clone(), ATT, HANDS, attContact, attTether, attReturn, attNotice, openStack, openAttune, openOscar, startAttLesson, setStack(s){ATT.stack=s;}, handsStub(r){ HANDS.stub=r; if(!r){HANDS.g.L.visible=HANDS.g.R.visible=false;} }, center:()=>[center.x,center.y], LOCO, liveHear, liveStart, handsTutorial, yawPitch:()=>[yaw,pitch], camPos:()=>[cam.position.x,cam.position.z], beakerTemp:()=>beaker.liq.temp};
+  tp(x,z,y,p){ cam.position.set(x,1.65,z); yaw=y; pitch=p; }, interact, useHeld, swapSlot, aim:()=>{ const h=aim(); const e=h&&entOf(h.object); return e?nm(e):null; }, speed(v){ TIMESCALE.v=v; }, newTube, closePanel, startFire, setPlate(v){HP.set=v;}, setBlock(v){HB.set=v;}, triangles:()=>renderer.info.render.triangles, calls:()=>renderer.info.render.calls, T, talkMenu, quiz, setMode, whatNext, explainThis, teacherPos:()=>T.pos.clone(), ATT, HANDS, attContact, attTether, attReturn, attNotice, openStack, openAttune, openOscar, startAttLesson, setStack(s){ATT.stack=s;}, handsStub(r){ HANDS.stub=r; if(!r){HANDS.g.L.visible=HANDS.g.R.visible=false;} }, center:()=>[center.x,center.y], LOCO, liveHear, liveStart, handsTutorial, DEX, openDex, openHelp, sopCount:()=>ents.filter(e=>e.kind==='sop').length, gestureOf, toast, yawPitch:()=>[yaw,pitch], camPos:()=>[cam.position.x,cam.position.z], beakerTemp:()=>beaker.liq.temp};
 
 </script>
 </body></html>
