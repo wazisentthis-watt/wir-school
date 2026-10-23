@@ -1,0 +1,134 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oscar Absurd University</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:#0d0b1e;color:#f3eede}
+header{padding:10px 12px;background:linear-gradient(90deg,#3a1d5c,#7a3d12);position:sticky;top:0;z-index:5}
+h1{font-size:18px;margin:0}.sub{font-size:11px;opacity:.8}
+.root{height:12px;background:#2a2238;border-radius:6px;margin-top:6px;overflow:hidden}.root i{display:block;height:100%;background:linear-gradient(90deg,#ff8c1a,#ffb347);border-radius:0 8px 8px 0;transition:width .4s}
+nav{display:flex;overflow-x:auto;gap:4px;padding:6px;background:#17132b}nav button{flex:0 0 auto}
+button{background:#ff8c1a;color:#1a0f00;border:0;border-radius:10px;padding:9px 12px;font-weight:700;font-size:14px;margin:3px}
+button.alt{background:#3b3360;color:#f3eede}main{padding:12px;max-width:640px;margin:auto}
+.card{background:#1d1836;border-radius:14px;padding:12px;margin:10px 0;border:1px solid #3b3360}
+.tag{font-size:10px;background:#5c2a8a;padding:2px 6px;border-radius:6px}.ok{color:#7dff9a}.bad{color:#ff8080}
+.el{display:inline-block;width:52px;margin:3px;padding:6px 2px;text-align:center;border-radius:8px;background:#2c2550;cursor:pointer}
+.el b{display:block;font-size:18px}.el small{font-size:9px}
+.meter{height:18px;background:#222;border-radius:9px;overflow:hidden}.meter i{display:block;height:100%;transition:width .5s}
+.fire{animation:f .25s infinite alternate}@keyframes f{from{background:#ff3d00}to{background:#ffd000}}
+.faint{display:inline-block;animation:fa 1s forwards}@keyframes fa{to{transform:rotate(90deg);opacity:.6}}
+img{max-width:100%;border-radius:10px}.bench{min-height:60px;border:2px dashed #ff8c1a;border-radius:12px;padding:6px}
+input,textarea,select{width:100%;padding:9px;border-radius:8px;border:0;font-size:15px;margin:4px 0}
+.move{background:#163d2a;border-radius:10px;padding:8px;margin-top:8px}
+</style></head><body>
+<header><h1>🥕 Oscar Absurd University</h1><div class="sub">A carrot-shaped space greenhouse where the elements rent rooms. Root Level <span id="lvl">1</span> · <span id="xp">0</span> XP · streak 🌱 <span id="days">0</span></div><div class="root"><i id="bar"></i></div></header>
+<nav id="nav"></nav><main id="main"></main>
+<script>
+const S=JSON.parse(localStorage.getItem('oau')||'{}');S.xp??=0;S.done??={};S.reports??=[];S.port??=[];S.custom??=[];S.dayIdx??=0;S.days??=0;
+const save=()=>{localStorage.setItem('oau',JSON.stringify(S));hud()};
+function hud(){const l=Math.floor(S.xp/100)+1;lvl.textContent=l;xp.textContent=S.xp;days.textContent=S.days;bar.style.width=(S.xp%100)+'%'}
+const VEG=['🥔','🥕','🥦','🍆','🌽','🫑'];
+// ---- REAL chemistry content (framing is absurd, facts are not) ----
+const CLASSES=[
+{id:'g1',name:'Group 1 · The Alkali Divas',img:'img/35-atom-structure.png',
+ oscar:"Room 1 of the greenhouse. Every tenant here has ONE lonely outer electron and is desperate to give it away. Lower floors give it away faster, and louder.",
+ els:[['Li','Lithium',3,'Density 0.534 g/cm³, so it floats on water (and oil). Fizzes gently in water.'],['Na','Sodium',11,'Soft enough to cut with a knife. Melts at 97.8 °C. Zooms around on water as a molten ball.'],['K','Potassium',19,'Reacts with water hot enough to ignite the hydrogen with a lilac flame.'],['Rb','Rubidium',37,'Melts at 39.3 °C. Reacts violently with water.'],['Cs','Cesium',55,'Melts at 28.5 °C, close to a hot day. Explodes in water. Defines the SI second (atomic clocks).'],['Fr','Francium',87,'Radioactive and extremely rare; its longest-lived isotope, Fr-223 has a half-life of about 22 minutes.']],
+ rx:'2Na + 2H₂O → 2NaOH + H₂ (plus heat)',
+ q:[['E','How many valence (outer) electrons does every Group 1 metal have?',['1','2','8'],0],
+    ['M','Going DOWN Group 1, reactivity with water…',['decreases','increases','stays the same'],1],
+    ['H','Which gas is released when sodium reacts with water?',['Oxygen','Hydrogen','Chlorine'],1]],
+ know:'Group 1 = 1 outer electron. Bigger atom → outer electron farther from the nucleus → easier to lose → wilder reaction. Metal + water → hydroxide + hydrogen.'},
+{id:'g2',name:'Group 2 · The Steady Bone-Builders',img:'img/35-atom-structure.png',
+ oscar:"Room 2. Calmer tenants. They hold TWO outer electrons and give both away, but they don't throw tantrums like Room 1.",
+ els:[['Be','Beryllium',4,'Light and stiff; used in space telescope mirrors (James Webb). Toxic as dust.'],['Mg','Magnesium',12,'Burns with a blinding white light. Center atom of chlorophyll.'],['Ca','Calcium',20,'Main mineral in bones and teeth. Reacts steadily with cold water.'],['Sr','Strontium',38,'Gives fireworks their red color.'],['Ba','Barium',56,'Gives fireworks green. Barium sulfate is the "barium meal" for X-rays.'],['Ra','Radium',88,'Radioactive. Discovered by Marie and Pierre Curie in 1898.']],
+ rx:'Ca + 2H₂O → Ca(OH)₂ + H₂',
+ q:[['E','How many valence electrons in Group 2?',['1','2','3'],1],
+    ['M','Which element is at the center of chlorophyll?',['Magnesium','Calcium','Barium'],0],
+    ['H','Compared to Group 1 in the same row, Group 2 metals are…',['more reactive','less reactive','not metals'],1]],
+ know:'Group 2 = 2 outer electrons, ions are 2+. Less reactive than Group 1 next door. Mg in plants, Ca in bones, Sr red and Ba green in fireworks.'},
+{id:'g13',name:'Group 13 · Root Lab: The Shape-Shifters',
+ oscar:"Root Lab. Three outer electrons. One tenant melts in your hand. Hold it gently; stewardship, not ownership.",
+ els:[['B','Boron',5,'A metalloid. Borosilicate (Pyrex-type) glass resists heat shock.'],['Al','Aluminium',13,'Most abundant metal in Earth\'s crust. Protects itself with a thin oxide layer.'],['Ga','Gallium',31,'Melts at 29.76 °C, so it melts in your palm. Used in LEDs (GaN).'],['In','Indium',49,'Indium tin oxide makes touchscreens conductive.'],['Tl','Thallium',81,'Highly toxic; historically used as a poison.']],
+ rx:'Fe₂O₃ + 2Al → 2Fe + Al₂O₃ (thermite, ~2500 °C)',
+ q:[['E','How many valence electrons in Group 13?',['3','5','13'],0],
+    ['M','Which metal melts in your hand (29.76 °C)?',['Aluminium','Gallium','Boron'],1],
+    ['H','Why doesn\'t aluminium foil corrode quickly?',['It has no electrons','A thin oxide layer seals it','It is a noble gas'],1]],
+ know:'Group 13 = 3 outer electrons. Boron is a metalloid, the rest are metals. Al is the crust\'s most common metal; Ga melts near body temperature.'},
+{id:'g14',name:'Group 14 · Core Lab: The Builders',
+ oscar:"Core Lab, the carrot's heart. Four outer electrons: they love to SHARE and build. Life itself is a carbon building project.",
+ els:[['C','Carbon',6,'Diamond (hardest natural material) and graphite (pencil) are both pure carbon. Basis of all known life.'],['Si','Silicon',14,'Second most abundant element in the crust (after oxygen). Semiconductor in computer chips.'],['Ge','Germanium',32,'Semiconductor; used in early transistors and fiber optics.'],['Sn','Tin',50,'Coats steel cans to stop rust. Bronze = copper + tin.'],['Pb','Lead',82,'Dense and toxic; removed from gasoline and paint.']],
+ rx:'C + O₂ → CO₂',
+ q:[['E','How many valence electrons in Group 14?',['2','4','6'],1],
+    ['M','Diamond and graphite are both made of…',['silicon','carbon','lead'],1],
+    ['H','Silicon is famous for being a…',['noble gas','semiconductor','alkali metal'],1]],
+ know:'Group 14 = 4 outer electrons, great at sharing (covalent bonds). Carbon builds life, silicon builds chips. Same atoms, different arrangement = diamond vs graphite.'},
+{id:'g15',name:'Group 15 · Crown Lab: The Air & Fire Keepers',
+ oscar:"Crown Lab, the leafy top. Five outer electrons. One tenant is most of the air you're breathing right now. Breathe in. That's mostly him.",
+ els:[['N','Nitrogen',7,'About 78% of air. N₂ has a triple bond, which makes it very unreactive.'],['P','Phosphorus',15,'White phosphorus glows in the dark and can ignite in air around 30 °C. In DNA and ATP.'],['As','Arsenic',33,'Metalloid, toxic. Used in some semiconductors (GaAs).'],['Sb','Antimony',51,'Metalloid, used in flame retardants.'],['Bi','Bismuth',83,'Forms rainbow staircase crystals. In pink stomach medicine.']],
+ rx:'N₂ + 3H₂ ⇌ 2NH₃ (Haber process, feeds the world\'s fertilizer)',
+ q:[['E','About what percent of air is nitrogen?',['21%','78%','1%'],1],
+    ['M','Why is nitrogen gas (N₂) so unreactive?',['Strong triple bond','It has no electrons','It is a metal'],0],
+    ['H','Which Group 15 element is part of DNA and ATP?',['Bismuth','Phosphorus','Arsenic'],1]],
+ know:'Group 15 = 5 outer electrons. N₂\'s triple bond makes air calm. The Haber process turns that nitrogen into ammonia fertilizer. Phosphorus is in your DNA and ATP.'},
+{id:'g18',name:'Group 18 · The Noble Gas Nap Room',img:'img/37-states-of-matter.png',
+ oscar:"The quietest room. Full outer shells, so they need nothing from anyone. They mostly just glow and nap.",
+ els:[['He','Helium',2,'Second lightest element. Boils at 4.2 K (−269 °C). Cools MRI magnets.'],['Ne','Neon',10,'Glows red-orange in signs.'],['Ar','Argon',18,'About 0.93% of air; the most common noble gas here. Fills light bulbs and shields welds.'],['Kr','Krypton',36,'Used in some flash lamps. (Yes, real. No, no superpowers.)'],['Xe','Xenon',54,'Used in ion thrusters on spacecraft and bright headlights.'],['Rn','Radon',86,'Radioactive gas that can build up in basements.']],
+ rx:'(Almost no reactions. Xenon can form XeF₂ with fluorine.)',
+ q:[['E','Why are noble gases so unreactive?',['Full outer electron shell','They are metals','They are too heavy'],0],
+    ['M','Which noble gas glows red-orange in signs?',['Argon','Neon','Helium'],1],
+    ['H','Which noble gas is a radioactive basement hazard?',['Radon','Xenon','Krypton'],0]],
+ know:'Group 18 = full outer shells → stable, barely react. He cools MRIs, Ne glows in signs, Ar shields welds, Rn is a radioactive gas to test for at home.'},
+{id:'run',name:'Runaway Reactions · Inspector Spud\'s Panic Seminar',img:'img/36-ph-scale.png',
+ oscar:"Inspector Spud (a nervous potato) begs you to learn this one. A runaway reaction is heat making the reaction faster, which makes more heat, which makes it faster…",
+ els:[],rx:'Rule of thumb: many reactions roughly double in rate for each +10 °C.',
+ q:[['E','The fire triangle needs heat, fuel and…',['oxygen','nitrogen','helium'],0],
+    ['M','Why should you NEVER use water on a burning sodium fire?',['Water cools too well','Sodium reacts with water and makes flammable hydrogen','Water is a noble gas'],1],
+    ['H','Best way to stop thermal runaway in an exothermic reaction?',['Add more reactant fast','Cool it and slow the addition','Close the lid tight'],1]],
+ know:'Exothermic reaction → heat → faster rate → more heat = runaway. Prevent it with small batches, slow addition, cooling. Metal fires need a Class D extinguisher or dry sand, never water.'}
+];
+// ---- Lab: real-ish reactions ----
+const LAB={'Na+water':[85,'Sodium + water → NaOH + H₂. So much heat the hydrogen can ignite.'],'K+water':[100,'Potassium + water: even more reactive than sodium. Lilac flame as hydrogen ignites.'],'Li+water':[30,'Lithium + water: steady fizzing. Smallest Group 1 atom holds its electron tightest.'],'Cs+water':[100,'Cesium + water: explosive. Biggest stable alkali atom, loosest electron.'],'Mg+flame':[90,'Magnesium burns at ~3100 °C with blinding white light → MgO. Do not stare at it.'],'Ca+water':[25,'Calcium + water: steady bubbling of H₂, forms Ca(OH)₂.'],'Al+rust':[100,'Thermite! Al steals oxygen from Fe₂O₃ → molten iron at ~2500 °C.'],'Ne+flame':[0,'Neon does nothing. Full outer shell. It is napping.'],'He+water':[0,'Helium ignores water entirely. Noble gas.'],'Ga+hand':[5,'Gallium melts in your palm (29.76 °C). Totally calm, just melty.'],'P+air':[80,'White phosphorus can ignite in air around 30 °C, so it is stored under water.'],'Na+oil':[2,'Sodium is stored under mineral oil precisely BECAUSE it does not react with it.']};
+const LAB_EL=['Li','Na','K','Cs','Mg','Ca','Al','Ga','P','He','Ne'],LAB_ADD=['water','flame','air','rust','hand','oil','ice bath'];
+let bench=[],heat=0;
+// ---- UI ----
+const TABS={today:'🌳 Today',classes:'📚 Classes',lab:'⚗️ Lab',reports:'🥔 Reports',campus:'🏫 Campus',path:'🗺️ Path',port:'🎒 Portfolio',req:'✨ Request'};
+nav.innerHTML=Object.entries(TABS).map(([k,v])=>`<button class="alt" onclick="go('${k}')">${v}</button>`).join('');
+const all=()=>CLASSES.concat(S.custom);
+function go(t){main.innerHTML='';window['v_'+t]();scrollTo(0,0)}
+function v_today(){const c=all()[S.dayIdx%all().length];main.innerHTML=`<div class="card"><span class="tag">TREE OF KNOWLEDGE</span><h3>Today's branch: ${c.name}</h3><p>Missed days never pile up. You resume right here.</p><button onclick="lesson(${S.dayIdx%all().length},false)">Start (5-second rounds)</button><button class="alt" onclick="lesson(${S.dayIdx%all().length},true)">🛋️ Low-day 2-min mode</button></div><div class="card">🥕 <b>Oscar:</b> I don't conquer the cosmos. I listen for what is still trying to grow. Today that's you.<br><small class="tag">PROPOSAL</small> framing, not canon.</div><div class="card">Tree so far: ${all().map(c=>S.done[c.id]?'🌳':'🌱').join(' ')}</div>`}
+function v_classes(){main.innerHTML=all().map((c,i)=>`<div class="card"><b>${c.name}</b> ${S.done[c.id]?'✅':''}<br><button onclick="lesson(${i},false)">Enter room</button></div>`).join('')}
+function lesson(i,low){const c=all()[i];let h=`<div class="card"><h3>${c.name}</h3>${c.img?`<img src="${c.img}" alt="">`:''}<p>🥕 ${c.oscar}</p>`;
+ if(!low&&c.els.length)h+=`<p><small>Tap a tenant:</small></p>`+c.els.map(e=>`<span class="el" onclick="this.querySelector('small').style.display='block'"><small style="font-size:9px">${e[2]}</small><b>${e[0]}</b>${e[1]}<small style="display:none">${e[3]}</small></span>`).join('');
+ if(c.rx)h+=`<p>🧪 <b>Real reaction:</b> ${c.rx}</p>`;h+=`</div><div id="qz"></div>`;main.innerHTML=h;quiz(i,low?[c.q[0]]:c.q,0,0)}
+function quiz(i,qs,n,score){const c=all()[i];if(n>=qs.length){S.done[c.id]=1;S.dayIdx=i+1;S.days++;S.xp+=score*10+10;S.port.unshift({t:new Date().toLocaleString(),w:c.name,s:score+'/'+qs.length});save();
+ qz.innerHTML=`<div class="card"><h3>🌳 What you know now</h3><p>${c.know}</p><p>Score ${score}/${qs.length}. Your root grew.</p><div class="move">🏃 Stretch tall like a carrot top for 10 seconds.</div><button onclick="go('today')">Back to the tree</button></div>`;return}
+ const [d,q,o,a]=qs[n];qz.innerHTML=`<div class="card"><span class="tag">${{E:'EASY',M:'MEDIUM',H:'HARD'}[d]}</span><p><b>${q}</b></p>${o.map((x,k)=>`<button class="alt" onclick="ans(${i},${n},${k},${score},${qs.length<3})">${x}</button>`).join('')}<div id="fb"></div></div>`;window._qs=qs}
+function ans(i,n,k,score,low){const qs=_qs,ok=k===qs[n][3];if(ok){S.xp+=5;save();fb.innerHTML=`<p class="ok">Correct! 🥕 The root grows.</p><div class="move">🏋️ Stand up and do 5 squats, then tap next.</div><button onclick="quiz(${i},_qs,${n+1},${score+1})">Next</button>`}
+ else{const v=VEG[Math.floor(Math.random()*VEG.length)];fb.innerHTML=`<p class="bad"><span class="faint">${v}</span> A vegetable fainted. No penalty. It'll be fine. Try again.</p><div class="move">🙆 Shake out your arms and pick again.</div>`}}
+function v_lab(){main.innerHTML=`<div class="card"><h3>⚗️ The Greenhouse Bench</h3><p>Drag (or tap) one element and one condition onto the bench, then run it. Unsafe here, safe for you. Professor <b>SimKaru</b> (guest co-teacher) explains every result.</p><div>${LAB_EL.map(e=>`<span class="el" draggable="true" ondragstart="event.dataTransfer.setData('t','${e}')" onclick="add('${e}')"><b>${e}</b></span>`).join('')}</div><div>${LAB_ADD.map(e=>`<button class="alt" draggable="true" ondragstart="event.dataTransfer.setData('t','${e}')" onclick="add('${e}')">${e}</button>`).join('')}</div>
+<p>Bench:</p><div class="bench" id="bn" ondragover="event.preventDefault()" ondrop="event.preventDefault();add(event.dataTransfer.getData('t'))">${bench.join(' + ')||'drop here'}</div>
+<button onclick="run()">▶ Run</button><button class="alt" onclick="bench=[];v_lab()">Clear</button><button class="alt" onclick="cool()">🧊 Ice bath</button>
+<p>Instability</p><div class="meter"><i id="mt" style="width:${heat}%;background:${heat>70?'#f30':'#ffb347'}"></i></div><div id="lo"></div></div>`}
+function add(x){if(bench.length<2&&!bench.includes(x))bench.push(x);v_lab()}
+function cool(){heat=Math.max(0,heat-40);v_lab();lo.innerHTML='<p>🧊 SimKaru: Cooling slows the rate. That is how real chemists stop a runaway.</p>'}
+function run(){if(bench.length<2)return;const el=bench.find(b=>LAB_EL.includes(b)),ad=bench.find(b=>LAB_ADD.includes(b));if(!el||!ad){lo.innerHTML='<p>Need one element and one condition.</p>';return}
+ if(ad==='ice bath'){cool();return}const r=LAB[el+'+'+ad]||[10,`No dramatic reaction recorded for ${el} + ${ad} on this bench. Not every combination does something, and that's data too.`];
+ heat=Math.min(100,heat*0.5+r[0]);const fire=heat>=75;v_lab();mt.className=fire?'fire':'';
+ lo.innerHTML=`<p>👩🏾‍🏫 <b>SimKaru:</b> ${r[1]}</p>${fire?'<p class="bad">🔥 THE LAB IS ON FIRE (safely). Inspector Spud has filed an incident report.</p>':''}`;
+ if(fire){S.reports.unshift({t:new Date().toLocaleString(),what:el+' + '+ad,why:r[1]});S.xp+=15;save()}else{S.xp+=3;save()}bench=[]}
+function v_reports(){main.innerHTML=`<div class="card"><h3>🥔 Inspector Spud's Incident Reports</h3><p>"I-I-I'm not mad. I'm just a potato. Please read why it happened."</p></div>`+(S.reports.map(r=>`<div class="card"><b>${r.what}</b> <small>${r.t}</small><p>Cause: ${r.why}</p><p>Lesson: control heat, small amounts, right extinguisher (Class D/dry sand for metal fires, never water on alkali metals).</p></div>`).join('')||'<div class="card">No incidents yet. Spud is cautiously optimistic.</div>')}
+function v_campus(){const P='<span class="tag">PROPOSAL</span>';main.innerHTML=`<div class="card"><h3>🏫 Campus (inside a giant cosmic carrot)</h3>${P}
+<p><b>Four academies:</b> 🌱 Root Academy (chemistry), 🧠 Sprout Academy (body & mind), 🌌 Leaf Academy (space & Earth), 🔧 Soil Academy (making things).</p>
+<p><b>Crown / Core / Root Labs:</b> Group 15 up top, Group 14 in the core, Groups 2 & 13 in the roots.</p>
+<p><b>🪵 Wood Shop:</b> Wood is mostly cellulose (C₆H₁₀O₅)ₙ, a chain of glucose. Safety: eye protection, push sticks, sawdust is flammable.</p>
+<p><b>🤖 Mechanic & Robotics Bay:</b> Lead-acid batteries use Pb and H₂SO₄; lithium-ion batteries move Li⁺ ions. Damaged Li-ion cells can go into thermal runaway, which is why you never puncture them.</p>
+<p><b>❓ Ask & Build:</b></p><input id="ask" placeholder="Type an element symbol, e.g. Na"><button onclick="askIt()">Ask</button><div id="aa"></div></div>`}
+function askIt(){const s=ask.value.trim().toLowerCase();let hit;CLASSES.forEach(c=>c.els.forEach(e=>{if(e[0].toLowerCase()===s||e[1].toLowerCase()===s)hit=[e,c]}));aa.innerHTML=hit?`<p><b>${hit[0][1]} (${hit[0][0]}), atomic number ${hit[0][2]}</b>: ${hit[0][3]}<br>Lives in: ${hit[1].name}</p>`:'<p>🥕 Oscar: That tenant hasn\'t moved in yet. Try Request Any Class.</p>'}
+function v_path(){main.innerHTML=`<div class="card"><h3>🗺️ Learning Path</h3>${all().map((c,i)=>`<p>${S.done[c.id]?'🌳':'🌱'} Day ${i+1}: ${c.name}</p>`).join('')}<label>Daily time<input id="tm" type="time" value="09:00"></label><button onclick="ics()">📅 Export .ics</button></div>`}
+function ics(){const [h,m]=tm.value.split(':');const d=new Date();let o='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//OAU//EN\r\n';all().forEach((c,i)=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()+i,h,m);const f=x.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';o+=`BEGIN:VEVENT\r\nUID:oau-${c.id}-${i}@local\r\nDTSTAMP:${f}\r\nDTSTART:${f}\r\nDURATION:PT10M\r\nSUMMARY:OAU: ${c.name}\r\nEND:VEVENT\r\n`});o+='END:VCALENDAR\r\n';const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([o],{type:'text/calendar'}));a.download='oscar-absurd-path.ics';a.click()}
+function v_port(){main.innerHTML=`<div class="card"><h3>🎒 Portfolio</h3><p>Root level ${Math.floor(S.xp/100)+1}, ${S.xp} XP, ${S.reports.length} incidents survived.</p></div>`+S.port.map(p=>`<div class="card">${p.w}: ${p.s} <small>${p.t}</small></div>`).join('')+`<button class="alt" onclick="if(confirm('Reset all progress?')){localStorage.removeItem('oau');location.reload()}">Reset</button>`}
+function v_req(){main.innerHTML=`<div class="card"><h3>✨ Request Any Class</h3><p>Builds a quiz template on your phone (no internet AI). Fill in real facts, then it becomes a room in the greenhouse.</p>
+<input id="rt" placeholder="Class topic, e.g. Halogens"><textarea id="rf" rows="3" placeholder="Key fact (becomes the 'What you know now' recap)"></textarea>
+${['Easy','Medium','Hard'].map((d,k)=>`<input id="q${k}" placeholder="${d} question"><input id="a${k}" placeholder="Right answer"><input id="w${k}" placeholder="Wrong answer">`).join('')}<button onclick="mk()">Plant this class</button></div>`}
+function mk(){const t=rt.value.trim();if(!t)return alert('Give it a topic');const q=[0,1,2].map(k=>{const r=Math.random()<.5;const A=document.getElementById('a'+k).value||'(answer)',W=document.getElementById('w'+k).value||'(wrong)';return['EMH'[k],document.getElementById('q'+k).value||`${['Easy','Medium','Hard'][k]} question about ${t}?`,r?[A,W]:[W,A],r?0:1]});
+ S.custom.push({id:'c'+Date.now(),name:'Requested · '+t,oscar:`A new tenant moved in: ${t}. Oscar is listening for what it's trying to grow into.`,els:[],rx:'',q,know:rf.value||`Add your key fact about ${t}.`});save();go('classes')}
+hud();go('today');
+</script></body></html>
