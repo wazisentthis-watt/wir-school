@@ -2,7 +2,7 @@
 // Sources: [S1] Metal InDa RIFFT, [S3] Valence Life, [S4] Retro Bowl, [S5] Stay On Page, attunement packet.
 // Anything not stated in those sources is labelled PROPOSAL. Code is original; libs MIT, assets CC0.
 import * as THREE from 'three';
-import {makeGalliumLimb} from './gallium_limb.js';
+import {makeGalliumLimb,galliumLiquidMat,GU} from './gallium_limb.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RGBELoader} from 'three/addons/loaders/RGBELoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -224,13 +224,13 @@ function matOf(b){if(!b.userData)b.userData={};if(!b.userData.mat){const k=['bri
 const ramps3=[];let shimmer=null;
 function galliumRamp(pos,n){ // short curved liquid-metal ramp at the wall base; dissolves after
  const sh=new THREE.Shape();const R=1.6;sh.moveTo(0,0);for(let i=0;i<=12;i++){const a=i/12*Math.PI/2;sh.lineTo(R-Math.cos(a)*R,R-Math.sin(a)*R+0);}sh.lineTo(R,0);sh.lineTo(0,0);
- const g=new THREE.ExtrudeGeometry(sh,{depth:1.4,bevelEnabled:true,bevelSize:.06,bevelThickness:.06,bevelSegments:3,curveSegments:12});g.translate(-R,0,-.7);
- const m=new THREE.MeshStandardMaterial({color:0xc9c4dd,metalness:1,roughness:.12,emissive:0x9b5cff,emissiveIntensity:.6,transparent:true,opacity:.95});
+ const g=new THREE.ExtrudeGeometry(sh,{depth:1.4,steps:8,bevelEnabled:true,bevelSize:.06,bevelThickness:.06,bevelSegments:3,curveSegments:12});g.translate(-R,0,-.7);
+ const m=galliumLiquidMat({emissive:0x9b5cff,emissiveIntensity:.25,opacity:.95});{const ob=m.onBeforeCompile;m.onBeforeCompile=sh=>{ob(sh);sh.vertexShader=sh.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\n transformed+=normal*0.06*sin(position.x*6.0+position.z*4.0-uT*9.0)+vec3(0.0,0.04*sin(position.x*9.0-uT*12.0),0.0);').replace('void main() {','uniform float uT;\nvoid main() {');};} // liquid ramp ripples (PROPOSAL)
  const mesh=new THREE.Mesh(g,m);mesh.position.set(pos.x,.25,pos.z);mesh.rotation.y=Math.atan2(n.x,n.z)+Math.PI/2;
  // orient so curve rises toward the wall: local +x points into the wall
  const into=n.clone().negate();mesh.rotation.y=Math.atan2(-into.z,into.x);mesh.position.addScaledVector(n,-.4);
  scene.add(mesh);ramps3.push({mesh,t:0});}
-function tickRamps(dt){for(let i=ramps3.length-1;i>=0;i--){const r=ramps3[i];r.t+=dt;const m=r.mesh.material;if(r.t>.5){m.opacity=Math.max(0,.95-(r.t-.5)*1.2);r.mesh.scale.y=Math.max(.05,1-(r.t-.5)*.9);m.emissiveIntensity=.6+Math.sin(r.t*20)*.3;}
+function tickRamps(dt){for(let i=ramps3.length-1;i>=0;i--){const r=ramps3[i];r.t+=dt;const m=r.mesh.material;if(r.t>.5){m.opacity=Math.max(0,.95-(r.t-.5)*1.2);r.mesh.scale.y=Math.max(.05,1-(r.t-.5)*.9);m.emissiveIntensity=.25+Math.sin(r.t*20)*.15;}GU.value=performance.now()/1000;
  if(r.t>1.3){scene.remove(r.mesh);r.mesh.geometry.dispose();m.dispose();ramps3.splice(i,1);}}
  if(!shimmer){shimmer=new THREE.Mesh(new THREE.RingGeometry(.12,.38,24),new THREE.MeshBasicMaterial({color:0xd8c8ff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));scene.add(shimmer);}
  const el=document.getElementById('wallmat');
