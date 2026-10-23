@@ -76,10 +76,10 @@ const MODES={
  air(H,dt){ const tip=H.g==='open'?H.palm:H.tip, pv=H.lastTip||tip;
    const sp=Math.hypot(tip.x-pv.x,tip.y-pv.y)/dt;
    if(sp>60) L.streak.spawn(tip.x,tip.y,(tip.x-pv.x)/dt*.08,(tip.y-pv.y)/dt*.08,{tx:pv.x,ty:pv.y,life:.45,w:5,lag:3,c:[.75,.9,1]});
-   for(let i=0;i<Math.min(6,sp/250)*FX.Q;i++) L.streak.spawn(tip.x+rnd(-30,30),tip.y+rnd(-30,30),(tip.x-pv.x)/dt*rnd(.3,.7)+rnd(-80,80),(tip.y-pv.y)/dt*rnd(.3,.7)+rnd(-80,80),{life:rnd(.5,1.1),w:rnd(1.5,3),lag:rnd(6,12)});
+   for(let i=0;i<Math.min(3,sp/350)*FX.Q;i++) L.streak.spawn(tip.x+rnd(-30,30),tip.y+rnd(-30,30),(tip.x-pv.x)/dt*rnd(.3,.7)+rnd(-80,80),(tip.y-pv.y)/dt*rnd(.3,.7)+rnd(-80,80),{life:rnd(.5,1.1),w:rnd(1.5,3),lag:rnd(6,12)});
    H.lastTip={x:tip.x,y:tip.y};
    if(H.swipe&&(!H.gustCd||FX.t>H.gustCd)){ H.gustCd=FX.t+.4; addField({type:'push',x:H.palm.x,y:H.palm.y,r:320,vx:H.vx,vy:H.vy,dur:.5});
-     for(let i=0;i<40*FX.Q;i++) L.streak.spawn(H.palm.x+rnd(-60,60),H.palm.y+rnd(-60,60),H.vx*rnd(.6,1.1),H.vy*rnd(.6,1.1),{life:rnd(.4,.8),w:rnd(1.5,3.5),lag:8}); E.say('Gust!'); } },
+     for(let i=0;i<22*FX.Q;i++) L.streak.spawn(H.palm.x+rnd(-60,60),H.palm.y+rnd(-60,60),H.vx*rnd(.6,1.1),H.vy*rnd(.6,1.1),{life:rnd(.4,.8),w:rnd(1.5,3.5),lag:8}); E.say('Gust!'); } },
 };
 /* circles make a vortex in every mode; it pushes water, fire, smoke, dust and rocks */
 export function vortex(c){ addField({type:'vortex',x:c.x,y:c.y,r:Math.max(180,c.r*3),str:2600,dir:c.dir,dur:4}); E.say('Vortex!'); E.vortex={...c,t:4}; }
@@ -102,9 +102,9 @@ function stepEmber(dt){ const b=E.ember; if(!b) return;
   lightAt(b.x,b.y,[1,.5,.2],3); }
 export function boom(x,y,r=30,c){ E.booms.push({x:x,y:y,r:r*4,t:FX.t}); FX.flash=.8; FX.shake=8; lightAt(x,y,[1,.6,.3],8);
   addField({type:'blast',x,y,r:320,str:5000,dur:.35});
-  for(let i=0;i<120*FX.Q;i++){ const a=rnd(0,6.28), s=rnd(100,700); L.fire.spawn(x,y,Math.cos(a)*s,Math.sin(a)*s,{size:rnd(30,60),grow:1.8,life:rnd(.4,.9),drag:.92,curl:2,a:.65}); }
+  for(let i=0;i<60*FX.Q;i++){ const a=rnd(0,6.28), s=rnd(100,500); L.fire.spawn(x,y,Math.cos(a)*s,Math.sin(a)*s,{size:rnd(30,60),grow:1.8,life:rnd(.4,.9),drag:.92,curl:2,a:.65}); }
   for(let i=0;i<50*FX.Q;i++){ const a=rnd(0,6.28), s=rnd(300,1100); L.streak.spawn(x,y,Math.cos(a)*s,Math.sin(a)*s,{life:rnd(.4,.9),w:2,lag:14,grav:900,c:c||[1,.65,.3]}); }
-  for(let i=0;i<14;i++) L.smoke.spawn(x+rnd(-30,30),y+rnd(-30,30),rnd(-80,80),rnd(-140,-30),{c:[.1,.08,.08],a:.55,size:rnd(80,140),grow:1.6,life:rnd(1.4,2.4),curl:1}); }
+  for(let i=0;i<5;i++) L.smoke.spawn(x+rnd(-30,30),y+rnd(-30,30),rnd(-80,80),rnd(-140,-30),{c:[.1,.08,.08],a:.55,size:rnd(80,140),grow:1.6,life:rnd(1.4,2.4),curl:1}); }
 
 /* two-hand combo: clap both open palms together -> elemental burst */
 function combo(hs,dt){ if(hs.length<2) { E.prevGap=null; return; } const [a,b]=hs, gap=dist(a.palm,b.palm);

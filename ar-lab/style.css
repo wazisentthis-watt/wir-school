@@ -135,3 +135,5 @@ button{font:inherit;border:0;border-radius:14px;padding:12px 16px;background:#ff
 .plist{display:flex;flex-wrap:wrap;gap:6px}
 #gate input{display:block;width:100%;font-size:17px;padding:10px;border-radius:10px;border:1px solid #fff4;background:#ffffff14;color:#fff;margin:4px 0 10px}
 .err{color:#ff9a9a}
+
+#stillBtn.on{outline:1px solid rgba(255,210,127,.6)}

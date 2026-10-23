@@ -1,3 +1,4 @@
+import * as STL from './still.js';
 import * as FXE from './fx.js';
 import {FX} from './fx.js';
 import * as EL from './elements.js';
@@ -389,7 +390,8 @@ function loop(now){
   pollPad(dt);
   const hs=(S.handsNow||[]).filter(h=>h.palm);
   pokeTap(hs,dt); for(const h of hs) if(h.changed&&h.g!=='relaxed'&&h.g!=='none') window.labEvent?.(`g:${h.g}:${E.mode}`);
-  try{ if(E.mode==='atoms') AT.update(hs,dt); EL.update(E.mode==='chem'||E.mode==='atoms'||E.mode==='gear'?[]:hs,dt); GE.update(E.mode==='gear'?hs:[],dt); BU.update(dt,now,E.mode==='fire'||E.mode==='gear'); EL.chemStep(dt); FXE.step(dt); }catch(e){ console.warn(e); }
+  try{ if(E.mode==='atoms') AT.update(hs,dt); EL.update(E.mode==='chem'||E.mode==='atoms'||E.mode==='gear'?[]:hs,dt); GE.update(E.mode==='gear'?hs:[],dt); const elm=['water','fire','earth','air'].includes(E.mode), still=STL.update(dt,now); BU.B.still=still&&elm; FX.clip=BU.B.still?BU.zones(hs[0]?.pinchPt):null; stillHud(still);
+    BU.update(dt,now,E.mode==='fire'||E.mode==='gear'||BU.B.still); EL.chemStep(dt); FXE.step(dt); }catch(e){ console.warn(e); }
   if(E.mode==='chem'){ cur.style.left=S.cursor.x+'px'; cur.style.top=S.cursor.y+'px';
     document.querySelectorAll('.tg').forEach(t=>t.classList.toggle('hot',!!S.held&&hit('.tg',S.cursor.x,S.cursor.y)===t)); }
   fpsAcc+=dt;fpsN++; qAcc+=dt;qN++;
@@ -415,7 +417,7 @@ function startTrackLoop(){ if(S.rvfc||!('requestVideoFrameCallback' in HTMLVideo
 const MODES_LIST=['water','fire','earth','air','atoms','gear','chem'];
 let started=false;
 window.startLab=()=>{ if(started) return; started=true; hud.hidden=false; refreshLocks();
-  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
+  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); STL.init(video); setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
   status('Pick a mode. Hands: ☝️ point = poke/press, ✌️ two fingers = grab, open palm, flick, circle. No camera? Drag with one or two fingers.'); };
 $('modes').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setMode(b.dataset.m); });
 $('boost').onclick=()=>{ S.boost={auto:'on',on:'off',off:'auto'}[S.boost]; updBoostBtn(); };
@@ -423,11 +425,14 @@ $('calib').onclick=startCalib; $('calSkip').onclick=()=>{S.calib=null;$('calbox'
 $('flip').onclick=()=>{ S.facing=S.facing==='user'?'environment':'user'; startCamera(); };
 $('ignite').onclick=ignite; $('reset').onclick=()=>{ resetLab(); EL.clearAll(); };
 $('lowpow').onchange=e=>{ S.low=e.target.checked; if(S.low) FX.Q=Math.min(FX.Q,.5); resize(); status(S.low?'Low power: no bloom, fewer particles, hands every other frame.':'Full power.'); };
-window.__lab={AT:AT._test,S,E,FX,ROCKS:FXE.ROCKS,WATER:FXE.WATER,react,ignite,grab,release,drawSkel,startCalib,setMode,pose,feed:h=>{synth=h;},burst:EL.burst};
+window.__lab={AT:AT._test,S,E,FX,L:FXE.L,ROCKS:FXE.ROCKS,WATER:FXE.WATER,react,ignite,grab,release,drawSkel,startCalib,setMode,pose,feed:h=>{synth=h;},burst:EL.burst};
 
 /* camera indicator, classes, body layer, wipe */
 $('camOn').onclick=()=>{ if(S.stream) window.__stopCamera(); else startCamera(); };
 $('clBtn').onclick=()=>{ const b=$('classes'); b.hidden=!b.hidden; window.PROFILE?.render(); };
 $('bodyBtn').onclick=async()=>{ $('bodyBtn').textContent='Body: …'; const on=await BO.enable(VISION); $('bodyBtn').textContent='Body: '+(on?'on':BO.BD.status==='failed'?'failed':'off'); };
+const SL={auto:'Stationary: auto',on:'Stationary: on',off:'Stationary: off'};
+function stillHud(s){ const b=$('stillBtn'); if(!b) return; const t=SL[STL.ST.mode]+(STL.ST.mode==='auto'?(s?' (still)':' (moving)'):''); if(b.textContent!==t) b.textContent=t; b.classList.toggle('on',s); }
+$('stillBtn').onclick=()=>{ STL.askMotion(); STL.setMode({auto:'on',on:'off',off:'auto'}[STL.ST.mode]); E.say(STL.ST.mode==='off'?'Free mode: elements anywhere':'Prop the phone up: only items in frame get elements'); };
 $('wipeBtn').onclick=()=>window.wipeNow?.();
-window.__lab2={GE,BU,BO,S};
+window.__lab2={STL,GE,BU,BO,S};

@@ -32,13 +32,15 @@ void main(){vC=acol;vR=rot;vA=age;gl_Position=projectionMatrix*modelViewMatrix*v
 const FS=`uniform sampler2D map;uniform float heat,add,fin;varying vec4 vC;varying float vR,vA;
 void main(){vec2 p=gl_PointCoord-.5;float c=cos(vR),s=sin(vR);p=mat2(c,-s,s,c)*p*1.25+.5;
  if(p.x<0.||p.y<0.||p.x>1.||p.y>1.) discard; vec4 t=texture2D(map,p);
- float fade=smoothstep(0.,fin,vA)*(1.-smoothstep(.6,1.,vA)); vec3 col=vC.rgb;
- if(heat>.5){vec3 h=mix(vec3(1.3,1.05,.6),vec3(1.2,.45,.08),smoothstep(0.,.25,vA));h=mix(h,vec3(.45,.05,.01),smoothstep(.25,.7,vA));col*=h;}
- float a=t.a*vC.a*fade; gl_FragColor=add>.5?vec4(col*a,a):vec4(col*t.rgb,a);
+ float fade=smoothstep(0.,fin,vA)*(1.-smoothstep(add>.5?.6:.35,add>.5?1.:.8,vA)); vec3 col=vC.rgb; float ta=t.a;
+ if(heat>.5){ ta=smoothstep(.18,.8,t.a); float core=smoothstep(.55,.95,t.a);
+  vec3 h=mix(vec3(.55,.7,1.6),vec3(1.5,1.3,.85),smoothstep(0.,.08,vA)); h=mix(h,vec3(1.35,.8,.2),smoothstep(.08,.3,vA)); h=mix(h,vec3(1.1,.32,.05),smoothstep(.3,.6,vA)); h=mix(h,vec3(.3,.03,.01),smoothstep(.6,.95,vA));
+  h=mix(h,vec3(1.6,1.45,1.1),core*(1.-smoothstep(.1,.5,vA))); col*=h; }
+ float a=ta*vC.a*fade; gl_FragColor=add>.5?vec4(col*a,a):vec4(col*t.rgb,a);
  #include <colorspace_fragment>
 }`;
 class Layer{
-  constructor({map,max,add=true,heat=false,fin=.08,order=5}){ Object.assign(this,{max,n:0});
+  constructor({map,max,add=true,heat=false,fin=.08,order=5,rate=1,lifeK=1,sizeK=1,aK=1,growK=1}){ Object.assign(this,{max,n:0,rate,lifeK,sizeK,aK,growK});
     const A=(k)=>new Float32Array(max*k);
     this.x=A(1);this.y=A(1);this.vx=A(1);this.vy=A(1);this.life=A(1);this.maxl=A(1);this.drag=A(1);this.grav=A(1);this.grow=A(1);this.spin=A(1);this.cu=A(1);this.base=A(1);this.fld=A(1);
     this.pos=A(3);this.col=A(4);this.sz=A(1);this.rot=A(1);this.age=A(1);
@@ -48,10 +50,10 @@ class Layer{
     this.mat=new THREE.ShaderMaterial({uniforms:{map:{value:map},dpr:{value:1},heat:{value:heat?1:0},add:{value:add?1:0},fin:{value:fin}},vertexShader:VS,fragmentShader:FS,
       transparent:true,depthTest:false,depthWrite:false,blending:add?THREE.AdditiveBlending:THREE.NormalBlending});
     this.pts=new THREE.Points(g,this.mat); this.pts.frustumCulled=false; this.pts.renderOrder=order; }
-  spawn(x,y,vx,vy,o={}){ if(this.n>=this.max*FX.Q) return -1; const i=this.n++, c=o.c||[1,1,1];
-    this.x[i]=x;this.y[i]=y;this.vx[i]=vx;this.vy[i]=vy;this.life[i]=this.maxl[i]=o.life||1;this.drag[i]=o.drag??.985;this.grav[i]=o.grav||0;
-    this.grow[i]=o.grow||0;this.spin[i]=o.spin??rnd(-2,2);this.cu[i]=o.curl||0;this.base[i]=o.size||20;this.rot[i]=rnd(0,6.28);this.fld[i]=o.field??1;
-    this.col[i*4]=c[0];this.col[i*4+1]=c[1];this.col[i*4+2]=c[2];this.col[i*4+3]=o.a??1; return i; }
+  spawn(x,y,vx,vy,o={}){ if(this.n>=this.max*FX.Q||(this.rate<1&&Math.random()>this.rate)) return -1; if(FX.clip&&this.clip&&!inClip(x,y)) return -1; const i=this.n++, c=o.c||[1,1,1];
+    this.x[i]=x;this.y[i]=y;this.vx[i]=vx;this.vy[i]=vy;this.life[i]=this.maxl[i]=(o.life||1)*this.lifeK;this.drag[i]=o.drag??.985;this.grav[i]=o.grav||0;
+    this.grow[i]=(o.grow||0)*this.growK;this.spin[i]=o.spin??rnd(-2,2);this.cu[i]=o.curl||0;this.base[i]=(o.size||20)*this.sizeK;this.rot[i]=rnd(0,6.28);this.fld[i]=o.field??1;
+    this.col[i*4]=c[0];this.col[i*4+1]=c[1];this.col[i*4+2]=c[2];this.col[i*4+3]=(o.a??1)*this.aK; return i; }
   kill(i){ const j=--this.n; if(i===j) return;
     for(const k of ['x','y','vx','vy','life','maxl','drag','grav','grow','spin','cu','base','rot','fld']) this[k][i]=this[k][j];
     for(let q=0;q<4;q++) this.col[i*4+q]=this.col[j*4+q]; }
@@ -61,11 +63,14 @@ class Layer{
       if(this.cu[i]){const [cx,cy]=curl(this.x[i],this.y[i],t);this.vx[i]+=cx*this.cu[i]*dt;this.vy[i]+=cy*this.cu[i]*dt;}
       if(hasF&&this.fld[i]){const [ax,ay]=field(this.x[i],this.y[i]);this.vx[i]+=ax*dt*this.fld[i];this.vy[i]+=ay*dt*this.fld[i];}
       this.x[i]+=this.vx[i]*dt; this.y[i]+=this.vy[i]*dt; this.rot[i]+=this.spin[i]*dt;
+      if(FX.clip&&this.clip&&!inClip(this.x[i],this.y[i])){ this.life[i]=Math.min(this.life[i],.06); }
       const age=1-this.life[i]/this.maxl[i]; this.age[i]=age; this.sz[i]=this.base[i]*(1+this.grow[i]*age);
       this.pos[i*3]=this.x[i]; this.pos[i*3+1]=-this.y[i]; }
     this.g.setDrawRange(0,this.n); for(const a of ['position','acol','size','rot','age']) this.g.attributes[a].needsUpdate=true; }
 }
 export const L={};
+/* Stationary mode: FX.clip = [{x,y,w,h}] zones (detected objects + a small fingertip zone). Clipped layers only live inside them. */
+export function inClip(x,y){ for(const r of FX.clip) if(x>r.x-20&&x<r.x+r.w+20&&y>r.y-(r.up??60)&&y<r.y+r.h+20) return true; return false; }
 
 /* ---- wind streaks: head/tail quads ---- */
 class Streaks{
@@ -181,7 +186,7 @@ function initBG(){
   const wp=new THREE.Points(g,WATER.mat); wp.frustumCulled=false; wScene.add(wp);
   wComp=new THREE.ShaderMaterial({uniforms:{...U,dens:{value:wRT.texture},px:{value:new THREE.Vector2(.01,.01)},time:{value:0}},vertexShader:QUAD_VS,transparent:true,depthTest:false,depthWrite:false,
     fragmentShader:CAMFN+`uniform sampler2D dens;uniform vec2 px;uniform float time;varying vec2 vUv;
-void main(){ float d=texture2D(dens,vUv).r; float m=smoothstep(.34,.48,d); if(m<.01) discard;
+void main(){ float d=texture2D(dens,vUv).r; float m=smoothstep(.4,.46,d); if(m<.01) discard;
  float dx=texture2D(dens,vUv+vec2(px.x,0.)).r-texture2D(dens,vUv-vec2(px.x,0.)).r, dy=texture2D(dens,vUv+vec2(0.,px.y)).r-texture2D(dens,vUv-vec2(0.,px.y)).r;
  vec3 n=normalize(vec3(-dx*5.,-dy*5.,.6+d*.4));
  vec3 bg=camAt(vUv+n.xy*.06+vec2(sin(time*2.+vUv.y*30.)*.003,0.));
@@ -206,13 +211,14 @@ export function init(canvas,videoEl){ video=videoEl;
   renderer=new THREE.WebGLRenderer({canvas,antialias:false,alpha:false,powerPreference:'high-performance'}); renderer.setClearColor(0x000000,1);
   scene=new THREE.Scene(); cam=new THREE.OrthographicCamera(0,1,0,-1,-2000,2000);
   const map=n=>tex(n);
-  L.smoke=new Layer({map:map('kenney_smoke_03.png'),max:700,add:false,fin:.15,order:5});
-  L.dust=new Layer({map:map('kenney_smoke_07.png'),max:700,add:false,fin:.1,order:5});
-  L.fire=new Layer({map:map('kenney_flame_02.png'),max:2600,heat:true,order:6});
-  L.flame=new Layer({map:map('kenney_flame_04.png'),max:800,heat:true,order:6});
+  L.smoke=new Layer({map:map('kenney_smoke_03.png'),max:140,add:false,fin:.15,order:5,rate:.3,lifeK:.5,aK:.55,growK:.6});
+  L.dust=new Layer({map:map('kenney_smoke_07.png'),max:280,add:false,fin:.1,order:5,rate:.6,lifeK:.65,aK:.8});
+  L.fire=new Layer({map:map('kenney_flame_02.png'),max:900,heat:true,order:6,rate:.5,lifeK:.75,sizeK:.8,growK:.7});
+  L.flame=new Layer({map:map('kenney_flame_04.png'),max:350,heat:true,order:6,rate:.6,lifeK:.8});
   L.glow=new Layer({map:map('kenney_light_01.png'),max:400,order:7});
-  L.spark=new Layer({map:map('kenney_spark_01.png'),max:1200,order:7,fin:.02});
+  L.spark=new Layer({map:map('kenney_spark_01.png'),max:500,order:7,fin:.02,rate:.6,lifeK:.8});
   L.magic=new Layer({map:map('kenney_twirl_02.png'),max:300,order:6});
+  for(const k of ['smoke','dust','fire','flame','spark']) L[k].clip=true;
   for(const k in L) scene.add(L[k].pts);
   L.streak=new Streaks(1400); scene.add(L.streak.mesh);
   const rd=tex('polyhaven_rock_face_03_diff_512.jpg'), rn=tex('polyhaven_rock_face_03_nor_gl_512.jpg',false);
