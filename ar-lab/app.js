@@ -1,6 +1,10 @@
 import * as FXE from './fx.js';
 import {FX} from './fx.js';
 import * as EL from './elements.js';
+import * as AT from './atoms.js';
+import * as GE from './gear.js';
+import * as BU from './burn.js';
+import * as BO from './body.js';
 const {E}=EL;
 const VISION = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 const $ = id => document.getElementById(id);
@@ -98,12 +102,12 @@ function lookup(el, target){
 /* ---------- state ---------- */
 const S = {cursor:{x:innerWidth/2,y:innerHeight/2}, held:null, loads:{}, facing:'environment',
   low:false, stream:null, landmarker:null, handSeen:false, pinch:false, palmT:0, busy:false, src:'touch', boost:'auto', boostOn:false, luma:128, pinchOn:.35, pinchOff:.55, lostT:0, calib:null};
-try{const c=JSON.parse(localStorage.getItem('wirlab.calib')||'null'); if(c){S.pinchOn=c.on;S.pinchOff=c.off;}}catch{}
+try{const c=JSON.parse(localStorage.getItem('wirlab.calib')||'null'); if(c){S.pinchOn=c.on;S.pinchOff=c.off;S.ext=c.ext;S.swipeT=c.swipe;S.calV=c.v||1;}}catch{}
 /* progressive unlock: Cu,Fe open after the gate; Mg after 2 reactions; Na after 4; K after 6 */
 const UNLOCK={Cu:0,Fe:0,Mg:2,Na:4,K:6};
 const LS='wirlab.v1', gst=()=>JSON.parse(localStorage.getItem(LS)||'{}');
 const doneN=()=>(gst().done||[]).length;
-function markDone(k){const g=gst(); g.done=[...new Set([...(g.done||[]),k])]; localStorage.setItem(LS,JSON.stringify(g)); refreshLocks();}
+function markDone(k){const g=gst(); g.done=[...new Set([...(g.done||[]),k])]; localStorage.setItem(LS,JSON.stringify(g)); window.PROFILE?.sync(); window.labEvent?.('rx:'+k); refreshLocks();}
 function refreshLocks(){document.querySelectorAll('.el').forEach(n=>n.classList.toggle('locked',doneN()<UNLOCK[n.dataset.id]));}
 
 /* ---------- UI build ---------- */
@@ -168,9 +172,9 @@ async function startCamera(){
   if(!navigator.mediaDevices?.getUserMedia){ return camError('This browser has no camera access (needs HTTPS and Safari/Chrome). Touch and controller still work.'); }
   try{
     S.stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:S.facing},width:{ideal:1280},height:{ideal:720}}});
-    video.srcObject=S.stream; await video.play().catch(()=>{});
+    video.srcObject=S.stream; await video.play().catch(()=>{}); camOn(true); startTrackLoop();
     video.classList.toggle('mirror',S.facing==='user'); video.onloadedmetadata=()=>FXE.setCamera(true,S.facing==='user'); FXE.setCamera(true,S.facing==='user');
-    status(S.landmarker?'Pinch an element to grab it.':'Camera on. Loading hand tracking…');
+    status(S.landmarker?'Point ☝️ to poke, ✌️ to grab.':'Camera on. Loading hand tracking…');
   }catch(err){
     const denied = err && (err.name==='NotAllowedError'||err.name==='SecurityError');
     camError(denied
@@ -178,6 +182,8 @@ async function startCamera(){
       : `📷 Camera unavailable (${err?.name||'error'}). Touch and controller still work.`);
   }
 }
+function camOn(on){ const c=$('camOn'); c.hidden=false; c.classList.toggle('off',!on); c.textContent=on?'● Camera on · processed on this device only':'○ Camera off · tap to turn on'; }
+window.__stopCamera=()=>{ S.stream?.getTracks().forEach(t=>t.stop()); S.stream=null; camOn(false); };
 function camError(m){ const b=$('camerr'); b.hidden=false; b.innerHTML=m+'<br><br><button id="camRetry">Try camera again</button> <button id="camDismiss">Use touch</button>';
   $('camRetry').onclick=startCamera; $('camDismiss').onclick=()=>b.hidden=true; status('No camera. Drag elements with your finger.'); }
 
@@ -189,7 +195,7 @@ async function initHands(){
     const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.4,minHandPresenceConfidence:.4,minTrackingConfidence:.4});
     try{ S.landmarker=await v.HandLandmarker.createFromOptions(fs,opts('GPU')); }
     catch{ S.landmarker=await v.HandLandmarker.createFromOptions(fs,opts('CPU')); }
-    status(S.stream?'Hand tracking ready. Pinch an element to grab it.':'Hand tracking ready (no camera yet).');
+    status(S.stream?'Hand tracking ready. Point ☝️ to poke, ✌️ to grab.':'Hand tracking ready (no camera yet).');
   }catch(e){ console.warn('hands failed',e); status('Hand tracking could not load. Touch and controller still work.'); }
 }
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -211,11 +217,13 @@ function buildLUT(l){ const target=125, g=Math.max(.35,Math.min(1,Math.log(targe
 function frameForDetect(){
   const W=480, H=Math.round(W*video.videoHeight/video.videoWidth); if(proc.width!==W){proc.width=W;proc.height=H;}
   pctx.drawImage(video,0,0,W,H);
-  const meter=frameN%15===0, apply=S.boost==='on'||(S.boost==='auto'&&S.boostOn);
+  const meter=(S.metN=(S.metN||0)+1)%15===0, apply=S.boost==='on'||(S.boost==='auto'&&S.boostOn);
   if(!meter&&!apply) return proc;
   const img=pctx.getImageData(0,0,W,H), d=img.data;
   if(meter){ let sum=0,n=0; for(let i=0;i<d.length;i+=64){sum+=d[i]*.3+d[i+1]*.59+d[i+2]*.11;n++;} S.luma=sum/n;
-    S.boostOn=S.luma<95; updBoostBtn(); }
+    S.boostOn=S.luma<95; updBoostBtn();
+    let c=0,cn=0,e2=0,en=0; for(let y=0;y<H;y+=6) for(let x=0;x<W;x+=6){ const k=(y*W+x)*4, l=d[k]*.3+d[k+1]*.59+d[k+2]*.11; if(x>W*.3&&x<W*.7&&y>H*.3&&y<H*.7){c+=l;cn++;} else if(x<W*.12||x>W*.88||y<H*.12){e2+=l;en++;} }
+    S.backlit=(e2/en)-(c/cn)>45&&(c/cn)<120; $('lightwarn').hidden=!S.backlit&&!(S.luma<60); $('lightwarn').textContent=S.backlit?'☀️ Backlit: face the light':'🌙 Very dark: add light'; }
   if(apply){ if(Math.abs(lutFor-S.luma)>6) buildLUT(S.luma); for(let i=0;i<d.length;i+=4){d[i]=LUT[d[i]];d[i+1]=LUT[d[i+1]];d[i+2]=LUT[d[i+2]];} pctx.putImageData(img,0,0); }
   return proc;
 }
@@ -226,86 +234,113 @@ const BONES=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11
 function drawSkel(hs){ hs=(hs||[]).map(h=>Array.isArray(h)?{pts:h,g:''}:h); const dpr=Math.min(devicePixelRatio,2);
   if(skel.width!==innerWidth*dpr){skel.width=innerWidth*dpr;skel.height=innerHeight*dpr;}
   sk.setTransform(dpr,0,0,dpr,0,0); sk.clearRect(0,0,innerWidth,innerHeight);
-  for(const h of hs){ const pts=h.pts; if(!pts) continue; const col=h.g==='pinch'?'#5fff8a':h.g==='fist'?'#ff9a5a':h.g==='open'?'#7fd8ff':'#c8f5ff';
+  for(const h of hs){ const pts=h.pts; if(!pts) continue; const col=h.g==='poke'||h.g==='vee'?'#5fff8a':h.g==='fist'?'#ff9a5a':h.g==='open'?'#7fd8ff':'#c8f5ff';
     for(const [w,c] of [[6,'#0008'],[2.5,col]]){ sk.lineWidth=w; sk.strokeStyle=c; sk.lineCap='round'; sk.beginPath();
       for(const [a,b] of BONES){sk.moveTo(pts[a].x,pts[a].y);sk.lineTo(pts[b].x,pts[b].y);} sk.stroke(); }
     for(const [i,p] of pts.entries()){ const tip=i===4||i===8; sk.fillStyle=tip?'#ffd27f':'#fff'; sk.strokeStyle='#000a'; sk.lineWidth=1.5;
       sk.beginPath(); sk.arc(p.x,p.y,tip?6:3.5,0,7); sk.fill(); sk.stroke(); } } }
 const hint=m=>{const h=$('hint'); h.hidden=!m; if(m) h.textContent=m;};
-/* calibration: learn this person's open-hand and pinch distances */
-function startCalib(){ S.calib={phase:0,open:[],pin:[],t:0}; $('calbox').hidden=false; $('calIcon').textContent='1'; $('calMsg').textContent='Show your OPEN hand, fingers spread, about an arm\'s length away'; $('calFill').style.width='0'; }
-function stepCalib(r,dt){ const c=S.calib; if(!c) return; (c.phase?c.pin:c.open).push(r); const need=25, arr=c.phase?c.pin:c.open;
-  $('calFill').style.width=Math.min(100,arr.length/need*100)+'%';
-  if(arr.length>=need){ if(!c.phase){ c.phase=1; $('calIcon').textContent='2'; $('calMsg').textContent='Now PINCH: touch thumb and pointer finger together and hold'; $('calFill').style.width='0'; return; }
-    const med=a=>[...a].sort((x,y)=>x-y)[a.length>>1]; const o=med(c.open), p=med(c.pin);
-    if(o-p<.15){ $('calMsg').textContent='Hmm, open and pinch looked the same. Try again closer to the light.'; c.phase=0;c.open=[];c.pin=[]; return; }
-    S.pinchOn=p+(o-p)*.3; S.pinchOff=p+(o-p)*.55; localStorage.setItem('wirlab.calib',JSON.stringify({on:S.pinchOn,off:S.pinchOff}));
-    S.calib=null; $('calbox').hidden=true; status('Calibrated to your hand. Pinch an element to grab it.'); } }
+/* Two-stage calibration (saved to the profile, done once):
+   Stage 1 static: open hand → learns how "extended" your fingers read.
+   Stage 2 movement signature: ☝️ poke, ✌️ two fingers, then 3 flicks → learns curled-finger ratio and your flick speed.
+   Result: per-user finger-extension threshold (S.ext) and swipe threshold (S.swipeT). */
+const CAL_STEPS=[{k:'open',icon:'1',msg:'Stage 1: show your OPEN hand, fingers spread, arm\'s length away'},
+ {k:'poke',icon:'2a',msg:'Stage 2: POINT one finger (others curled) and hold'},
+ {k:'vee',icon:'2b',msg:'Now TWO fingers up ✌️ and hold'},
+ {k:'flick',icon:'2c',msg:'Now FLICK your hand sideways fast, 3 times'}];
+const ratio=(pts,f)=>{ const [t,p]=[[8,6],[12,10],[16,14],[20,18]][f]; return Math.hypot(pts[t].x-pts[0].x,pts[t].y-pts[0].y)/(Math.hypot(pts[p].x-pts[0].x,pts[p].y-pts[0].y)||1); };
+function startCalib(){ S.calib={i:0,open:[],curl:[],flicks:[],peak:0,t:0}; $('calbox').hidden=false; calShow(); }
+function calShow(){ const s=CAL_STEPS[S.calib.i]; $('calIcon').textContent=s.icon; $('calMsg').textContent=s.msg; $('calFill').style.width='0'; S.calib.n=0; }
+function stepCalib(h,dt){ const c=S.calib; if(!c||!h?.pts) return; const s=CAL_STEPS[c.i], pts=h.pts, need=25;
+  if(s.k==='open'){ c.open.push(Math.min(...[0,1,2,3].map(f=>ratio(pts,f)))); c.n++; }
+  if(s.k==='poke'&&ratio(pts,0)>Math.max(ratio(pts,1),ratio(pts,2))+.1){ c.curl.push(Math.max(ratio(pts,1),ratio(pts,2),ratio(pts,3))); c.n++; }
+  if(s.k==='vee'&&Math.min(ratio(pts,0),ratio(pts,1))>Math.max(ratio(pts,2),ratio(pts,3))+.1){ c.curl.push(Math.max(ratio(pts,2),ratio(pts,3))); c.n++; }
+  if(s.k==='flick'){ c.peak=Math.max(c.peak,h.speed||0); if((h.speed||0)<250&&c.peak>700){ c.flicks.push(c.peak); c.peak=0; } c.n=c.flicks.length*need/3; }
+  $('calFill').style.width=Math.min(100,c.n/need*100)+'%';
+  if(c.n<need) return;
+  if(c.i<CAL_STEPS.length-1){ c.i++; calShow(); return; }
+  const med=x=>[...x].sort((p,q)=>p-q)[x.length>>1], pct=(x,q)=>[...x].sort((p,q2)=>p-q2)[Math.floor(x.length*q)];
+  const o=pct(c.open,.2), k=pct(c.curl,.8);
+  if(o-k<.06){ $('calMsg').textContent='Open and curled looked too similar. Move closer to the light and try again.'; S.calib={i:0,open:[],curl:[],flicks:[],peak:0}; setTimeout(calShow,1600); return; }
+  S.ext=Math.max(1.02,Math.min(1.3,(o+k)/2)); S.swipeT=Math.max(700,Math.min(1800,med(c.flicks)*.6)); S.calV=2;
+  localStorage.setItem('wirlab.calib',JSON.stringify({v:2,ext:+S.ext.toFixed(3),swipe:Math.round(S.swipeT),on:S.pinchOn,off:S.pinchOff}));
+  window.PROFILE?.sync(); window.labEvent?.('calibrated');
+  S.calib=null; $('calbox').hidden=true; status(`Calibrated to your hand (finger threshold ${S.ext.toFixed(2)}, flick ${Math.round(S.swipeT)} px/s). Saved to your profile.`); }
 const HANDS=[{},{}]; const FL=[0,1].map(()=>[...Array(42)].map(()=>new OneEuro()));
 function smooth(slot,pts,dt){ const f=FL[slot]; return pts.map((p,i)=>({x:f[i*2].f(p.x,dt),y:f[i*2+1].f(p.y,dt)})); }
-function cal(){ return {on:S.pinchOn,off:S.pinchOff}; }
+function cal(){ return {on:S.pinchOn,off:S.pinchOff,ext:S.ext,swipe:S.swipeT}; }
+S.lat={inf:0,e2e:0,trk:0,trkN:0,trkT:0};
 let synth=null; // test hook: screen-pixel landmarks for headless tests
 let detect=function(now){
   if(synth) return synth;
   if(!S.landmarker||!video.videoWidth||video.currentTime===lastVT) return undefined;
   if(S.low&&(frameN%2)) return undefined;
   lastVT=video.currentTime;
-  const res=S.landmarker.detectForVideo(frameForDetect(),now);
-  return (res.landmarks||[]).map(lm=>lm.map(toScreen)); };
+  const t0=performance.now(); const res=S.landmarker.detectForVideo(frameForDetect(),now); S.lat.inf=S.lat.inf*.8+(performance.now()-t0)*.2;
+  // confidence gate: drop low-confidence hands instead of showing jittery guesses
+  return (res.landmarks||[]).filter((lm,i)=>(res.handedness?.[i]?.[0]?.score??1)>=.6).map(lm=>lm.map(toScreen)); };
 function trackHands(now,dt){
   const got=detect(now); if(got===undefined) return;
   const fdt=Math.max(dt,1/120);
-  if(!got.length){ S.lostT+=dt; if(S.lostT>.35){ S.handSeen=false; S.palmT=0; $('palm').style.opacity=0; drawSkel([]); FL.forEach(f=>f.forEach(o=>o.x=null)); HANDS.forEach(h=>{h.palm=null;h.g='none';});
+  if(!got.length){ S.lostT+=dt; if(S.lostT<.3&&S.handsNow?.length){ skel.style.opacity=1-S.lostT/.3; } if(S.lostT>.3){ S.handSeen=false; S.palmT=0; $('palm').style.opacity=0; drawSkel([]); FL.forEach(f=>f.forEach(o=>o.x=null)); HANDS.forEach(h=>{h.palm=null;h.g='none';});
       if(S.pinch&&S.lostT>.8){S.pinch=false;release();} if(S.src==='hand') S.handsNow=[];
       if(S.src==='hand'||S.lostT>3) hint(S.luma<95?'It\'s dark: face a lamp or window. Boost is helping.':'Show your hand: palm to camera, 30–60 cm away'); }
     return; }
-  S.lostT=0; hint(null);
+  S.lostT=0; skel.style.opacity=1; hint(S.backlit?'Backlit: the light is behind you. Turn so the light is in front of you.':null);
   // keep slots stable: match by nearest wrist
   if(got.length===2&&HANDS[0].palm&&HANDS[1].palm){ const d=(a,h)=>Math.hypot(a[0].x-h.pts[0].x,a[0].y-h.pts[0].y);
     if(d(got[0],HANDS[1])+d(got[1],HANDS[0])<d(got[0],HANDS[0])+d(got[1],HANDS[1])) got.reverse(); }
   const hs=got.slice(0,2).map((g,i)=>EL.readHand(HANDS[i],smooth(i,g,fdt),fdt,cal()));
   if(got.length<2){ HANDS[1].palm=null; FL[1].forEach(o=>o.x=null); }
-  if(!S.handSeen && !S.calib && !localStorage.getItem('wirlab.calib') && !synth) startCalib();
+  if(!S.handSeen && !S.calib && (S.calV||0)<2 && !synth) startCalib();
   S.handSeen=true; S.src='hand'; S.handsNow=hs;
   const h=hs[0], lm=h.pts;
   drawSkel((VH.on||VH.off>0)&&!synth?[]:hs);
-  if(S.calib){ return stepCalib(h.pinchR,dt); }
+  if(S.calib){ return stepCalib(h,dt); }
   if(E.mode!=='chem'){ gestureHud(hs); return; }
   const sp=h.pinchPt; S.cursor.x+=(sp.x-S.cursor.x)*.6; S.cursor.y+=(sp.y-S.cursor.y)*.6;
-  const pinch=h.g==='pinch';
+  const pinch=h.g==='poke'||h.g==='vee';
   if(pinch&&!S.pinch) grab(); if(!pinch&&S.pinch) release(); S.pinch=pinch;
   if(h.g==='open'&&!S.held&&!S.busy){ S.palmT+=dt; $('palm').style.opacity=1; $('palmFill').style.width=Math.min(100,S.palmT*100)+'%';
     if(S.palmT>=1){ S.palmT=0; $('palm').style.opacity=0; ignite(); } }
   else { S.palmT=0; $('palm').style.opacity=0; }
 }
 const GHINT={
- water:[['open','Open palm','summon water orb'],['pinch','Pinch + drag','stream / whip'],['swipe','Flick','throw it'],['circle','Circle','whirlpool'],['combo','Clap 2 hands','tidal burst']],
- fire:[['open','Open palm','fire jet (push = stronger)'],['fist','Fist','ember ball'],['swipe','Open fast / flick','throw fireball'],['circle','Circle','fire tornado'],['combo','Clap 2 hands','explosion']],
- earth:[['open','Palm lifts up','raise a rock'],['pinch','Pinch rock','grab it'],['swipe','Flick','throw it'],['fist','Fist on rock','crush to dust'],['combo','Clap 2 hands','rock wall']],
- air:[['point','Point + move','wind trail'],['swipe','Swipe','gust'],['circle','Circle','vortex (moves everything)'],['combo','Clap 2 hands','cyclone']],
- chem:[['pinch','Pinch','grab element'],['open','Open palm 1 s','ignite']],
+ water:[['open','Open palm','summon water orb'],['poke','Point 1 finger + drag','stream / whip'],['swipe','Flick','throw it'],['circle','Circle','whirlpool'],['combo','Clap 2 hands','tidal burst']],
+ fire:[['poke','☝️ Point','fingertip flame: poke real things to burn them'],['open','Open palm','fire jet'],['vee','✌️ Two fingers','ember ball'],['swipe','Flick','throw fireball'],['circle','Circle','fire tornado'],['combo','Clap 2 hands','explosion']],
+ earth:[['open','Palm lifts up','raise a rock'],['vee','✌️ Two fingers on rock','grab it'],['swipe','Flick','throw it'],['fist','Hold a fist on rock','crush to dust'],['combo','Clap 2 hands','rock wall']],
+ air:[['poke','☝️ Point + move','wind trail'],['swipe','Swipe','gust'],['circle','Circle','vortex (moves everything)'],['combo','Clap 2 hands','cyclone']],
+ atoms:[['poke','Point at a tile / atom','take it, drag it'],['poke','Drop on another','bond or react'],['vee','✌️ over molecule','rotate it'],['fist','Fist hold on molecule','split to atoms']],
+ gear:[['poke','☝️ Poke an item','press: light / pour / drop'],['poke','Poke, hold, move','carry it'],['poke','Hold over lit burner','heat it']],
+ chem:[['poke','Point','grab element'],['open','Open palm 1 s','ignite']],
 };
 function buildHud(){ $('gest').innerHTML=GHINT[E.mode].map(([k,a,b])=>`<div class="gh" data-k="${k}"><b>${a}</b><span>${b}</span></div>`).join(''); }
 function gestureHud(hs){ const act=new Set(); for(const h of hs){ act.add(h.g); if(h.swipe) act.add('swipe'); if(h.circle) act.add('circle'); } if(hs.length>1) act.add('combo');
   document.querySelectorAll('.gh').forEach(n=>n.classList.toggle('on',act.has(n.dataset.k)));
-  $('gnow').textContent=hs.map((h,i)=>`${hs.length>1?(i?'R ':'L '):''}${({open:'open palm',pinch:'pinch',fist:'fist',point:'point',relaxed:'relaxed',none:'—'})[h.g]||h.g}`).join('   '); }
+  $('gnow').textContent=hs.map((h,i)=>`${hs.length>1?(i?'R ':'L '):''}${({open:'open palm',poke:'☝️ poke',vee:'✌️ two fingers',fist:'fist',relaxed:'relaxed',none:'—'})[h.g]||h.g}`).join('   '); }
 function setMode(m){ E.mode=m; document.querySelectorAll('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
   const chem=m==='chem'; $('shelf').hidden=!chem; $('targets').hidden=!chem; $('cursor').hidden=!chem; $('ignite').hidden=!chem;
-  EL.clearAll(); buildHud();
+  EL.clearAll(); buildHud(); AT.show(m==='atoms'); GE.show(m==='gear'); window.labEvent?.('mode:'+m);
   requestAnimationFrame(()=>{ const r={}; document.querySelectorAll('.tg').forEach(t=>r[t.dataset.id]=t.getBoundingClientRect()); EL.chemProps(chem,r); });
-  status(chem?'Chem lab: pinch an element, drop it on the dish, burner or paper.':'Elements: '+m.toUpperCase()+'. Try the moves on the left.'); }
+  status(m==='atoms'?'Atoms: pinch an element tile, bring atoms together to bond. Open palm rotates.':chem?'Chem lab: pinch an element, drop it on the dish, burner or paper.':'Elements: '+m.toUpperCase()+'. Try the moves on the left.'); }
 
 /* ---------- virtual hand (touch / controller) -> same gesture pipeline ---------- */
 function pose(x,y,g,s=90){ const ext=[[0,-.45],[0,-.75],[0,-1]], cur=[[0,-.3],[0,-.05],[0,.15]];
   const mcp=[[-.35,-.95],[0,-1],[.3,-.95],[.55,-.85]]; const P=[[0,0],[-.35,-.3],[-.6,-.55],[-.75,-.8],[-.85,-1.05]];
-  const fingers=g==='fist'?[0,0,0,0]:g==='point'?[1,0,0,0]:[1,1,1,1];
+  if(g==='pinch'||g==='point') g='poke'; const fingers=g==='fist'?[0,0,0,0]:g==='poke'?[1,0,0,0]:g==='vee'?[1,1,0,0]:g==='relaxed'?[0,0,1,1]:[1,1,1,1];
   mcp.forEach((m,f)=>{ P.push(m); const seg=fingers[f]?ext:cur; seg.forEach(d=>P.push([m[0]+d[0]*(f===3?.8:1),m[1]+d[1]*(f===3?.8:1)])); });
   if(g==='pinch'){ P[6]=[-.45,-1.35];P[7]=[-.55,-1.55];P[8]=[-.6,-1.68]; P[3]=[-.75,-1.1];P[4]=[-.62,-1.62]; }
   if(g==='fist'){ P[3]=[-.4,-.55];P[4]=[.05,-.45]; }
-  let ox=.03,oy=-.75; if(g==='pinch'){ox=-.61;oy=-1.65;} if(g==='point'){ox=-.35;oy=-1.95;}
+  let ox=.03,oy=-.75; if(g==='poke'){ox=-.35;oy=-1.95;} if(g==='vee'){ox=-.17;oy=-1.97;}
   return P.map(([px,py])=>({x:x+(px-ox)*s,y:y+(py-oy)*s})); }
 const VH={on:false,x:0,y:0,g:'relaxed',off:0};
-const virtG=(n)=>({water:['pinch','open'],fire:['open','fist'],earth:['pinch','fist'],air:['point','open']})[E.mode][n>1?1:0];
+const virtG=(n)=>({gear:['poke','vee'],atoms:['poke','vee'],water:['poke','open'],fire:['open','fist'],earth:['vee','fist'],air:['poke','open'],chem:['poke','open']})[E.mode][n>1?1:0];
+/* Poke-to-press: point one finger at a button, then push the fingertip toward the camera (or hold still 1 s) = tap. */
+const PT={el:null,t:0};
+function pokeTap(hs,dt){ const h=hs.find(h=>h.g==='poke'&&!h.virtual); if(!h||!h.pts){ if(PT.el) PT.el.classList.remove('poking'); PT.el=null; return; }
+  const t=h.pts[8]; const el=document.elementFromPoint(t.x,t.y)?.closest('button,label,.cls'); if(!el||el.closest('#ptable')){ if(PT.el) PT.el.classList.remove('poking'); PT.el=null; return; }
+  if(el!==PT.el){ PT.el?.classList.remove('poking'); PT.el=el; PT.t=0; el.classList.add('poking'); }
+  PT.t+=dt; el.style.setProperty('--pk',Math.min(1,PT.t)); if(h.tap||PT.t>1){ el.click(); PT.t=-1.2; E.say('Pressed'); } }
 const _detect=detect;
 detect=function(now){ const d=synth?synth:undefined; if(d) return d;
   if(VH.on||VH.off>0){ if(!VH.on) VH.off--; return [pose(VH.x,VH.y,VH.on?VH.g:'relaxed')]; }
@@ -322,8 +357,8 @@ function pollPad(dt){
     if(E.mode==='chem'){
       if(A&&!padPrev.A){ S.src='pad'; if(!$('card').hidden) $('cardClose').click(); else if(S.held) release(); else grab(); }
       if(B&&!padPrev.B) ignite(); }
-    else { const gg=A?(E.mode==='fire'?'open':E.mode==='air'?'point':'pinch'):B?'open':X?'fist':null;
-      if(gg){ if(!VH.on&&E.mode==='earth'&&gg==='pinch') maybeRock(S.cursor.x,S.cursor.y); VH.on=true; VH.g=gg; }
+    else { const gg=A?(E.mode==='fire'?'open':E.mode==='earth'?'vee':'poke'):B?'open':X?'fist':null;
+      if(gg){ if(!VH.on&&E.mode==='earth'&&gg==='vee') maybeRock(S.cursor.x,S.cursor.y); VH.on=true; VH.g=gg; }
       else if(VH.on){ VH.on=false; VH.off=5; }
       VH.x=S.cursor.x; VH.y=S.cursor.y; }
     if(Y&&!padPrev.Y) setMode(MODES_LIST[(MODES_LIST.indexOf(E.mode)+1)%MODES_LIST.length]);
@@ -334,7 +369,7 @@ addEventListener('gamepadconnected',e=>status(`Controller connected: stick moves
 /* ---------- touch ---------- */
 const hud=$('hud'), touches=new Map();
 function maybeRock(x,y){ if(!FXE.ROCKS.some(k=>Math.hypot(k.x-x,k.y-y)<k.r*2.2)){ const k=FXE.rockSpawn(x,y); if(k){k.y=y+40;k.mode='rise';} } }
-addEventListener('pointerdown',e=>{ if(hud.hidden||e.target.closest('#bar,#card,#camerr,#modes,#calbox,#gate')) return; S.src='touch';
+addEventListener('pointerdown',e=>{ if(hud.hidden||e.target.closest('#bar,#card,#camerr,#modes,#calbox,#gate,#aClear,#aChal,#chal')) return; S.src='touch';
   if(E.mode==='chem'){ S.cursor.x=e.clientX;S.cursor.y=e.clientY; grab(); return; }
   touches.set(e.pointerId,{x:e.clientX,y:e.clientY}); const n=touches.size;
   if(n===1&&E.mode==='earth') maybeRock(e.clientX,e.clientY);
@@ -350,29 +385,49 @@ addEventListener('pointerup',up); addEventListener('pointercancel',up);
 let last=performance.now(), fpsAcc=0, fpsN=0, qAcc=0, qN=0;
 function loop(now){
   const dt=Math.min(.05,(now-last)/1000); last=now; frameN++;
-  try{ trackHands(now,dt); }catch(e){ console.warn(e); }
+  if(!S.rvfc||synth||VH.on||VH.off>0) try{ trackHands(now,dt); }catch(e){ console.warn(e); }
   pollPad(dt);
   const hs=(S.handsNow||[]).filter(h=>h.palm);
-  try{ EL.update(E.mode==='chem'?[]:hs,dt); EL.chemStep(dt); FXE.step(dt); }catch(e){ console.warn(e); }
+  pokeTap(hs,dt); for(const h of hs) if(h.changed&&h.g!=='relaxed'&&h.g!=='none') window.labEvent?.(`g:${h.g}:${E.mode}`);
+  try{ if(E.mode==='atoms') AT.update(hs,dt); EL.update(E.mode==='chem'||E.mode==='atoms'||E.mode==='gear'?[]:hs,dt); GE.update(E.mode==='gear'?hs:[],dt); BU.update(dt,now,E.mode==='fire'||E.mode==='gear'); EL.chemStep(dt); FXE.step(dt); }catch(e){ console.warn(e); }
   if(E.mode==='chem'){ cur.style.left=S.cursor.x+'px'; cur.style.top=S.cursor.y+'px';
     document.querySelectorAll('.tg').forEach(t=>t.classList.toggle('hot',!!S.held&&hit('.tg',S.cursor.x,S.cursor.y)===t)); }
   fpsAcc+=dt;fpsN++; qAcc+=dt;qN++;
-  if(fpsAcc>.5){$('fps').textContent=Math.round(fpsN/fpsAcc)+' fps · q'+FX.Q.toFixed(2)+' · '+FXE.counts();fpsAcc=0;fpsN=0;}
+  if(fpsAcc>.5){$('fps').textContent=`${Math.round(fpsN/fpsAcc)} fps · trk ${S.lat.trk|0} · inf ${S.lat.inf.toFixed(0)}ms · e2e ${S.lat.e2e.toFixed(0)}ms · q${FX.Q.toFixed(2)}`;fpsAcc=0;fpsN=0;}
   if(qAcc>1.2){ const fps=qN/qAcc, q0=FX.Q; if(!S.fixedQ){ if(fps<32) FX.Q=Math.max(.3,FX.Q*.8); else if(fps>52) FX.Q=Math.min(S.low?.5:1,FX.Q*1.08); }
     if(Math.abs(FX.Q-q0)>.1) resize(); qAcc=0;qN=0; }
+  if(BO.BD.on){ BO.draw(skel.getContext('2d')); }
+  if(S.lat.pend){ S.lat.e2e=S.lat.e2e*.8+(performance.now()-S.lat.pend)*.2; S.lat.pend=0; }
   requestAnimationFrame(loop);
 }
+/* Gesture loop decoupled from rendering: inference + gesture reading run once per *camera frame*
+   (requestVideoFrameCallback), so heavy particle frames can't delay or double-count gestures. */
+let lastTrk=performance.now();
+function trackLoop(now,meta){ const t=performance.now(), dt=Math.min(.1,(t-lastTrk)/1000); lastTrk=t;
+  if(!(synth||VH.on||VH.off>0)){ try{ trackHands(t,dt); BO.track(video,t,toScreen); }catch(e){ console.warn(e); } }
+  S.lat.trkN++; if(t-S.lat.trkT>1000){ S.lat.trk=S.lat.trkN*1000/(t-S.lat.trkT); S.lat.trkN=0; S.lat.trkT=t; }
+  // e2e: frame presented by the camera → next rendered frame that used it
+  S.lat.pend=meta?.presentationTime?Math.min(t,meta.presentationTime):t;
+  video.requestVideoFrameCallback(trackLoop); }
+function startTrackLoop(){ if(S.rvfc||!('requestVideoFrameCallback' in HTMLVideoElement.prototype)) return; S.rvfc=true; video.requestVideoFrameCallback(trackLoop); }
 
 /* ---------- wiring ---------- */
-const MODES_LIST=['water','fire','earth','air','chem'];
+const MODES_LIST=['water','fire','earth','air','atoms','gear','chem'];
 let started=false;
 window.startLab=()=>{ if(started) return; started=true; hud.hidden=false; refreshLocks();
-  initThree(); setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
-  status('Pick an element. Hands: open palm, pinch, fist, swipe, circle. No camera? Drag with one or two fingers.'); };
+  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
+  status('Pick a mode. Hands: ☝️ point = poke/press, ✌️ two fingers = grab, open palm, flick, circle. No camera? Drag with one or two fingers.'); };
 $('modes').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setMode(b.dataset.m); });
 $('boost').onclick=()=>{ S.boost={auto:'on',on:'off',off:'auto'}[S.boost]; updBoostBtn(); };
 $('calib').onclick=startCalib; $('calSkip').onclick=()=>{S.calib=null;$('calbox').hidden=true;};
 $('flip').onclick=()=>{ S.facing=S.facing==='user'?'environment':'user'; startCamera(); };
 $('ignite').onclick=ignite; $('reset').onclick=()=>{ resetLab(); EL.clearAll(); };
 $('lowpow').onchange=e=>{ S.low=e.target.checked; if(S.low) FX.Q=Math.min(FX.Q,.5); resize(); status(S.low?'Low power: no bloom, fewer particles, hands every other frame.':'Full power.'); };
-window.__lab={S,E,FX,ROCKS:FXE.ROCKS,WATER:FXE.WATER,react,ignite,grab,release,drawSkel,startCalib,setMode,pose,feed:h=>{synth=h;},burst:EL.burst};
+window.__lab={AT:AT._test,S,E,FX,ROCKS:FXE.ROCKS,WATER:FXE.WATER,react,ignite,grab,release,drawSkel,startCalib,setMode,pose,feed:h=>{synth=h;},burst:EL.burst};
+
+/* camera indicator, classes, body layer, wipe */
+$('camOn').onclick=()=>{ if(S.stream) window.__stopCamera(); else startCamera(); };
+$('clBtn').onclick=()=>{ const b=$('classes'); b.hidden=!b.hidden; window.PROFILE?.render(); };
+$('bodyBtn').onclick=async()=>{ $('bodyBtn').textContent='Body: …'; const on=await BO.enable(VISION); $('bodyBtn').textContent='Body: '+(on?'on':BO.BD.status==='failed'?'failed':'off'); };
+$('wipeBtn').onclick=()=>window.wipeNow?.();
+window.__lab2={GE,BU,BO,S};

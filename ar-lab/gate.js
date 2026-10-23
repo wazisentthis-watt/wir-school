@@ -1,7 +1,7 @@
 /* Safe Lab Gate: register -> 30s orientation -> 10/10 remixed quiz -> pledge -> lab. All local (localStorage). */
 (function(){
 const LS='wirlab.v1', $=id=>document.getElementById(id);
-const st=()=>JSON.parse(localStorage.getItem(LS)||'{}'), save=o=>localStorage.setItem(LS,JSON.stringify({...st(),...o}));
+const st=()=>JSON.parse(localStorage.getItem(LS)||'{}'), save=o=>{localStorage.setItem(LS,JSON.stringify({...st(),...o})); window.PROFILE?.sync();};
 const pick=a=>a[Math.floor(Math.random()*a.length)], shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -139,5 +139,6 @@ function welcomeBack(){ const s=st();
   $('gIn').onclick=enter; $('gRedo').onclick=()=>{save({passed:0,pledged:0});register();}; }
 
 window.WIRGate={state:st,save,makeSet,bank:B,register};
-const s=st(); (s.passed&&s.pledged&&s.user)?welcomeBack():register();
+window.GATE_START=()=>{ const s=st(); (s.passed&&s.pledged&&s.user)?welcomeBack():register(); };
+if(!window.PROFILE) window.GATE_START();
 })();

@@ -16,3 +16,17 @@ All bundled art is **CC0 1.0 (public domain)**. No Nexus Mods assets are used: t
 The rock meshes are generated in code (displaced icosahedrons). The water is a metaball shader that refracts the camera image. Neither uses third-party models.
 
 Runtime libraries come from a CDN: three.js r160 (MIT, incl. EffectComposer/UnrealBloomPass) and MediaPipe Tasks Vision 0.10.14 with the hand_landmarker model (Apache 2.0).
+
+## Added for Atoms / Gear / Scene-burn (all CC0 unless noted)
+| File | Source | License |
+|---|---|---|
+| assets/models/chemistry_set/ (glTF + bin + textures, textures downscaled to 512 px; filenames keep `_1k`) | Poly Haven "Chemistry Set" — https://polyhaven.com/a/chemistry_set | CC0 |
+| assets/models/bunsen_burner/ (glTF + bin + textures, downscaled to 512 px) | Poly Haven "Bunsen Burner" — https://polyhaven.com/a/bunsen_burner | CC0 |
+| assets/char_decal.png (recoloured to a dark char with alpha) | Kenney Particle Pack, scorch_02.png — https://kenney.nl/assets/particle-pack | CC0 |
+
+Runtime models (loaded from Google's CDN, not bundled):
+- MediaPipe Object Detector, EfficientDet-Lite0 float16 — Apache-2.0 (scene burning)
+- MediaPipe Pose Landmarker lite (BlazePose) — Apache-2.0 (optional body layer)
+- MediaPipe Hand Landmarker — Apache-2.0 (existing)
+
+Atoms (Bohr atoms, ball-and-stick) and liquids are procedural three.js geometry; colours follow the CPK/Jmol convention. No Nexus Mods assets.

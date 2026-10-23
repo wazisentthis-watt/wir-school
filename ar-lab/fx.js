@@ -224,7 +224,7 @@ export function init(canvas,videoEl){ video=videoEl;
   composer=new EffectComposer(renderer); composer.addPass(new RenderPass(scene,cam));
   bloom=new UnrealBloomPass(new THREE.Vector2(256,256),.7,.4,.86); composer.addPass(bloom); composer.addPass(new OutputPass());
   resize(); addEventListener('resize',resize);
-  return {renderer,scene,cam}; }
+  FX.scene=scene; return {renderer,scene,cam}; }
 export function resize(){ if(!renderer) return; FX.W=innerWidth; FX.H=innerHeight;
   dprNow=FX.low?1:Math.min(devicePixelRatio,1.25+FX.Q*.75);
   renderer.setPixelRatio(dprNow); renderer.setSize(FX.W,FX.H,false); composer.setPixelRatio(dprNow); composer.setSize(FX.W,FX.H);
