@@ -97,3 +97,28 @@ A natural strings combo would then read: **pulse (Open) → ripple (Weave) → c
 
 ### v6 tests
 `node tests/v6.test.mjs`: 28/28. Keeper: all 20 moves/states change the flame; alive after 400 dim moves and 10 s idle; follows the hands. Ribbon: 5 points above the tips; middle-finger curl moves mostly its own point. Palm-up fires at tilt 0.6, half-tilt gives the hint. Charge: starts at 0.23 s, grows, normal clap releases 67 ms **before** contact, 80 ms clap too; slow drift / heels apart / prayer / uncharged → no release; 20/20 under jitter. Fixes: 11 checks (hitbox, dwell, person guard ×4, cup hysteresis ×2, ember ×2). `node tests/moves.test.mjs` still 18/18, 180/180 jitter, 180/180 stiff.
+
+## v7: visible fire, juice, lab notes
+
+**Fire visibility.** Fire sprites now use normal (alpha) blending instead of additive, so they no longer blow out to white on a bright phone camera.
+- The palette is layered: deep red outer and tail, orange mid, yellow core, and a small white only at the hottest point. Colors are clamped to 1.
+- A soft dark rim lets the flame read on skin and white walls.
+- The scene adapts to brightness. Camera luminance (`S.luma`) feeds `FX.sceneL`. In bright scenes this raises saturation, contrast and the dark rim, and lowers additive glow and bloom. Bloom is 0.25 in fire mode, versus 0.6 elsewhere.
+- The keeper flame has licking tongues, rising embers, and heat shimmer (background refraction above the flame).
+- **Root cause found:** in stationary (phone-on-stand) mode, the effects clip zones killed any particle outside the object or fingertip zones, which included the keeper flame. Hands now get their own clip zones.
+
+**Water, earth and air.** Water has darker blue edges and specular that scales with brightness. Air blasts and swirls are tinted blue (`.45,.8,1`) instead of near-white. Earth uses the existing textured rock.
+
+**Juice (`juice.js`, `v7ui.js`).**
+- **Combo counter:** a 1.6 s window between moves. Varied moves count 1 each and repeating the same move counts ½.
+- **Tiers and rewards:** tiers are at 3, 6 and 10 moves. Rewards (🏅): Spark chain (3), Flowing hands (6), Keeper of the flame (10), and Six different moves.
+- **Sound:** WebAudio synth voices (whoosh, crackle, splash, thud, chime, hum, boom), with no audio files. A 🔊 mute toggle is saved to localStorage.
+- **Screen shake** on blast release, and fingertip particle trails in the element color.
+
+**Lab notes (`notes.js`).**
+- One small toast at a time, at least 25 s apart, and each note shows only once. A toast auto-closes after 11 s or on ✕.
+- Topics: the fire triangle, flame color vs temperature, cellulose combustion → CO₂ + H₂O + ash, latent heat of melting ice, water hydrogen bonds and surface tension, low-pressure vortex cores, rock types, and stored energy.
+- "Learn more →" switches to Atoms mode and opens an explainer that suggests atoms to build with.
+- **Mini quests:** "Light the candle" (pull a candle → light it → fire-triangle quiz), then "Melt the ice cube" (→ latent-heat quiz). Items now emit `item:melt`.
+
+Tests: `node tests/v7.test.mjs` (34 checks).

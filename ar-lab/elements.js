@@ -163,19 +163,23 @@ function stepKeeper(hands,dt){ const K=E.keeper||(E.keeper=keeperNew(FX.W/2,FX.H
   const held={cup:hs.some(h=>h.mvs?.cup),pour:hs.some(h=>h.mvs?.pour)};
   const S=keeperStep(K,anchor,dt,held); if(E.chg?.state==='charging') return; drawKeeper(S,K.s||90,dt); }
 function drawKeeper(S,sc,dt){ const k=FX.Q, z=sc*.55*S.size, x=S.x, y=S.y;
-  // warm core + halo (additive: brightens the scene, never darkens it)
-  L.glow.spawn(x,y+z*.2,0,0,{c:[1,.55,.18],a:.32*S.bright,size:z*4.2,life:.06,field:0});
-  L.glow.spawn(x,y+z*.15,0,0,{c:[1,.9,.65],a:.55*S.bright,size:z*1.3,life:.05,field:0});
+  // v7: small warm halo only (additive glow was washing the flame out to white on bright scenes); heat shimmer above
+  L.glow.spawn(x,y+z*.2,0,0,{c:[1,.4,.1],a:.18*S.bright,size:z*3.2,life:.06,field:0});
+  FX.shimmer={x,y:y-z*.6,r:z*1.5}; FX.shimT=FX.t;
   const n=Math.round((6+6*S.size+8*S.flicker)*k), up=150*S.height+40;
   for(let i=0;i<n;i++){ let px=x+rnd(-.35,.35)*z, py=y+rnd(-.1,.3)*z, vx=rnd(-14,14)*(1+S.flicker*2)+S.lean*90, vy=-rnd(.7,1)*up;
     if(S.swirl>.05){ const a=S.spin+i*2.4, r=z*(.5+.6*S.swirl); px=x+Math.cos(a)*r; py=y+Math.sin(a)*r*.45; vx+=-Math.sin(a)*220*S.swirl; vy+=Math.cos(a)*60*S.swirl; }
     L.fire.spawn(px,py,vx,vy,{size:rnd(.5,.9)*z,grow:.7,life:rnd(.22,.36)*(.8+.4*S.height),curl:1+S.flicker,a:.85}); }
-  if(S.weave>.05) for(let i=0;i<3;i++){ const a=S.spin*1.7+i*2.09; L.flame.spawn(x+Math.cos(a)*z*.9,y+Math.sin(a)*z*.3,0,-80,{c:[1.2,.75,.3],size:z*.35,life:.25,a:.7}); }
+  // v7: licking tongues: thin, fast, leaning flame licks that break off the top
+  if(Math.random()<.6*k+S.flicker*.3) for(let i=0;i<2;i++){ const a=rnd(-.6,.6); L.flame.spawn(x+a*z*.5,y-z*.2,a*60+S.lean*120+rnd(-30,30),-rnd(1.1,1.6)*up,{size:z*rnd(.28,.45),grow:-.3,life:rnd(.18,.3),curl:2,a:.9}); }
+  // v7: rising embers (always a few)
+  if(Math.random()<.35*k+S.sparks*.5) L.spark.spawn(x+rnd(-.4,.4)*z,y-z*.3,rnd(-40,40),-rnd(120,260),{c:[1,.45,.08],size:rnd(3,5),life:rnd(.6,1.2),grav:-40,curl:1.5});
+  if(S.weave>.05) for(let i=0;i<3;i++){ const a=S.spin*1.7+i*2.09; L.flame.spawn(x+Math.cos(a)*z*.9,y+Math.sin(a)*z*.3,0,-80,{size:z*.35,life:.25,a:.7}); }
   if(S.sparks>.1&&Math.random()<S.sparks*k) L.spark.spawn(x,y,rnd(-200,200),rnd(-320,-80),{c:[1,.75,.35],size:6,life:rnd(.3,.6),grav:500});
   E.hot.push({x,y,r:z*.9,held:true}); lightAt(x,y,[1,.6,.25],1.2*S.bright); }
 
 /* ---- v6: two-palm charge, then the clap launches a blast that flies toward/out of the screen ---- */
-const ELC={fire:[1,.55,.2],water:[.35,.7,1],earth:[.75,.55,.35],air:[.85,.95,1]};
+const ELC={fire:[1,.55,.2],water:[.35,.7,1],earth:[.75,.55,.35],air:[.45,.8,1]}; // v7: air tinted so its swirls read on white walls
 function stepCharge(hands,dt){ const hs=hands.filter(h=>h.palm&&h.pts); const C=E.chg||(E.chg=chargeNew());
   const r=chargeStep(C,hs[0],hs[1],FX.t,dt); E.chgLook=r; const m=E.mode, col=ELC[m]||[1,1,1];
   if(r.ev==='start'){ E.say('Charging: hold it… then clap to release'); E.ev('blast:charge'); C.bonus=heldBonus(); }

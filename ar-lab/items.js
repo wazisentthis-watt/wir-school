@@ -60,7 +60,7 @@ function thermal(t,dt){ const m=t.m, r=m.r*t.size;
   const k=m.metal?1.6:m.water?.35:1; t.temp+=heat*(m.metal?520:300)*k*dt; t.temp=Math.min(t.temp,m.metal?950:1100); t.temp+=(20-t.temp)*(m.metal?.12:.18)*dt;
   if(heat&&t.wet>0){ t.wet=Math.max(0,t.wet-heat*.25*dt); if(Math.random()<.4) steam(t,1); }
   // phase / material behaviour
-  if(m.ice){ if(t.temp>0){ t.size=Math.max(0,t.size-dt*(.01+Math.max(0,t.temp)*.0016)); if(Math.random()<.25) waterSpawn(t.x+rnd(-r*.4,r*.4),t.y+r*.6,rnd(-10,10),40,0,3); if(heat) t.temp=Math.min(t.temp,60); } }
+  if(m.ice){ if(t.temp>0){ if(!t.meltEv){ t.meltEv=1; window.labEvent?.('item:melt'); } t.size=Math.max(0,t.size-dt*(.01+Math.max(0,t.temp)*.0016)); if(Math.random()<.25) waterSpawn(t.x+rnd(-r*.4,r*.4),t.y+r*.6,rnd(-10,10),40,0,3); if(heat) t.temp=Math.min(t.temp,60); } }
   if(m.water){ if(t.temp>=100){ t.temp=100+(t.temp-100)*.2; if(t.level>0){ t.level=Math.max(0,t.level-dt*.02); if(Math.random()<.5) steam(t,1); } }
     t.frozen=Math.max(0,Math.min(1,t.frozen+(t.temp<0?dt*.25:-dt*.3))); }
   if(t.wet>0&&!m.water) t.frozen=Math.max(0,Math.min(1,t.frozen+(t.temp<0?dt*.4:-dt*.5)))*(t.wet>.05?1:0);

@@ -9,6 +9,7 @@ import * as GE from './gear.js';
 import * as BU from './burn.js';
 import * as BO from './body.js';
 import * as IT from './items.js';
+import * as V7 from './v7ui.js';
 const {E}=EL;
 const VISION = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 const $ = id => document.getElementById(id);
@@ -224,7 +225,7 @@ function frameForDetect(){
   const meter=(S.metN=(S.metN||0)+1)%15===0, apply=S.boost==='on'||(S.boost==='auto'&&S.boostOn);
   if(!meter&&!apply) return proc;
   const img=pctx.getImageData(0,0,W,H), d=img.data;
-  if(meter){ let sum=0,n=0; for(let i=0;i<d.length;i+=64){sum+=d[i]*.3+d[i+1]*.59+d[i+2]*.11;n++;} S.luma=sum/n;
+  if(meter){ let sum=0,n=0; for(let i=0;i<d.length;i+=64){sum+=d[i]*.3+d[i+1]*.59+d[i+2]*.11;n++;} S.luma=sum/n; FX.sceneL=S.luma/255;
     S.boostOn=S.luma<95; updBoostBtn();
     let c=0,cn=0,e2=0,en=0; for(let y=0;y<H;y+=6) for(let x=0;x<W;x+=6){ const k=(y*W+x)*4, l=d[k]*.3+d[k+1]*.59+d[k+2]*.11; if(x>W*.3&&x<W*.7&&y>H*.3&&y<H*.7){c+=l;cn++;} else if(x<W*.12||x>W*.88||y<H*.12){e2+=l;en++;} }
     S.backlit=(e2/en)-(c/cn)>45&&(c/cn)<120; lightWarn(S.backlit?'☀️ Backlit':S.luma<60?'🌙 Dim light':null); }
@@ -330,7 +331,7 @@ function gestureHud(hs){ const act=new Set(); for(const h of hs){ act.add(h.g); 
   if(hs.some(h=>h.mvs?.tiltHint)&&!E.chg?.state?.startsWith('ch')&&(!S.tiltT||performance.now()-S.tiltT>7000)){ S.tiltT=performance.now(); E.say('Palm up? Tilt your palm toward you (not fingers at the camera)'); window.labEvent?.('hint:tilt'); }
   document.querySelectorAll('.gh').forEach(n=>n.classList.toggle('on',act.has(n.dataset.k)));
   $('gnow').textContent=hs.map((h,i)=>`${hs.length>1?(i?'R ':'L '):''}${({open:'open palm',poke:'☝️ poke',cup:'🤲 cup',fist:'fist',relaxed:'relaxed',none:'—'})[h.g]||h.g}`).join('   '); }
-function setMode(m){ E.mode=m; document.querySelectorAll('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+function setMode(m){ E.mode=m; FX.bloomK=m==='fire'?.25:.6; FX.glowK=m==='fire'?.5:1; document.querySelectorAll('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
   const chem=m==='chem'; $('shelf').hidden=!chem; $('targets').hidden=!chem; $('cursor').hidden=!chem; $('ignite').hidden=!chem;
   EL.clearAll(); buildHud(); AT.show(m==='atoms'); GE.show(m==='gear'); window.labEvent?.('mode:'+m);
   requestAnimationFrame(()=>{ const r={}; document.querySelectorAll('.tg').forEach(t=>r[t.dataset.id]=t.getBoundingClientRect()); EL.chemProps(chem,r); });
@@ -395,14 +396,17 @@ addEventListener('pointerup',up); addEventListener('pointercancel',up);
 
 /* ---------- loop with adaptive quality ---------- */
 let last=performance.now(), fpsAcc=0, fpsN=0, qAcc=0, qN=0;
+/* v7: in stationary (phone-on-stand) mode, effects carried by the hands (keeper flame, ribbons) must not be clipped away:
+   that clipping is what made the fire nearly invisible on a propped-up phone */
+function handZones(hs){ return hs.map(h=>{ const k=h.scale||90; return {x:h.palm.x-k*1.6,y:h.palm.y-k*2.6,w:k*3.2,h:k*3.4,up:k*1.5}; }); }
 function loop(now){
   const dt=Math.min(.05,(now-last)/1000); last=now; frameN++;
   if(!S.rvfc||synth||VH.on||VH.off>0) try{ trackHands(now,dt); }catch(e){ console.warn(e); }
   pollPad(dt);
   const hs=(S.handsNow||[]).filter(h=>h.palm);
   pokeTap(hs,dt); for(const h of hs) if(h.changed&&h.g!=='relaxed'&&h.g!=='none') window.labEvent?.(`g:${h.g}:${E.mode}`);
-  try{ if(E.mode==='atoms') AT.update(hs,dt); EL.update(E.mode==='chem'||E.mode==='atoms'||E.mode==='gear'?[]:hs,dt); GE.update(E.mode==='gear'?hs:[],dt); const elm=['water','fire','earth','air'].includes(E.mode), still=STL.update(dt,now); BU.B.still=still&&elm; BU.B.tip=hs[0]?.pinchPt||null; BU.B.palms=hs.filter(h=>h.palm).map((h,i)=>({id:i,x:h.palm.x,y:h.palm.y,s:h.scale,g:h.g})); IT.update(hs,dt); BU.B.debug=document.body.classList.contains('more'); FX.clip=BU.B.still?BU.zones(hs[0]?.pinchPt).concat(IT.zones()):null; stillHud(still);
-    BU.update(dt,now,E.mode==='fire'||E.mode==='gear'||BU.B.still); EL.chemStep(dt); FXE.step(dt); TR.update(dt,hs.length>0); }catch(e){ console.warn(e); }
+  try{ if(E.mode==='atoms') AT.update(hs,dt); EL.update(E.mode==='chem'||E.mode==='atoms'||E.mode==='gear'?[]:hs,dt); GE.update(E.mode==='gear'?hs:[],dt); const elm=['water','fire','earth','air'].includes(E.mode), still=STL.update(dt,now); BU.B.still=still&&elm; BU.B.tip=hs[0]?.pinchPt||null; BU.B.palms=hs.filter(h=>h.palm).map((h,i)=>({id:i,x:h.palm.x,y:h.palm.y,s:h.scale,g:h.g})); IT.update(hs,dt); BU.B.debug=document.body.classList.contains('more'); FX.clip=BU.B.still?BU.zones(hs[0]?.pinchPt).concat(IT.zones(),handZones(hs)):null; stillHud(still);
+    BU.update(dt,now,E.mode==='fire'||E.mode==='gear'||BU.B.still); EL.chemStep(dt); V7.tick(hs); FXE.step(dt); TR.update(dt,hs.length>0); }catch(e){ console.warn(e); }
   if(E.mode==='chem'){ cur.style.left=S.cursor.x+'px'; cur.style.top=S.cursor.y+'px';
     document.querySelectorAll('.tg').forEach(t=>t.classList.toggle('hot',!!S.held&&hit('.tg',S.cursor.x,S.cursor.y)===t)); }
   fpsAcc+=dt;fpsN++; qAcc+=dt;qN++;
@@ -428,7 +432,7 @@ function startTrackLoop(){ if(S.rvfc||!('requestVideoFrameCallback' in HTMLVideo
 const MODES_LIST=['water','fire','earth','air','atoms','gear','chem'];
 let started=false;
 window.startLab=()=>{ if(started) return; started=true; hud.hidden=false; refreshLocks();
-  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); IT.init(E.say); STL.init(video); TR.init({pose,say:E.say,setMode}); E.onEv=n=>{ TR.onEv(n); window.labEvent?.(n); }; setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
+  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); IT.init(E.say); STL.init(video); TR.init({pose,say:E.say,setMode}); E.onEv=n=>{ TR.onEv(n); window.labEvent?.(n); }; { const pe=window.labEvent; window.labEvent=n=>{ try{pe?.(n);}catch{} try{V7.onEv(n);}catch(e){console.warn(e);} }; V7.init({E,FX,L:FXE.L,setMode}); window.__v7=V7; } setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
   status('Pick a mode. Hands: ☝️ point = poke/press, 🤲 cup = hold, flowing moves (ripple, pulse, scoop…) in ⋯.  No camera? Drag with one or two fingers.'); };
 $('modes').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b&&b.dataset.m){ setMode(b.dataset.m); TR.T.on&&TR.T.el!==b.dataset.m&&TR.stop(); } });
 $('boost').onclick=()=>{ S.boost={auto:'on',on:'off',off:'auto'}[S.boost]; updBoostBtn(); };

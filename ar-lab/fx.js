@@ -29,14 +29,21 @@ export function addField(f){ FX.fields.push({life:1,dir:1,...f}); }
 /* ---- sprite layers ---- */
 const VS=`attribute vec4 acol;attribute float size,rot,age;varying vec4 vC;varying float vR,vA;uniform float dpr;
 void main(){vC=acol;vR=rot;vA=age;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_PointSize=size*dpr;}`;
-const FS=`uniform sampler2D map;uniform float heat,add,fin;varying vec4 vC;varying float vR,vA;
+const FS=`uniform sampler2D map;uniform float heat,add,fin,gain,sat,outline;varying vec4 vC;varying float vR,vA;
 void main(){vec2 p=gl_PointCoord-.5;float c=cos(vR),s=sin(vR);p=mat2(c,-s,s,c)*p*1.25+.5;
  if(p.x<0.||p.y<0.||p.x>1.||p.y>1.) discard; vec4 t=texture2D(map,p);
  float fade=smoothstep(0.,fin,vA)*(1.-smoothstep(add>.5?.6:.35,add>.5?1.:.8,vA)); vec3 col=vC.rgb; float ta=t.a;
- if(heat>.5){ ta=smoothstep(.18,.8,t.a); float core=smoothstep(.55,.95,t.a);
-  vec3 h=mix(vec3(.55,.7,1.6),vec3(1.5,1.3,.85),smoothstep(0.,.08,vA)); h=mix(h,vec3(1.35,.8,.2),smoothstep(.08,.3,vA)); h=mix(h,vec3(1.1,.32,.05),smoothstep(.3,.6,vA)); h=mix(h,vec3(.3,.03,.01),smoothstep(.6,.95,vA));
-  h=mix(h,vec3(1.6,1.45,1.1),core*(1.-smoothstep(.1,.5,vA))); col*=h; }
- float a=ta*vC.a*fade; if(!(a>.002)) discard; col=clamp(col,0.,3.); if(add<.5) a=min(a,.3); gl_FragColor=add>.5?vec4(col*a,a):vec4(col*t.rgb,a);
+ if(heat>.5){ // v7: layered, saturated flame with NORMAL blending (no additive blowout to white)
+  ta=smoothstep(.04,.4,t.a); float core=smoothstep(.45,.9,t.a); fade=smoothstep(0.,fin,vA)*(1.-smoothstep(.5,1.,vA));
+  vec3 h=mix(vec3(1.,.62,.12),vec3(.95,.32,.03),smoothstep(.1,.45,vA));    // orange mid
+  h=mix(h,vec3(.72,.07,.02),smoothstep(.45,.8,vA)); h=mix(h,vec3(.32,.02,.01),smoothstep(.8,1.,vA)); // deep red outer / tail
+  h=mix(h,vec3(1.,.86,.28),max(core,.5)*(1.-smoothstep(.0,.35,vA)));                 // yellow core
+  h=mix(h,vec3(1.,.98,.9),core*core*core*(1.-smoothstep(0.,.1,vA))*.55);     // small white only at the hottest point
+  float rim=smoothstep(.03,.1,t.a)*(1.-smoothstep(.12,.3,t.a)); h*=1.-rim*outline; // soft dark edge so it reads on skin / bright walls
+  float g=dot(h,vec3(.3,.59,.11)); h=clamp(mix(vec3(g),h,sat),0.,1.); h=clamp((h-.5)*(1.+(sat-1.)*.5)+.5,0.,1.);
+  float a=min(1.,ta*vC.a*fade*(1.15+.35*outline)); if(!(a>.002)) discard; gl_FragColor=vec4(h*vC.rgb,a);
+ } else {
+ float a=ta*vC.a*fade*gain; if(!(a>.002)) discard; col=clamp(col,0.,add>.5?1.6:3.); if(add<.5) a=min(a,.3); gl_FragColor=add>.5?vec4(col*a,a):vec4(col*t.rgb,a); }
  #include <colorspace_fragment>
 }`;
 class Layer{
@@ -47,8 +54,8 @@ class Layer{
     const g=this.g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.BufferAttribute(this.pos,3));g.setAttribute('acol',new THREE.BufferAttribute(this.col,4));
     g.setAttribute('size',new THREE.BufferAttribute(this.sz,1));g.setAttribute('rot',new THREE.BufferAttribute(this.rot,1));g.setAttribute('age',new THREE.BufferAttribute(this.age,1));
-    this.mat=new THREE.ShaderMaterial({uniforms:{map:{value:map},dpr:{value:1},heat:{value:heat?1:0},add:{value:add?1:0},fin:{value:fin}},vertexShader:VS,fragmentShader:FS,
-      transparent:true,depthTest:false,depthWrite:false,blending:add?THREE.AdditiveBlending:THREE.NormalBlending});
+    this.mat=new THREE.ShaderMaterial({uniforms:{map:{value:map},dpr:{value:1},heat:{value:heat?1:0},add:{value:add&&!heat?1:0},fin:{value:fin},gain:{value:1},sat:{value:1},outline:{value:.35}},vertexShader:VS,fragmentShader:FS,
+      transparent:true,depthTest:false,depthWrite:false,blending:add&&!heat?THREE.AdditiveBlending:THREE.NormalBlending});
     this.pts=new THREE.Points(g,this.mat); this.pts.frustumCulled=false; this.pts.renderOrder=order; }
   spawn(x,y,vx,vy,o={}){ if(this.n>=this.max*FX.Q||(this.rate<1&&Math.random()>this.rate)) return -1; if(FX.clip&&this.clip&&!inClip(x,y)) return -1; const i=this.n++, c=o.c||[1,1,1];
     this.x[i]=x;this.y[i]=y;this.vx[i]=vx;this.vy[i]=vy;this.life[i]=this.maxl[i]=(o.life||1)*this.lifeK;this.drag[i]=o.drag??.985;this.grav[i]=o.grav||0;
@@ -176,12 +183,12 @@ function rockStep(dt){ const H=FX.H,W=FX.W;
 
 /* ---- background camera quad + water composite ---- */
 const QUAD_VS=`varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}`;
-const CAMFN=`uniform sampler2D cam;uniform float hasCam,mirror;uniform vec2 fr;
-vec3 camAt(vec2 uv){ if(hasCam<.5) return mix(vec3(.02,.01,.05),vec3(.1,.05,.2),uv.y); vec2 v=vec2(.5+(uv.x-.5)*fr.x*(mirror>.5?-1.:1.),.5+(uv.y-.5)*fr.y); return texture2D(cam,v).rgb; }`;
+const CAMFN=`uniform sampler2D cam;uniform float hasCam,mirror,shT;uniform vec2 fr;uniform vec3 shP;
+vec3 camAt(vec2 uv){ if(shP.z>0.){ vec2 q=(uv-shP.xy)/vec2(shP.z,shP.z*1.6); float k=exp(-dot(q,q)*2.)*step(shP.y-shP.z*.4,uv.y); uv+=k*vec2(sin(uv.y*90.+shT*9.),cos(uv.x*70.+shT*7.))*.0035; } if(hasCam<.5) return mix(vec3(.02,.01,.05),vec3(.1,.05,.2),uv.y); vec2 v=vec2(.5+(uv.x-.5)*fr.x*(mirror>.5?-1.:1.),.5+(uv.y-.5)*fr.y); return texture2D(cam,v).rgb; }`;
 let CAMU;
 function initBG(){
   camTex=new THREE.VideoTexture(video); camTex.colorSpace=THREE.SRGBColorSpace;
-  const U=CAMU={cam:{value:camTex},hasCam:{value:0},mirror:{value:0},fr:{value:new THREE.Vector2(1,1)}};
+  const U=CAMU={cam:{value:camTex},hasCam:{value:0},mirror:{value:0},fr:{value:new THREE.Vector2(1,1)},shT:{value:0},shP:{value:new THREE.Vector3(0,0,0)}};
   bgMat=new THREE.ShaderMaterial({uniforms:U,vertexShader:QUAD_VS,depthTest:false,depthWrite:false,
     fragmentShader:CAMFN+`varying vec2 vUv;void main(){gl_FragColor=vec4(camAt(vUv),1.);
  #include <colorspace_fragment>
@@ -194,15 +201,15 @@ function initBG(){
     vertexShader:`uniform float sz;void main(){gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);gl_PointSize=sz;}`,
     fragmentShader:`void main(){vec2 p=gl_PointCoord-.5;float d=exp(-dot(p,p)*14.);gl_FragColor=vec4(d*.55,d*.55,d*.55,1.);}`});
   const wp=new THREE.Points(g,WATER.mat); wp.frustumCulled=false; wScene.add(wp);
-  wComp=new THREE.ShaderMaterial({uniforms:{...U,dens:{value:wRT.texture},px:{value:new THREE.Vector2(.01,.01)},time:{value:0}},vertexShader:QUAD_VS,transparent:true,depthTest:false,depthWrite:false,
-    fragmentShader:CAMFN+`uniform sampler2D dens;uniform vec2 px;uniform float time;varying vec2 vUv;
+  wComp=new THREE.ShaderMaterial({uniforms:{...U,dens:{value:wRT.texture},vis:{value:0},px:{value:new THREE.Vector2(.01,.01)},time:{value:0}},vertexShader:QUAD_VS,transparent:true,depthTest:false,depthWrite:false,
+    fragmentShader:CAMFN+`uniform sampler2D dens;uniform vec2 px;uniform float time,vis;varying vec2 vUv;
 void main(){ float d=texture2D(dens,vUv).r; float m=smoothstep(.4,.46,d); if(m<.01) discard;
  float dx=texture2D(dens,vUv+vec2(px.x,0.)).r-texture2D(dens,vUv-vec2(px.x,0.)).r, dy=texture2D(dens,vUv+vec2(0.,px.y)).r-texture2D(dens,vUv-vec2(0.,px.y)).r;
  vec3 n=normalize(vec3(-dx*5.,-dy*5.,.6+d*.4));
  vec3 bg=camAt(vUv+n.xy*.09+vec2(sin(time*2.+vUv.y*30.)*.004,cos(time*1.7+vUv.x*25.)*.003));
- float edge=1.-smoothstep(.4,.52,d); vec3 col=bg*vec3(.86,.95,1.02)+vec3(.0,.03,.06); col=mix(col,vec3(.1,.3,.45),.08+.25*(1.-n.z)); col*=1.-edge*.28;
+ float edge=1.-smoothstep(.4,.52,d); vec3 col=bg*vec3(.86,.95,1.02)+vec3(.0,.03,.06); col=mix(col,vec3(.1,.3,.45),.08+.25*(1.-n.z)); col*=1.-edge*.28; col=mix(col,vec3(.02,.12,.3),edge*(.35+.3*vis));
  float spec=pow(max(dot(normalize(reflect(vec3(0.,0.,-1.),n)),normalize(vec3(-.45,.55,.7))),0.),40.);
- float rim=pow(1.-n.z,3.); float caus=pow(max(0.,sin(vUv.x*37.+time*1.3+n.x*14.+sin(vUv.y*23.))*sin(vUv.y*29.-time*1.1+n.y*14.)),8.)*.12; col+=spec*vec3(1.8)+rim*vec3(.55,.8,1.)*.55+caus + smoothstep(.48,.36,d)*.0;
+ float rim=pow(1.-n.z,3.); float caus=pow(max(0.,sin(vUv.x*37.+time*1.3+n.x*14.+sin(vUv.y*23.))*sin(vUv.y*29.-time*1.1+n.y*14.)),8.)*.12; col+=spec*vec3(1.4+vis)+rim*vec3(.55,.8,1.)*.55+caus + smoothstep(.48,.36,d)*.0;
  gl_FragColor=vec4(col,m*.9);
  #include <colorspace_fragment>
 }`});
@@ -255,7 +262,11 @@ export function step(dt){ FX.t+=dt;
   if(FX.shake>0){ FX.shake*=Math.pow(.02,dt); cam.position.set(rnd(-1,1)*FX.shake,rnd(-1,1)*FX.shake,0); if(FX.shake<.3){FX.shake=0;cam.position.set(0,0,0);} }
   FX.light.intensity*=Math.pow(.05,dt);
   if(FX.flash>0){ FX.flash*=Math.pow(.001,dt); }
-  bloom.strength=.6+Math.min(1.2,FX.flash*1.5);
+  { const Lm=FX.sceneL??.4, bright=Math.max(0,Lm-.42)/.58; FX.vis=bright; // v7 scene-adaptive visibility
+    for(const k of ['fire','flame']){ const u=L[k].mat.uniforms; u.sat.value=1.15+bright*.9; u.outline.value=.3+.45*bright; }
+    for(const k of ['glow','spark','magic']) L[k].mat.uniforms.gain.value=(FX.glowK??1)*(1-.55*bright);
+    wComp.uniforms.vis.value=bright; CAMU.shT.value=FX.t; const sh=FX.shimmer&&FX.t-(FX.shimT||0)<.15?FX.shimmer:null; if(sh) CAMU.shP.value.set(sh.x/FX.W,1-sh.y/FX.H,sh.r/FX.W); else CAMU.shP.value.z=0; }
+  bloom.strength=(FX.bloomK??.6)*(1-.5*(FX.vis||0))+Math.min(.8,FX.flash*1.0);
   renderer.setRenderTarget(wRT); renderer.setClearColor(0,1); renderer.clear(); renderer.render(wScene,cam); renderer.setRenderTarget(null);
   if(FX.low||FX.Q<.45) renderer.render(scene,cam); else composer.render(); }
 export function lightAt(x,y,c,i){ FX.light.position.set(x,-y,220); FX.light.color.setRGB(...c); FX.light.intensity=Math.max(FX.light.intensity,i); }
