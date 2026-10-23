@@ -15,25 +15,28 @@
 <div id="gate" class="screen" hidden></div>
 
 <div id="hud" hidden>
+  <div id="modes"><button data-m="water" class="m-water">Water</button><button data-m="fire" class="m-fire">Fire</button><button data-m="earth" class="m-earth">Earth</button><button data-m="air" class="m-air">Air</button><button data-m="chem" class="m-chem">Chem lab</button></div>
+  <div id="gest"></div><div id="gnow"></div><div id="gsay"></div>
   <div id="shelf"></div>
   <div id="targets"></div>
   <div id="cursor"></div>
   <div id="palm"><div id="palmFill"></div></div>
   <div id="status">Starting…</div>
   <div id="bar">
-    <button id="flip">🔄 Camera</button>
-    <button id="ignite">🔥 Ignite</button>
-    <button id="reset">♻️ Reset</button>
-    <button id="boost">🌙 Boost: Auto</button>
-    <button id="calib">✋ Calibrate</button>
+    <button id="flip">Flip camera</button>
+    <button id="ignite">Ignite</button>
+    <button id="reset">Reset</button>
+    <button id="boost">Boost: Auto</button>
+    <button id="calib">Calibrate</button>
     <label><input type="checkbox" id="lowpow"> Low power</label>
     <span id="fps"></span>
   </div>
   <div id="hint" hidden></div>
-  <div id="calbox" hidden><div class="cbig" id="calIcon">✋</div><div id="calMsg">Show your open hand to the camera</div><div class="pbar"><div id="calFill"></div></div><button id="calSkip">Skip</button></div>
+  <div id="calbox" hidden><div class="cbig" id="calIcon">1</div><div id="calMsg">Show your open hand to the camera</div><div class="pbar"><div id="calFill"></div></div><button id="calSkip">Skip</button></div>
   <div id="camerr" hidden></div>
   <div id="card" hidden><div class="inner" id="cardBody"></div><button id="cardClose">Got it, back to lab</button></div>
 </div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script src="gate.js"></script>
 <script type="module" src="app.js"></script>
 </body></html>

@@ -1,4 +1,7 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import * as FXE from './fx.js';
+import {FX} from './fx.js';
+import * as EL from './elements.js';
+const {E}=EL;
 const VISION = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 const $ = id => document.getElementById(id);
 
@@ -11,9 +14,9 @@ const ELEMENTS = [
   {id:'Fe', name:'Iron filings', color:'#ff7a2a'},
 ];
 const TARGETS = [
-  {id:'water', icon:'💧', name:'Water'},
-  {id:'flame', icon:'🔥', name:'Flame'},
-  {id:'paper', icon:'📄', name:'Paper'},
+  {id:'water', name:'Water dish'},
+  {id:'flame', name:'Burner'},
+  {id:'paper', name:'Paper'},
 ];
 const HUMAN = "Don't get smart to hurt nobody.";
 // Each reaction: fx preset + card. All are standard classroom demos, shown virtually.
@@ -108,20 +111,20 @@ const shelf=$('shelf'), tgs=$('targets'), cur=$('cursor');
 ELEMENTS.forEach(e=>{const d=document.createElement('div');d.className='el';d.dataset.id=e.id;
   d.style.borderColor=e.color;d.innerHTML=`${e.id}<small>${e.name}</small>`;shelf.appendChild(d);});
 TARGETS.forEach(t=>{const d=document.createElement('div');d.className='tg';d.dataset.id=t.id;
-  d.innerHTML=`${t.icon}<span>${t.name}</span><div class="load"></div>`;tgs.appendChild(d);});
+  d.innerHTML=`<span>${t.name}</span><div class="load"></div>`;tgs.appendChild(d);});
 const status = m => $('status').textContent = m;
 
 function hit(sel,x,y){for(const n of document.querySelectorAll(sel)){const r=n.getBoundingClientRect();
   const pad=14; if(x>r.left-pad&&x<r.right+pad&&y>r.top-pad&&y<r.bottom+pad) return n;} return null;}
 
 function grab(){ if(S.held||S.busy) return; const n=hit('.el',S.cursor.x,S.cursor.y);
-  if(n&&n.classList.contains('locked')){ status(`🔒 ${n.dataset.id} unlocks after ${UNLOCK[n.dataset.id]} different reactions (you have ${doneN()}).`); return; }
+  if(n&&n.classList.contains('locked')){ status(`Locked: ${n.dataset.id} unlocks after ${UNLOCK[n.dataset.id]} different reactions (you have ${doneN()}).`); return; }
   if(n){S.held=n.dataset.id; cur.classList.add('grab'); cur.textContent=S.held; status(`Holding ${S.held}. Drop it on water, flame or paper.`);} }
 function release(){ if(!S.held) return; const t=hit('.tg',S.cursor.x,S.cursor.y);
   if(t){ const id=t.dataset.id; S.loads[id]=S.held; t.querySelector('.load').textContent=S.held;
     if(id==='water' && (S.held==='Na'||S.held==='K'||S.held==='Mg')) react(S.held,'water',false);
     else if(id==='water') react(S.held,'water',false);
-    else status(`${S.held} is on the ${id}. Hold an open palm 1 s (or 🔥 / B) to ignite.`);
+    else status(`${S.held} is on the ${id}. Hold an open palm 1 s (or Ignite / B) to ignite.`);
   } else status('Dropped in mid-air. Gravity is virtual too. Try again.');
   S.held=null; cur.classList.remove('grab'); cur.textContent=''; }
 function ignite(){ if(S.busy) return;
@@ -129,8 +132,8 @@ function ignite(){ if(S.busy) return;
   for(const t of ['flame','paper']) if(S.loads[t]) return react(S.loads[t],t,true);
   if(S.loads.water) return react(S.loads.water,'water',true);
   status('Nothing loaded. Pinch an element and drop it on a target first.');
-  burst('spark', tgPos('flame'), [1,.6,.2], 40); }
-function resetLab(){ S.loads={}; document.querySelectorAll('.tg .load').forEach(n=>n.textContent='');
+  const p=tgPos('flame'); for(let i=0;i<30;i++){const a=FXE.rnd(-3,-.2),v=FXE.rnd(200,600);FXE.L.streak.spawn(p.x,p.y,Math.cos(a)*v,Math.sin(a)*v,{life:.5,w:1.6,lag:16,grav:900,c:[1.2,.65,.2]});} }
+function resetLab(){ S.loads={}; EL.chemReset(); document.querySelectorAll('.tg .load').forEach(n=>n.textContent='');
   status('Lab reset. Inspector Spud has filed nothing. For once.'); }
 
 /* ---------- reactions ---------- */
@@ -139,9 +142,9 @@ function react(el,target,fire){
   let key = target==='water' ? el+'+water'+(fire?'+fire':'') : el+'+fire';
   const r = R[key]; if(!r) return;
   S.busy=true; markDone(key); const p=tgPos(target);
-  if(target==='paper'&&fire) runFx('paper',p,{});
-  runFx(r.fx,p,r);
-  status(fire?`🔥 ${el} ignited on ${target}…`:`${el} meets water…`);
+  if(target==='paper'&&fire) EL.chemFx('paper',target,{});
+  EL.chemFx(r.fx,target,r);
+  status(fire?`${el} ignited on ${target}…`:`${el} meets water…`);
   setTimeout(()=>showCard(r), r.fx==='nothing'?900:3200);
 }
 function showCard(r){
@@ -152,82 +155,11 @@ function showCard(r){
   $('card').hidden=false; }
 $('cardClose').onclick=()=>{$('card').hidden=true;S.busy=false;resetLab();};
 
-/* ---------- three.js particles ---------- */
-const canvas=$('fx'); let renderer, scene, cam3, geo, MAX=4000;
-const P={pos:null,col:null,size:null,vel:null,life:null,maxl:null,n:0,drag:null,grav:null};
-const emitters=[];
-function initThree(){
-  renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:false});
-  scene=new THREE.Scene(); cam3=new THREE.OrthographicCamera(0,1,0,1,-10,10);
-  geo=new THREE.BufferGeometry();
-  P.pos=new Float32Array(MAX*3);P.col=new Float32Array(MAX*3);P.size=new Float32Array(MAX);
-  P.vel=new Float32Array(MAX*2);P.life=new Float32Array(MAX);P.maxl=new Float32Array(MAX);P.drag=new Float32Array(MAX);P.grav=new Float32Array(MAX);
-  geo.setAttribute('position',new THREE.BufferAttribute(P.pos,3));
-  geo.setAttribute('color',new THREE.BufferAttribute(P.col,3));
-  geo.setAttribute('size',new THREE.BufferAttribute(P.size,1));
-  const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
-    uniforms:{dpr:{value:1},tex:{value:new THREE.TextureLoader().load('assets/kenney_light_01.png')}},
-    vertexShader:`attribute float size;varying vec3 vC;uniform float dpr;void main(){vC=color;gl_PointSize=size*dpr;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
-    fragmentShader:`varying vec3 vC;uniform sampler2D tex;void main(){vec4 t=texture2D(tex,gl_PointCoord);float d=length(gl_PointCoord-.5);float a=max(t.a*max(t.r,.6),smoothstep(.5,0.,d)*.35);gl_FragColor=vec4(vC*a,a);}`,
-    vertexColors:true});
-  P.mat=mat; scene.add(new THREE.Points(geo,mat)); resize();
-}
-function resize(){ if(!renderer) return; const dpr=S.low?1:Math.min(devicePixelRatio,2);
-  renderer.setPixelRatio(dpr); renderer.setSize(innerWidth,innerHeight,false);
-  cam3.right=innerWidth; cam3.bottom=innerHeight; cam3.updateProjectionMatrix(); P.mat.uniforms.dpr.value=dpr; }
-addEventListener('resize',resize);
-function spawn(x,y,vx,vy,c,size,life,drag=0.98,grav=0){
-  const cap=S.low?1200:MAX; if(P.n>=cap) return; const i=P.n++;
-  P.pos[i*3]=x;P.pos[i*3+1]=y;P.pos[i*3+2]=0;P.vel[i*2]=vx;P.vel[i*2+1]=vy;
-  P.col[i*3]=c[0];P.col[i*3+1]=c[1];P.col[i*3+2]=c[2];P.size[i]=size;P.life[i]=life;P.maxl[i]=life;P.drag[i]=drag;P.grav[i]=grav;}
-function kill(i){const j=--P.n; if(i===j) return;
-  for(const [a,k] of [[P.pos,3],[P.col,3],[P.vel,2]]) for(let q=0;q<k;q++) a[i*k+q]=a[j*k+q];
-  for(const a of [P.size,P.life,P.maxl,P.drag,P.grav]) a[i]=a[j];}
-const rnd=(a,b)=>a+Math.random()*(b-a);
-function burst(type,p,c,n){for(let i=0;i<n;i++){const a=rnd(0,6.28),s=rnd(1,6);spawn(p.x,p.y,Math.cos(a)*s,Math.sin(a)*s,c,rnd(4,10),rnd(.4,1),.95,.08);}}
-function flash(o,ms){const f=$('flash');f.style.opacity=o;setTimeout(()=>f.style.opacity=0,ms);}
-function runFx(type,p,r){ emitters.push({type,p:{...p},o:{...p},t:0,dur:type==='nothing'?1:3.2,color:r.color}); }
-function stepEmitter(e,dt){
-  e.t+=dt; const k=S.low?.4:1, p=e.p;
-  switch(e.type){
-   case 'mgburn': { // brilliant white core, white MgO smoke rising
-     if(Math.random()<.5) flash(rnd(.35,.7),60);
-     for(let i=0;i<40*k;i++) spawn(p.x+rnd(-6,6),p.y+rnd(-6,6),rnd(-1.5,1.5),rnd(-3,0),[1,1,1],rnd(10,26),rnd(.15,.4),.9);
-     for(let i=0;i<6*k;i++) spawn(p.x,p.y-10,rnd(-.6,.6),rnd(-1.6,-.6),[.35,.35,.4],rnd(18,34),rnd(1,2),.99);
-     for(let i=0;i<4*k;i++){const a=rnd(0,6.28);spawn(p.x,p.y,Math.cos(a)*6,Math.sin(a)*6,[.8,.85,1],4,.5,.96,.15);} break; }
-   case 'mgflare': {
-     flash(rnd(.5,.9),80);
-     for(let i=0;i<70*k;i++){const a=rnd(0,6.28),s=rnd(1,9);spawn(p.x,p.y,Math.cos(a)*s,Math.sin(a)*s-2,[1,1,rnd(.85,1)],rnd(8,28),rnd(.3,.9),.94,.1);} break; }
-   case 'fizzslow': if(Math.random()<.15) spawn(p.x+rnd(-20,20),p.y+10,0,-.6,[.6,.8,1],6,1.5,1); break;
-   case 'nawater': case 'kwater': { // ball zips around the water, fizzing, coloured H2 flame
-     const K=e.type==='kwater', sp=K?9:5;
-     p.x=e.o.x+Math.sin(e.t*sp*1.3)*70+Math.sin(e.t*sp*3.1)*20; p.y=e.o.y+Math.cos(e.t*sp)*22;
-     const c=K?[.75,.55,1]:[1,.62,.12];
-     spawn(p.x,p.y,0,0,[1,1,.9],16,.08,1);
-     for(let i=0;i<(K?18:10)*k;i++) spawn(p.x+rnd(-8,8),p.y,rnd(-1,1),rnd(-3.5,-1),c,rnd(8,18),rnd(.2,.5),.95);
-     for(let i=0;i<4*k;i++) spawn(p.x+rnd(-14,14),p.y+rnd(0,8),rnd(-.5,.5),rnd(-1.5,-.4),[.7,.85,1],rnd(3,6),.6,.98); // H2 fizz
-     if(K&&Math.random()<.08){burst('pop',p,c,40*k);flash(.25,50);} break; }
-   case 'flametest': { const c=e.color;
-     for(let i=0;i<22*k;i++) spawn(p.x+rnd(-14,14),p.y,rnd(-.6,.6),rnd(-4,-1.5),c,rnd(10,22),rnd(.3,.7),.97); break; }
-   case 'sparks': {
-     for(let i=0;i<14*k;i++){const a=rnd(-2.8,-.3),s=rnd(4,11);spawn(p.x,p.y,Math.cos(a)*s,Math.sin(a)*s,[1,rnd(.45,.7),.15],rnd(3,6),rnd(.4,.9),.97,.25);}
-     for(let i=0;i<6*k;i++) spawn(p.x+rnd(-10,10),p.y,0,rnd(-3,-1),[1,.5,.1],14,.4,.97); break; }
-   case 'paper': for(let i=0;i<10*k;i++) spawn(p.x+rnd(-35,35),p.y+rnd(-20,20),0,rnd(-2,-.5),[1,.45,.1],rnd(8,16),rnd(.3,.6),.97); break;
-   case 'nothing': break;
-  }
-  return e.t<e.dur;
-}
-function stepParticles(dt){
-  for(let i=emitters.length-1;i>=0;i--) if(!stepEmitter(emitters[i],dt)) emitters.splice(i,1);
-  const f=dt*60;
-  for(let i=P.n-1;i>=0;i--){ P.life[i]-=dt; if(P.life[i]<=0){kill(i);continue;}
-    P.vel[i*2]*=P.drag[i]; P.vel[i*2+1]=P.vel[i*2+1]*P.drag[i]+P.grav[i]*f;
-    P.pos[i*3]+=P.vel[i*2]*f; P.pos[i*3+1]+=P.vel[i*2+1]*f; }
-  geo.setDrawRange(0,P.n);
-  for(const a of ['position','color','size']) geo.attributes[a].needsUpdate=true;
-  renderer.render(scene,cam3);
-}
-
+/* ---------- engine glue ---------- */
+const canvas=$('fx');
+function initThree(){ FXE.init(canvas,video); }
+function resize(){ FX.low=S.low; FXE.resize(); }
+E.say=m=>{ const g=$('gsay'); g.textContent=m; g.classList.remove('pop'); void g.offsetWidth; g.classList.add('pop'); };
 /* ---------- camera ---------- */
 const video=$('cam');
 async function startCamera(){
@@ -237,8 +169,8 @@ async function startCamera(){
   try{
     S.stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:S.facing},width:{ideal:1280},height:{ideal:720}}});
     video.srcObject=S.stream; await video.play().catch(()=>{});
-    video.classList.toggle('mirror',S.facing==='user');
-    status(S.landmarker?'Pinch an element to grab it ✋':'Camera on. Loading hand tracking…');
+    video.classList.toggle('mirror',S.facing==='user'); video.onloadedmetadata=()=>FXE.setCamera(true,S.facing==='user'); FXE.setCamera(true,S.facing==='user');
+    status(S.landmarker?'Pinch an element to grab it.':'Camera on. Loading hand tracking…');
   }catch(err){
     const denied = err && (err.name==='NotAllowedError'||err.name==='SecurityError');
     camError(denied
@@ -254,10 +186,10 @@ async function initHands(){
   try{
     const v=await import(VISION+'/vision_bundle.mjs');
     const fs=await v.FilesetResolver.forVisionTasks(VISION+'/wasm');
-    const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:1,minHandDetectionConfidence:.4,minHandPresenceConfidence:.4,minTrackingConfidence:.4});
+    const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.4,minHandPresenceConfidence:.4,minTrackingConfidence:.4});
     try{ S.landmarker=await v.HandLandmarker.createFromOptions(fs,opts('GPU')); }
     catch{ S.landmarker=await v.HandLandmarker.createFromOptions(fs,opts('CPU')); }
-    status(S.stream?'Hand tracking ready. Pinch an element to grab it ✋':'Hand tracking ready (no camera yet).');
+    status(S.stream?'Hand tracking ready. Pinch an element to grab it.':'Hand tracking ready (no camera yet).');
   }catch(e){ console.warn('hands failed',e); status('Hand tracking could not load. Touch and controller still work.'); }
 }
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -287,95 +219,160 @@ function frameForDetect(){
   if(apply){ if(Math.abs(lutFor-S.luma)>6) buildLUT(S.luma); for(let i=0;i<d.length;i+=4){d[i]=LUT[d[i]];d[i+1]=LUT[d[i+1]];d[i+2]=LUT[d[i+2]];} pctx.putImageData(img,0,0); }
   return proc;
 }
-function updBoostBtn(){ const b=$('boost'); if(b) b.textContent='🌙 Boost: '+(S.boost==='auto'?('Auto'+(S.boostOn?' (on)':'')):S.boost==='on'?'On':'Off'); }
+function updBoostBtn(){ const b=$('boost'); if(b) b.textContent='Boost: '+(S.boost==='auto'?('Auto'+(S.boostOn?' (on)':'')):S.boost==='on'?'On':'Off'); }
 /* skeleton overlay */
 const skel=$('skel'), sk=skel.getContext('2d');
 const BONES=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
-function drawSkel(pts,pinch){ const dpr=Math.min(devicePixelRatio,2); if(skel.width!==innerWidth*dpr){skel.width=innerWidth*dpr;skel.height=innerHeight*dpr;}
-  sk.setTransform(dpr,0,0,dpr,0,0); sk.clearRect(0,0,innerWidth,innerHeight); if(!pts) return;
-  const col=pinch?'#5fff8a':'#7fffd4';
-  for(const [w,c] of [[9,'#000a'],[4,col]]){ sk.lineWidth=w; sk.strokeStyle=c; sk.lineCap='round'; sk.beginPath();
-    for(const [a,b] of BONES){sk.moveTo(pts[a].x,pts[a].y);sk.lineTo(pts[b].x,pts[b].y);} sk.stroke(); }
-  for(const [i,p] of pts.entries()){ sk.fillStyle=(i===4||i===8)?'#ffb347':'#fff'; sk.strokeStyle='#000'; sk.lineWidth=2;
-    sk.beginPath(); sk.arc(p.x,p.y,(i===4||i===8)?8:5,0,7); sk.fill(); sk.stroke(); } }
+function drawSkel(hs){ hs=(hs||[]).map(h=>Array.isArray(h)?{pts:h,g:''}:h); const dpr=Math.min(devicePixelRatio,2);
+  if(skel.width!==innerWidth*dpr){skel.width=innerWidth*dpr;skel.height=innerHeight*dpr;}
+  sk.setTransform(dpr,0,0,dpr,0,0); sk.clearRect(0,0,innerWidth,innerHeight);
+  for(const h of hs){ const pts=h.pts; if(!pts) continue; const col=h.g==='pinch'?'#5fff8a':h.g==='fist'?'#ff9a5a':h.g==='open'?'#7fd8ff':'#c8f5ff';
+    for(const [w,c] of [[6,'#0008'],[2.5,col]]){ sk.lineWidth=w; sk.strokeStyle=c; sk.lineCap='round'; sk.beginPath();
+      for(const [a,b] of BONES){sk.moveTo(pts[a].x,pts[a].y);sk.lineTo(pts[b].x,pts[b].y);} sk.stroke(); }
+    for(const [i,p] of pts.entries()){ const tip=i===4||i===8; sk.fillStyle=tip?'#ffd27f':'#fff'; sk.strokeStyle='#000a'; sk.lineWidth=1.5;
+      sk.beginPath(); sk.arc(p.x,p.y,tip?6:3.5,0,7); sk.fill(); sk.stroke(); } } }
 const hint=m=>{const h=$('hint'); h.hidden=!m; if(m) h.textContent=m;};
 /* calibration: learn this person's open-hand and pinch distances */
-function startCalib(){ S.calib={phase:0,open:[],pin:[],t:0}; $('calbox').hidden=false; $('calIcon').textContent='✋'; $('calMsg').textContent='Show your OPEN hand, fingers spread, about an arm\'s length away'; $('calFill').style.width='0'; }
+function startCalib(){ S.calib={phase:0,open:[],pin:[],t:0}; $('calbox').hidden=false; $('calIcon').textContent='1'; $('calMsg').textContent='Show your OPEN hand, fingers spread, about an arm\'s length away'; $('calFill').style.width='0'; }
 function stepCalib(r,dt){ const c=S.calib; if(!c) return; (c.phase?c.pin:c.open).push(r); const need=25, arr=c.phase?c.pin:c.open;
   $('calFill').style.width=Math.min(100,arr.length/need*100)+'%';
-  if(arr.length>=need){ if(!c.phase){ c.phase=1; $('calIcon').textContent='👌'; $('calMsg').textContent='Now PINCH: touch thumb and pointer finger together and hold'; $('calFill').style.width='0'; return; }
+  if(arr.length>=need){ if(!c.phase){ c.phase=1; $('calIcon').textContent='2'; $('calMsg').textContent='Now PINCH: touch thumb and pointer finger together and hold'; $('calFill').style.width='0'; return; }
     const med=a=>[...a].sort((x,y)=>x-y)[a.length>>1]; const o=med(c.open), p=med(c.pin);
     if(o-p<.15){ $('calMsg').textContent='Hmm, open and pinch looked the same. Try again closer to the light.'; c.phase=0;c.open=[];c.pin=[]; return; }
     S.pinchOn=p+(o-p)*.3; S.pinchOff=p+(o-p)*.55; localStorage.setItem('wirlab.calib',JSON.stringify({on:S.pinchOn,off:S.pinchOff}));
-    S.calib=null; $('calbox').hidden=true; status('✅ Calibrated to your hand. Pinch an element to grab it.'); } }
-function trackHands(now,dt){
-  if(!S.landmarker||!video.videoWidth||video.currentTime===lastVT) return;
-  if(S.low && (frameN%2)) return;
+    S.calib=null; $('calbox').hidden=true; status('Calibrated to your hand. Pinch an element to grab it.'); } }
+const HANDS=[{},{}]; const FL=[0,1].map(()=>[...Array(42)].map(()=>new OneEuro()));
+function smooth(slot,pts,dt){ const f=FL[slot]; return pts.map((p,i)=>({x:f[i*2].f(p.x,dt),y:f[i*2+1].f(p.y,dt)})); }
+function cal(){ return {on:S.pinchOn,off:S.pinchOff}; }
+let synth=null; // test hook: screen-pixel landmarks for headless tests
+let detect=function(now){
+  if(synth) return synth;
+  if(!S.landmarker||!video.videoWidth||video.currentTime===lastVT) return undefined;
+  if(S.low&&(frameN%2)) return undefined;
   lastVT=video.currentTime;
   const res=S.landmarker.detectForVideo(frameForDetect(),now);
-  const raw=res.landmarks?.[0];
-  if(!raw){ S.lostT+=dt; if(S.lostT>.35){ S.handSeen=false; S.palmT=0; $('palm').style.opacity=0; drawSkel(null); F.forEach(f=>f.x=null);
-      if(S.pinch&&S.lostT>.8){S.pinch=false;release();}
-      if(S.src==='hand'||S.lostT>3) hint(S.luma<95?'🌙 It\'s dark: face a lamp or window. Boost is helping.':'✋ Show your hand: palm to camera, 30–60 cm away'); }
+  return (res.landmarks||[]).map(lm=>lm.map(toScreen)); };
+function trackHands(now,dt){
+  const got=detect(now); if(got===undefined) return;
+  const fdt=Math.max(dt,1/120);
+  if(!got.length){ S.lostT+=dt; if(S.lostT>.35){ S.handSeen=false; S.palmT=0; $('palm').style.opacity=0; drawSkel([]); FL.forEach(f=>f.forEach(o=>o.x=null)); HANDS.forEach(h=>{h.palm=null;h.g='none';});
+      if(S.pinch&&S.lostT>.8){S.pinch=false;release();} if(S.src==='hand') S.handsNow=[];
+      if(S.src==='hand'||S.lostT>3) hint(S.luma<95?'It\'s dark: face a lamp or window. Boost is helping.':'Show your hand: palm to camera, 30–60 cm away'); }
     return; }
   S.lostT=0; hint(null);
-  const fdt=Math.max(dt,1/120), lm=raw.map((l,i)=>({x:F[i*2].f(l.x,fdt),y:F[i*2+1].f(l.y,fdt)}));
-  if(!S.handSeen && !S.calib && !localStorage.getItem('wirlab.calib')) startCalib();
-  S.handSeen=true; S.src='hand';
-  const scale=dist(lm[0],lm[9])||.1, pinchR=dist(lm[4],lm[8])/scale;
-  if(S.calib){ drawSkel(lm.map(toScreen),false); return stepCalib(pinchR,dt); }
-  const mid={x:(lm[4].x+lm[8].x)/2,y:(lm[4].y+lm[8].y)/2};
-  const sp=toScreen(mid); S.cursor.x+=(sp.x-S.cursor.x)*.6; S.cursor.y+=(sp.y-S.cursor.y)*.6;
-  const pinch = S.pinch ? pinchR<S.pinchOff : pinchR<S.pinchOn; // hysteresis
+  // keep slots stable: match by nearest wrist
+  if(got.length===2&&HANDS[0].palm&&HANDS[1].palm){ const d=(a,h)=>Math.hypot(a[0].x-h.pts[0].x,a[0].y-h.pts[0].y);
+    if(d(got[0],HANDS[1])+d(got[1],HANDS[0])<d(got[0],HANDS[0])+d(got[1],HANDS[1])) got.reverse(); }
+  const hs=got.slice(0,2).map((g,i)=>EL.readHand(HANDS[i],smooth(i,g,fdt),fdt,cal()));
+  if(got.length<2){ HANDS[1].palm=null; FL[1].forEach(o=>o.x=null); }
+  if(!S.handSeen && !S.calib && !localStorage.getItem('wirlab.calib') && !synth) startCalib();
+  S.handSeen=true; S.src='hand'; S.handsNow=hs;
+  const h=hs[0], lm=h.pts;
+  drawSkel((VH.on||VH.off>0)&&!synth?[]:hs);
+  if(S.calib){ return stepCalib(h.pinchR,dt); }
+  if(E.mode!=='chem'){ gestureHud(hs); return; }
+  const sp=h.pinchPt; S.cursor.x+=(sp.x-S.cursor.x)*.6; S.cursor.y+=(sp.y-S.cursor.y)*.6;
+  const pinch=h.g==='pinch';
   if(pinch&&!S.pinch) grab(); if(!pinch&&S.pinch) release(); S.pinch=pinch;
-  drawSkel(lm.map(toScreen),pinch);
-  const open=!pinch && [[8,6],[12,10],[16,14],[20,18]].every(([t,p])=>dist(lm[t],lm[0])>dist(lm[p],lm[0])*1.1) && dist(lm[4],lm[5])/scale>0.5;
-  if(open&&!S.held&&!S.busy){ S.palmT+=dt; $('palm').style.opacity=1; $('palmFill').style.width=Math.min(100,S.palmT*100)+'%';
+  if(h.g==='open'&&!S.held&&!S.busy){ S.palmT+=dt; $('palm').style.opacity=1; $('palmFill').style.width=Math.min(100,S.palmT*100)+'%';
     if(S.palmT>=1){ S.palmT=0; $('palm').style.opacity=0; ignite(); } }
   else { S.palmT=0; $('palm').style.opacity=0; }
 }
+const GHINT={
+ water:[['open','Open palm','summon water orb'],['pinch','Pinch + drag','stream / whip'],['swipe','Flick','throw it'],['circle','Circle','whirlpool'],['combo','Clap 2 hands','tidal burst']],
+ fire:[['open','Open palm','fire jet (push = stronger)'],['fist','Fist','ember ball'],['swipe','Open fast / flick','throw fireball'],['circle','Circle','fire tornado'],['combo','Clap 2 hands','explosion']],
+ earth:[['open','Palm lifts up','raise a rock'],['pinch','Pinch rock','grab it'],['swipe','Flick','throw it'],['fist','Fist on rock','crush to dust'],['combo','Clap 2 hands','rock wall']],
+ air:[['point','Point + move','wind trail'],['swipe','Swipe','gust'],['circle','Circle','vortex (moves everything)'],['combo','Clap 2 hands','cyclone']],
+ chem:[['pinch','Pinch','grab element'],['open','Open palm 1 s','ignite']],
+};
+function buildHud(){ $('gest').innerHTML=GHINT[E.mode].map(([k,a,b])=>`<div class="gh" data-k="${k}"><b>${a}</b><span>${b}</span></div>`).join(''); }
+function gestureHud(hs){ const act=new Set(); for(const h of hs){ act.add(h.g); if(h.swipe) act.add('swipe'); if(h.circle) act.add('circle'); } if(hs.length>1) act.add('combo');
+  document.querySelectorAll('.gh').forEach(n=>n.classList.toggle('on',act.has(n.dataset.k)));
+  $('gnow').textContent=hs.map((h,i)=>`${hs.length>1?(i?'R ':'L '):''}${({open:'open palm',pinch:'pinch',fist:'fist',point:'point',relaxed:'relaxed',none:'—'})[h.g]||h.g}`).join('   '); }
+function setMode(m){ E.mode=m; document.querySelectorAll('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  const chem=m==='chem'; $('shelf').hidden=!chem; $('targets').hidden=!chem; $('cursor').hidden=!chem; $('ignite').hidden=!chem;
+  EL.clearAll(); buildHud();
+  requestAnimationFrame(()=>{ const r={}; document.querySelectorAll('.tg').forEach(t=>r[t.dataset.id]=t.getBoundingClientRect()); EL.chemProps(chem,r); });
+  status(chem?'Chem lab: pinch an element, drop it on the dish, burner or paper.':'Elements: '+m.toUpperCase()+'. Try the moves on the left.'); }
+
+/* ---------- virtual hand (touch / controller) -> same gesture pipeline ---------- */
+function pose(x,y,g,s=90){ const ext=[[0,-.45],[0,-.75],[0,-1]], cur=[[0,-.3],[0,-.05],[0,.15]];
+  const mcp=[[-.35,-.95],[0,-1],[.3,-.95],[.55,-.85]]; const P=[[0,0],[-.35,-.3],[-.6,-.55],[-.75,-.8],[-.85,-1.05]];
+  const fingers=g==='fist'?[0,0,0,0]:g==='point'?[1,0,0,0]:[1,1,1,1];
+  mcp.forEach((m,f)=>{ P.push(m); const seg=fingers[f]?ext:cur; seg.forEach(d=>P.push([m[0]+d[0]*(f===3?.8:1),m[1]+d[1]*(f===3?.8:1)])); });
+  if(g==='pinch'){ P[6]=[-.45,-1.35];P[7]=[-.55,-1.55];P[8]=[-.6,-1.68]; P[3]=[-.75,-1.1];P[4]=[-.62,-1.62]; }
+  if(g==='fist'){ P[3]=[-.4,-.55];P[4]=[.05,-.45]; }
+  let ox=.03,oy=-.75; if(g==='pinch'){ox=-.61;oy=-1.65;} if(g==='point'){ox=-.35;oy=-1.95;}
+  return P.map(([px,py])=>({x:x+(px-ox)*s,y:y+(py-oy)*s})); }
+const VH={on:false,x:0,y:0,g:'relaxed',off:0};
+const virtG=(n)=>({water:['pinch','open'],fire:['open','fist'],earth:['pinch','fist'],air:['point','open']})[E.mode][n>1?1:0];
+const _detect=detect;
+detect=function(now){ const d=synth?synth:undefined; if(d) return d;
+  if(VH.on||VH.off>0){ if(!VH.on) VH.off--; return [pose(VH.x,VH.y,VH.on?VH.g:'relaxed')]; }
+  return _detect(now); };
 
 /* ---------- gamepad ---------- */
 const padPrev={};
 function pollPad(dt){
   const pads=navigator.getGamepads?navigator.getGamepads():[]; for(const g of pads){ if(!g) continue;
-    const ax=g.axes[0]||0, ay=g.axes[1]||0, dz=.15;
-    if(Math.abs(ax)>dz||Math.abs(ay)>dz){ S.src='pad'; S.cursor.x=Math.max(0,Math.min(innerWidth,S.cursor.x+ax*700*dt)); S.cursor.y=Math.max(0,Math.min(innerHeight,S.cursor.y+ay*700*dt)); }
-    const A=g.buttons[0]?.pressed, B=g.buttons[1]?.pressed;
-    if(A&&!padPrev.A){ S.src='pad'; if(!$('card').hidden) $('cardClose').click(); else if(S.held) release(); else grab(); }
-    if(B&&!padPrev.B) ignite();
-    padPrev.A=A; padPrev.B=B; break; }
+    const ax=g.axes[0]||0, ay=g.axes[1]||0, dz=.15, b=i=>!!g.buttons[i]?.pressed;
+    if(Math.abs(ax)>dz||Math.abs(ay)>dz){ S.src='pad'; const sp=E.mode==='chem'?700:1100;
+      S.cursor.x=Math.max(0,Math.min(innerWidth,S.cursor.x+ax*sp*dt)); S.cursor.y=Math.max(0,Math.min(innerHeight,S.cursor.y+ay*sp*dt)); }
+    const A=b(0),B=b(1),X=b(2),Y=b(3);
+    if(E.mode==='chem'){
+      if(A&&!padPrev.A){ S.src='pad'; if(!$('card').hidden) $('cardClose').click(); else if(S.held) release(); else grab(); }
+      if(B&&!padPrev.B) ignite(); }
+    else { const gg=A?(E.mode==='fire'?'open':E.mode==='air'?'point':'pinch'):B?'open':X?'fist':null;
+      if(gg){ if(!VH.on&&E.mode==='earth'&&gg==='pinch') maybeRock(S.cursor.x,S.cursor.y); VH.on=true; VH.g=gg; }
+      else if(VH.on){ VH.on=false; VH.off=5; }
+      VH.x=S.cursor.x; VH.y=S.cursor.y; }
+    if(Y&&!padPrev.Y) setMode(MODES_LIST[(MODES_LIST.indexOf(E.mode)+1)%MODES_LIST.length]);
+    Object.assign(padPrev,{A,B,X,Y}); break; }
 }
-addEventListener('gamepadconnected',e=>status(`🎮 ${e.gamepad.id.slice(0,30)} connected: stick moves, A grabs/drops, B ignites.`));
+addEventListener('gamepadconnected',e=>status(`Controller connected: stick moves, A = main move, B = open palm, X = fist, Y = next element.`));
 
 /* ---------- touch ---------- */
-const hud=$('hud');
-hud.addEventListener('pointerdown',e=>{ if(e.target.closest('#bar,#card,#camerr')) return; S.src='touch';
-  S.cursor.x=e.clientX;S.cursor.y=e.clientY; grab(); });
-hud.addEventListener('pointermove',e=>{ if(S.src!=='touch'&&!S.held) return; if(e.target.closest('#bar,#card')) return; S.cursor.x=e.clientX;S.cursor.y=e.clientY; });
-hud.addEventListener('pointerup',e=>{ if(S.src==='touch'&&S.held){S.cursor.x=e.clientX;S.cursor.y=e.clientY;release();} });
+const hud=$('hud'), touches=new Map();
+function maybeRock(x,y){ if(!FXE.ROCKS.some(k=>Math.hypot(k.x-x,k.y-y)<k.r*2.2)){ const k=FXE.rockSpawn(x,y); if(k){k.y=y+40;k.mode='rise';} } }
+addEventListener('pointerdown',e=>{ if(hud.hidden||e.target.closest('#bar,#card,#camerr,#modes,#calbox,#gate')) return; S.src='touch';
+  if(E.mode==='chem'){ S.cursor.x=e.clientX;S.cursor.y=e.clientY; grab(); return; }
+  touches.set(e.pointerId,{x:e.clientX,y:e.clientY}); const n=touches.size;
+  if(n===1&&E.mode==='earth') maybeRock(e.clientX,e.clientY);
+  VH.on=true; VH.g=virtG(n); VH.x=e.clientX; VH.y=e.clientY; });
+addEventListener('pointermove',e=>{ if(E.mode!=='chem'){ if(touches.has(e.pointerId)){ touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    const ps=[...touches.values()]; VH.x=ps.reduce((a,p)=>a+p.x,0)/ps.length; VH.y=ps.reduce((a,p)=>a+p.y,0)/ps.length; } return; }
+  if(S.src!=='touch'&&!S.held) return; if(e.target.closest('#bar,#card')) return; S.cursor.x=e.clientX;S.cursor.y=e.clientY; });
+const up=e=>{ if(E.mode!=='chem'){ touches.delete(e.pointerId); if(!touches.size&&VH.on){ VH.on=false; VH.off=5; } else if(touches.size) VH.g=virtG(touches.size); return; }
+  if(S.src==='touch'&&S.held){S.cursor.x=e.clientX;S.cursor.y=e.clientY;release();} };
+addEventListener('pointerup',up); addEventListener('pointercancel',up);
 
-/* ---------- loop ---------- */
-let last=performance.now(), fpsAcc=0, fpsN=0;
+/* ---------- loop with adaptive quality ---------- */
+let last=performance.now(), fpsAcc=0, fpsN=0, qAcc=0, qN=0;
 function loop(now){
   const dt=Math.min(.05,(now-last)/1000); last=now; frameN++;
   try{ trackHands(now,dt); }catch(e){ console.warn(e); }
   pollPad(dt);
-  cur.style.left=S.cursor.x+'px'; cur.style.top=S.cursor.y+'px';
-  document.querySelectorAll('.tg').forEach(t=>t.classList.toggle('hot',!!S.held&&hit('.tg',S.cursor.x,S.cursor.y)===t));
-  stepParticles(dt);
-  fpsAcc+=dt;fpsN++; if(fpsAcc>.5){$('fps').textContent=Math.round(fpsN/fpsAcc)+' fps';fpsAcc=0;fpsN=0;}
+  const hs=(S.handsNow||[]).filter(h=>h.palm);
+  try{ EL.update(E.mode==='chem'?[]:hs,dt); EL.chemStep(dt); FXE.step(dt); }catch(e){ console.warn(e); }
+  if(E.mode==='chem'){ cur.style.left=S.cursor.x+'px'; cur.style.top=S.cursor.y+'px';
+    document.querySelectorAll('.tg').forEach(t=>t.classList.toggle('hot',!!S.held&&hit('.tg',S.cursor.x,S.cursor.y)===t)); }
+  fpsAcc+=dt;fpsN++; qAcc+=dt;qN++;
+  if(fpsAcc>.5){$('fps').textContent=Math.round(fpsN/fpsAcc)+' fps · q'+FX.Q.toFixed(2)+' · '+FXE.counts();fpsAcc=0;fpsN=0;}
+  if(qAcc>1.2){ const fps=qN/qAcc, q0=FX.Q; if(!S.fixedQ){ if(fps<32) FX.Q=Math.max(.3,FX.Q*.8); else if(fps>52) FX.Q=Math.min(S.low?.5:1,FX.Q*1.08); }
+    if(Math.abs(FX.Q-q0)>.1) resize(); qAcc=0;qN=0; }
   requestAnimationFrame(loop);
 }
 
 /* ---------- wiring ---------- */
+const MODES_LIST=['water','fire','earth','air','chem'];
 let started=false;
 window.startLab=()=>{ if(started) return; started=true; hud.hidden=false; refreshLocks();
-  initThree(); requestAnimationFrame(loop); startCamera(); initHands();
-  status('Tip: pinch 👌 to grab, open palm ✋ 1 s to ignite. No camera? Tap and drag.'); };
+  initThree(); setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
+  status('Pick an element. Hands: open palm, pinch, fist, swipe, circle. No camera? Drag with one or two fingers.'); };
+$('modes').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setMode(b.dataset.m); });
 $('boost').onclick=()=>{ S.boost={auto:'on',on:'off',off:'auto'}[S.boost]; updBoostBtn(); };
 $('calib').onclick=startCalib; $('calSkip').onclick=()=>{S.calib=null;$('calbox').hidden=true;};
 $('flip').onclick=()=>{ S.facing=S.facing==='user'?'environment':'user'; startCamera(); };
-$('ignite').onclick=ignite; $('reset').onclick=resetLab;
-$('lowpow').onchange=e=>{ S.low=e.target.checked; resize(); status(S.low?'Low power: fewer particles, hands tracked every other frame.':'Full power. Oscar is sweating.'); };
-window.__lab={S,react,ignite,grab,release,drawSkel,startCalib};
+$('ignite').onclick=ignite; $('reset').onclick=()=>{ resetLab(); EL.clearAll(); };
+$('lowpow').onchange=e=>{ S.low=e.target.checked; if(S.low) FX.Q=Math.min(FX.Q,.5); resize(); status(S.low?'Low power: no bloom, fewer particles, hands every other frame.':'Full power.'); };
+window.__lab={S,E,FX,ROCKS:FXE.ROCKS,WATER:FXE.WATER,react,ignite,grab,release,drawSkel,startCalib,setMode,pose,feed:h=>{synth=h;},burst:EL.burst};
