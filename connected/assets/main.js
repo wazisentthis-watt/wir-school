@@ -87,7 +87,9 @@ async function buildWorld(setMsg){
  }
  // street lamps (night hook) + grapple anchors on lamps
  lamps.length=0;
- for(let i=-N;i<=N;i++)for(let j=-N;j<=N;j+=2){const x=(i+.5)*(BLOCK+ROAD)-ROAD/2+0.8,z=j*(BLOCK+ROAD);
+ const lampXZ=[];for(let i=-N;i<=N;i++)for(let j=-N;j<=N;j++)lampXZ.push([(i+.5)*(BLOCK+ROAD)-ROAD/2+0.8,j*(BLOCK+ROAD)]);
+ for(const sp of special)if(sp.c){const e=BLOCK/2-1.2;for(const [ox,oz] of [[-1,-1],[1,-1],[-1,1],[1,1]])lampXZ.push([sp.c.x+ox*e,sp.c.z+oz*e]);} // grapple anchors around open lots (fix: none in range at spawn)
+ for(const [x,z] of lampXZ){
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.12,.15,7),new THREE.MeshStandardMaterial({color:0x333,metalness:.8,roughness:.4}));pole.position.set(x,3.5,z);pole.castShadow=true;scene.add(pole);
   const bulb=new THREE.Mesh(new THREE.SphereGeometry(.35),new THREE.MeshStandardMaterial({color:0x222,emissive:0xffd28a,emissiveIntensity:0}));bulb.position.set(x,7.1,z);scene.add(bulb);lamps.push(bulb);anchors.push(new THREE.Vector3(x,7.1,z));}
  buildSkatepark(SPOTS.skate.c);buildField(SPOTS.field.c);buildFight(SPOTS.fight.c);buildDojo(SPOTS.dojo.c);buildForge(SPOTS.forge.c);buildPluto(SPOTS.pluto.c);buildHome(SPOTS.home.c);
@@ -139,6 +141,24 @@ function makeChar(tint,metal=false){const o=SkeletonUtils.clone(robotGLTF.scene)
  const ch={o,mixer,acts,cur:null,mats};play(ch,'Idle');return ch;}
 function play(ch,name,once=false,fade=.18){const a=ch.acts[name];if(!a||ch.cur===a&&!once)return;if(once){a.reset();a.setLoop(THREE.LoopOnce);a.clampWhenFinished=true;}if(ch.cur&&ch.cur!==a)ch.cur.fadeOut(fade);a.reset().fadeIn(fade).play();ch.cur=a;ch.curName=name;}
 
+// ---------- 3D Metal (rigged PLACEHOLDER model from wir-assets) ----------
+let metalGLTF,boardGLTF,seamMats=[];const MASKS=['none','HeavyCrown','KITO'];let maskI=0;
+const PMAP={Idle:'Idle_Loop',Walking:'Walk_Loop',Running:'Sprint_Loop',Jump:'Jump_Loop',Punch:'Punch_Jab',Cross:'Punch_Cross',Kick:'Kick_Front_PROPOSAL',Standing:'Idle_Loop',Skate:'Idle_Loop',Block:'Crouch_Idle_Loop',ThumbsUp:'Interact',Dance:'Dance_Loop',No:'Hit_Chest',Charge:'Spell_Simple_Idle_Loop',Blast:'Spell_Simple_Shoot',Swing:'Jump_Loop'};
+function makeMetal(){const root=new THREE.Group();const o=metalGLTF.scene;root.add(o);
+ o.traverse(m=>{if(!m.isMesh)return;m.castShadow=true;m.frustumCulled=false;const ms=Array.isArray(m.material)?m.material:[m.material];
+  ms.forEach(mt=>{if(!mt.emissive)return;if(/Seam_Violet/i.test(mt.name)){mt.emissive=new THREE.Color(VIOLET);mt.emissiveIntensity=0;mt.color.set(0x3a2a55);seamMats.push(mt);}else if(!/Eye/i.test(mt.name)){mt.emissiveIntensity=0;}});});
+ const mixer=new THREE.AnimationMixer(o);mixers.push(mixer);const acts={};for(const c of metalGLTF.animations)acts[c.name]=mixer.clipAction(c);
+ for(const [k,v] of Object.entries(PMAP))if(acts[v])acts[k]=acts[v];
+ const ch={o:root,model:o,mixer,acts,cur:null,mats:{},footY:0};play(ch,'Idle');mixer.update(0.01);root.updateMatrixWorld(true);
+ const bb=new THREE.Box3().setFromObject(o,true);ch.footY=-bb.min.y;o.position.y=ch.footY; // feet at y=0 of the root
+ const h=bb.max.y-bb.min.y;if(h>0.5){o.scale.setScalar(1.78/h);o.position.y=ch.footY*1.78/h;ch.footY=o.position.y;} // 1.78 m PLACEHOLDER height
+ ch.feet=[];o.traverse(b=>{if(b.isBone&&/^DEF-?(toe|foot)\.?_?[LR]$/i.test(b.name))ch.feet.push(b);});root.updateMatrixWorld(true);
+ ch.soleGap=Math.min(...ch.feet.map(b=>b.getWorldPosition(new THREE.Vector3()).y))-root.position.y; // foot-bone height above sole in idle
+ setMask(0,ch);return ch;}
+// keep soles exactly on the surface (deck top when skating) regardless of pose blend
+const _fv=new THREE.Vector3();function seatFeet(dt){if(!P.feet.length)return;P.o.updateMatrixWorld(true);let mb=1e9;for(const b of P.feet)mb=Math.min(mb,b.getWorldPosition(_fv).y);
+ const surf=P.o.position.y+(st.board?DECK_TOP:0);const err=(surf+P.soleGap)-mb;if(onGround||st.board)P.model.position.y+=THREE.MathUtils.clamp(err,-.5,.5)*Math.min(1,dt*20);}
+function setMask(i,ch=P){maskI=i;ch.model.traverse(m=>{const n=m.name||'';const mm=n.match(/Mask_(HeavyCrown|KITO)/i);if(mm)m.visible=MASKS[maskI].toLowerCase()===mm[1].toLowerCase();});}
 // player = Metal [S1]: gunmetal, violet only on active moves; left leg covered (PROPOSAL: robot proxy until 3D Metal model lands)
 let P;const vel=new THREE.Vector3();let onGround=true,yaw=0,camYaw=0,camPitch=.35;
 const st={mode:'walk',board:false,gal:1,ori:1,charge:0,root:0,flying:false,swing:null,combo:0,comboPend:0,carry:false,hp:1,form:1,
@@ -172,14 +192,14 @@ addEventListener('pointermove',e=>{if(drag&&drag.id===e.pointerId){camYaw-=(e.cl
 addEventListener('pointerup',e=>{if(drag&&drag.id===e.pointerId)drag=null;});renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
 const stick={x:0,y:0};{const s=$('stick'),n=$('nub');let id=null;const mv=e=>{const r=s.getBoundingClientRect();let x=(e.clientX-r.left-65)/55,y=(e.clientY-r.top-65)/55;const l=Math.hypot(x,y);if(l>1){x/=l;y/=l;}stick.x=x;stick.y=y;n.style.left=40+x*45+'px';n.style.top=40+y*45+'px';};
  s.addEventListener('pointerdown',e=>{id=e.pointerId;s.setPointerCapture(id);mv(e);});s.addEventListener('pointermove',e=>{if(e.pointerId===id)mv(e);});s.addEventListener('pointerup',()=>{id=null;stick.x=stick.y=0;n.style.left=n.style.top='40px';});}
-document.querySelectorAll('#tbtn button').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();pressed[b.dataset.k]=true;keys[b.dataset.k]=true;});b.addEventListener('pointerup',()=>keys[b.dataset.k]=false);});
+document.querySelectorAll('#tbtn button').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();pressed[b.dataset.k]=true;keys[b.dataset.k]=true;});b.addEventListener('pointerup',()=>{keys[b.dataset.k]=false;if(b.dataset.k==='KeyX')xRel=true;});});
 // Xbox layout [S5]: A jump, B board, X 4-hand, Y 6-hand, LB grapple, RB fly, LT block, RT charge, Back map, Start profile, dpad interact
 const padMap={0:'Space',1:'KeyB',2:'Numpad4',3:'Numpad6',4:'KeyQ',5:'KeyF',6:'Numpad2',7:'Numpad5',8:'KeyM',9:'KeyP',12:'KeyE',13:'KeyX',14:'Numpad1',15:'Numpad3'};const padPrev={};
 function pollPad(){const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;if(!gp)return null;
  for(const [i,k] of Object.entries(padMap)){const v=gp.buttons[i]&&gp.buttons[i].pressed;if(v&&!padPrev[i])pressed[k]=true;keys[k]=v||keys[k]&&!padPrev[i]?v:keys[k];padPrev[i]=v;}
  const dz=v=>Math.abs(v)<.15?0:v;if(gp.axes.length>=4){camYaw-=dz(gp.axes[2])*.04;camPitch=THREE.MathUtils.clamp(camPitch+dz(gp.axes[3])*.03,-.1,1.1);}return {x:dz(gp.axes[0]),y:dz(gp.axes[1])};}
 const tap=c=>{const v=pressed[c];pressed[c]=false;return v;};
-const ALT={KeyU:'Numpad7',KeyI:'Numpad8',KeyO:'Numpad9',KeyJ:'Numpad4',KeyK:'Numpad5',KeyL:'Numpad6',KeyM_:'Numpad1',Comma:'Numpad2',Period:'Numpad3'}; // laptop fallback [S5]
+const ALT={KeyU:'Numpad7',KeyI:'Numpad8',KeyY:'Numpad9',KeyJ:'Numpad4',KeyK:'Numpad5',KeyL:'Numpad6',KeyM_:'Numpad1',Comma:'Numpad2',Period:'Numpad3'}; // laptop fallback [S5]
 
 // ---------- audio hook (Web Audio; song picks need Coach's yes [S4]) ----------
 let actx;function beep(f=440,d=.08,type='square',v=.05){try{actx=actx||new AudioContext();const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.value=f;g.gain.value=v;g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+d);o.connect(g).connect(actx.destination);o.start();o.stop(actx.currentTime+d);}catch(e){}}
@@ -187,7 +207,7 @@ let actx;function beep(f=440,d=.08,type='square',v=.05){try{actx=actx||new Audio
 // ---------- systems ----------
 let tod=8,weather='clear',weatherT=60;const rain=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({color:0xaaccff,size:.12,transparent:true,opacity:.6}));
 {const a=new Float32Array(3000*3);for(let i=0;i<a.length;i++)a[i]=(Math.random()-.5)*80;rain.geometry.setAttribute('position',new THREE.BufferAttribute(a,3));rain.visible=false;scene.add(rain);}
-const groundY=0.25;
+const groundY=0.25;const BOARD_S=1.15,DECK_TOP=0.099*BOARD_S; // deck top of the 4-wheel GLB
 function collide(p){for(const b of colliders){if(p.x>b.min.x-.4&&p.x<b.max.x+.4&&p.z>b.min.z-.4&&p.z<b.max.z+.4&&p.y<b.max.y-.2){
  const dx1=p.x-(b.min.x-.4),dx2=(b.max.x+.4)-p.x,dz1=p.z-(b.min.z-.4),dz2=(b.max.z+.4)-p.z;const m=Math.min(dx1,dx2,dz1,dz2);
  if(m===dx1){p.x=b.min.x-.4;vel.x=Math.min(vel.x,0);}else if(m===dx2){p.x=b.max.x+.4;vel.x=Math.max(vel.x,0);}else if(m===dz1){p.z=b.min.z-.4;vel.z=Math.min(vel.z,0);}else{p.z=b.max.z+.4;vel.z=Math.max(vel.z,0);}
@@ -201,8 +221,8 @@ function bail(){if(st.comboPend>0)toast('Bail — pending combo lost');st.comboP
 
 function fightInput(){let k=null;for(const c of ['Numpad1','Numpad2','Numpad3','Numpad4','Numpad5','Numpad6','Numpad7','Numpad8','Numpad9'])if(tap(c))k=c;
  for(const [a,b] of Object.entries(ALT))if(a!=='KeyM_'&&tap(a))k=b;return k;}
-const MOVES={Numpad4:{n:'Left hand',a:'Punch',dmg:.07,r:1.8},Numpad6:{n:'Right hand',a:'Punch',dmg:.08,r:1.8},Numpad1:{n:'Left leg',a:'WalkJump',dmg:.1,r:2.1},Numpad3:{n:'Right leg',a:'WalkJump',dmg:.11,r:2.1},
- Numpad7:{n:'Blast (1 e⁻)',a:'Punch',dmg:.12,r:7,cost:.2},Numpad9:{n:'Special',a:'Jump',dmg:0,r:3,special:true},Numpad8:{n:'Transform',a:'ThumbsUp'},Numpad2:{n:'Block',a:'Standing'},Numpad5:{n:'Charge',a:'Idle'}};
+const MOVES={Numpad4:{n:'Left hand',a:'Punch',dmg:.07,r:1.8},Numpad6:{n:'Right hand',a:'Cross',dmg:.08,r:1.8},Numpad1:{n:'Left leg',a:'Kick',dmg:.1,r:2.1},Numpad3:{n:'Right leg',a:'Kick',dmg:.11,r:2.1},
+ Numpad7:{n:'Blast (1 e⁻)',a:'Blast',dmg:.12,r:7,cost:.2},Numpad9:{n:'Special',a:'Jump',dmg:0,r:3,special:true},Numpad8:{n:'Transform',a:'ThumbsUp'},Numpad2:{n:'Block',a:'Block'},Numpad5:{n:'Charge',a:'Idle'}};
 let blocking=false,actT=0;
 function doFight(dt){const k=fightInput();blocking=keys.Numpad2||keys.Comma;
  if(keys.Numpad5||keys.KeyK){st.charge=Math.min(1,st.charge+dt*.35);P.mats&&setViolet(.6);} // hold 5 = charge [S5]
@@ -219,17 +239,17 @@ function rivalAI(dt){if(!rivalSt.active)return;const to=P.o.position.clone().sub
  if(d>1.6){rival.o.position.add(to.normalize().multiplyScalar(dt*2.2));play(rival,'Running');}else{rivalSt.cd-=dt;if(rivalSt.cd<=0){play(rival,'Punch',true);rivalSt.cd=1.3+Math.random();const hit=blocking?.015:.07;st.hp=Math.max(0,st.hp-hit);if(st.hp<=0){st.hp=1;endSpar(false);}}else if(rival.curName!=='Punch'||!rival.cur.isRunning())play(rival,'Idle');}
  if(rival.o.position.distanceTo(fightC)>8.2)endSpar(true); // ring-out
 }
-function setViolet(v){P.o.traverse(m=>{if(m.isMesh&&m.material.emissive)m.material.emissiveIntensity=Math.max(m.material.emissiveIntensity,v);});}
+function setViolet(v){for(const mt of seamMats)mt.emissiveIntensity=Math.max(mt.emissiveIntensity,v*2.2);} // seams only, active moves only
 
 // Attunement strings (canon packet LOCKED: shape existing matter only; Recovery Rule). Key mapping = PROPOSAL.
-let lockout=0;const strings=[];
+let lockout=0,xRel=false,xDown=0;const strings=[];addEventListener('keyup',e=>{if(e.code==='KeyX')xRel=true;});
 function doStrings(dt){if(lockout>0){lockout-=dt;if(keys.KeyZ)lockout-=dt*2;return;}
- if(keys.KeyZ){st.root=Math.min(1,st.root+dt*.8);}else st.root=Math.max(0,st.root-dt*.15);
- if(tap('KeyX')){if(st.root<.35){toast('Not rooted — clean abort (scored)');profile.cleanAborts=(profile.cleanAborts||0)+1;plog('log','Clean abort');return;}
+ if(keys.KeyZ||(keys.KeyX&&onGround&&!st.board)){st.root=Math.min(1,st.root+dt*1.2);if(keys.KeyX)setViolet(.3);}else st.root=Math.max(0,st.root-dt*.15);
+ if(xRel){xRel=false;if(st.root<.35){toast('Not rooted — clean abort (scored)');profile.cleanAborts=(profile.cleanAborts||0)+1;plog('log','Clean abort');return;}
   if(!onGround||st.board){lockout=2;toast('Balance broke — recover: root (Z)');plog('log','Recovery triggered');return;}
   // raise a slab FROM the ground (existing matter)
   const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));const s=new THREE.Mesh(new THREE.BoxGeometry(1.6,1.6,.5),new THREE.MeshStandardMaterial({color:0x7a7066,roughness:1}));
-  s.position.copy(P.o.position).addScaledVector(f,2.2).setY(-.8);s.rotation.y=yaw;s.castShadow=true;scene.add(s);slabs.push({m:s,t:0,vy:3});strings.push({t:.5});st.root-=.35;play(P,'Punch',true);setViolet(.8);beep(90,.25,'sine',.1);plog('discoveries','Attunement: raised a slab from existing ground');
+  s.position.copy(P.o.position).addScaledVector(f,2.2).setY(-.8);s.rotation.y=yaw;s.castShadow=true;scene.add(s);slabs.push({m:s,t:0,vy:3});strings.push({t:.5});st.root-=.35;play(P,'Blast',true);actT=.6;setViolet(1);beep(90,.25,'sine',.1);plog('discoveries','Attunement: raised a slab from existing ground');
   if(rivalSt.active&&rival.o.position.distanceTo(s.position)<2.5){rivalSt.stance-=.15;if(rivalSt.stance<=0)endSpar(true);}}
  if(tap('KeyC')){if(st.root<.25){toast('Clean abort');profile.cleanAborts=(profile.cleanAborts||0)+1;return;}st.root-=.25;setViolet(.6);beep(600,.2,'triangle');
   const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));for(const n of [...npcs,rival,...defenders]){const v=n.o.position.clone().sub(P.o.position);if(v.length()<6&&v.normalize().dot(f)>.6){n.o.position.addScaledVector(f,1.5);if(n===rival&&rivalSt.active){rivalSt.stance-=.08;if(rivalSt.stance<=0)endSpar(true);}}}
@@ -270,6 +290,7 @@ function update(dt){
  if(tap('KeyM')){const on=toggle('map');if(on){zoom=0;drawMap();}}
  if(tap('KeyP')){if(toggle('prof'))renderProfile();}
  if(tap('Escape')){toggle('map',false);toggle('prof',false);}
+ if(tap('KeyO')){setMask((maskI+1)%MASKS.length);toast('Mask: '+({none:'none',HeavyCrown:'Heavy Crown (PLACEHOLDER)',KITO:'KITO Mask (PLACEHOLDER)'})[MASKS[maskI]]);}
  if(tap('KeyH'))$('help').style.display=$('help').style.display==='none'?'block':'none';
  const pp=P.o.position;
  // camera-relative movement
@@ -278,8 +299,8 @@ function update(dt){
  if(tap('KeyB')&&onGround&&!st.swing){st.board=!st.board;board.visible=st.board;toast(st.board?'Board down — four wheels':'Board up');if(st.board)plog('discoveries','Skating on the four-wheel board');}
  // grapple [S1]: tap to attach nearest anchor in front; tendril costs Gallium only while out, refunds on release
  if(tap('KeyQ')){if(st.swing){st.gal=Math.min(1,st.gal+st.swing.spent*.5);st.swing=null;tether.visible=false;toast('Release');st.comboPend++;}
-  else{const ahead=pp.clone().addScaledVector(new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)),8).setY(pp.y+8);const a=nearest(anchors,ahead,30);
-   if(a&&st.gal>.04){st.swing={a:a.clone(),len:a.distanceTo(pp),spent:0};tether.visible=true;onGround=false;vel.y=Math.max(vel.y,4);plog('discoveries','Grapple swing');setViolet(1);beep(330,.1,'triangle');}else toast(st.gal<=.04?'Out of Gallium — bank combos to refill':'No anchor in range');}}
+  else{const fw=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));let a=null,bs=-1e9;for(const an of anchors){const v=an.clone().sub(pp);const d=v.length();if(d>28||d<2||an.y<pp.y+2)continue;const sc=v.clone().setY(0).normalize().dot(fw)*10-d*.4;if(sc>bs){bs=sc;a=an;}}
+   if(a&&st.gal>.04){st.swing={a:a.clone(),len:a.distanceTo(pp)*.8,spent:0};play(P,'Swing');tether.visible=true;onGround=false;vel.y=Math.max(vel.y,4);plog('discoveries','Grapple swing');setViolet(1);beep(330,.1,'triangle');}else toast(st.gal<=.04?'Out of Gallium — bank combos to refill':'No anchor in range');}}
  // flight: Merkaba propulsion, limited only by orientation to gravity point [decision #3]. No charge meter.
  if(tap('KeyF')){if(st.flying){st.flying=false;}else if(!onGround&&st.ori>.2){st.flying=true;st.swing=null;tether.visible=false;plog('discoveries','Star Merkaba flight');}else toast(onGround?'Get airborne first (ollie, kicker or swing)':'Orientation unstable — cannot lock gravity point');}
  merkaba.visible=st.flying;
@@ -292,7 +313,7 @@ function update(dt){
   if(st.ori<.08){st.flying=false;toast('Lost the gravity orientation point — falling!');}
   if(st.ori<.4)vel.y-=9*(.4-st.ori)*dt*4; merkaba.position.copy(pp).setY(pp.y+1);merkaba.rotation.y+=dt*3;setViolet(.9);
  } else if(st.swing){const s=st.swing;s.spent+=dt*.03;st.gal=Math.max(0,st.gal-dt*.03);if(st.gal<=0){st.swing=null;tether.visible=false;}
-  vel.y-=22*dt;vel.addScaledVector(wish,dt*14);pp.addScaledVector(vel,dt);const d=pp.clone().sub(s.a);if(d.length()>s.len){d.setLength(s.len);pp.copy(s.a).add(d);const n=d.clone().normalize();vel.addScaledVector(n,-vel.dot(n));}
+  vel.y-=22*dt;vel.addScaledVector(wish,dt*14);pp.addScaledVector(vel,dt);if(pp.y<groundY){pp.y=groundY;if(vel.y<0)vel.y=0;}const d=pp.clone().sub(s.a);if(d.length()>s.len){d.setLength(s.len);pp.copy(s.a).add(d);const n=d.clone().normalize();vel.addScaledVector(n,-vel.dot(n));}
   if(tap('Space')){st.swing=null;tether.visible=false;vel.y+=6;st.comboPend++;}
   tether.geometry.setFromPoints([pp.clone().setY(pp.y+1.2),s.a]);setViolet(1);st.ori=Math.min(1,st.ori+dt*.2);
  } else {
@@ -314,10 +335,10 @@ function update(dt){
  const hs=Math.hypot(vel.x,vel.z);if(hs>.3&&!st.swing)yaw=Math.atan2(vel.x,vel.z);P.o.rotation.y=THREE.MathUtils.lerp(P.o.rotation.y,yaw,.0)+0;P.o.rotation.y=yaw;
  // animation select
  actT-=dt;if(actT<=0&&(P.cur.loop!==THREE.LoopOnce||!P.cur.isRunning())){
-  if(st.flying||st.swing)play(P,'Jump');else if(st.board)play(P,onGround?'Standing':'Jump');else if(!onGround)play(P,'Jump');else if(hs>4.5)play(P,'Running');else if(hs>.4)play(P,'Walking');else play(P,blocking?'Standing':'Idle');}
- if(st.board){board.position.copy(pp);board.rotation.y=yaw;board.position.y=pp.y;P.o.position.y; }
+  if(st.flying||st.swing)play(P,'Jump');else if(st.board)play(P,onGround?'Skate':'Jump');else if(!onGround)play(P,'Jump');else if(hs>4.5)play(P,'Running');else if(hs>.4)play(P,'Walking');else play(P,blocking?'Standing':'Idle');}
+ if(st.board){board.position.copy(pp);board.rotation.y=yaw;board.position.y=pp.y;}
  // violet decays (only on active moves)
- P.o.traverse(m=>{if(m.isMesh&&m.material.emissive&&m.material.emissiveIntensity>0)m.material.emissiveIntensity=Math.max(0,m.material.emissiveIntensity-dt*1.5);});
+ for(const mt of seamMats)mt.emissiveIntensity=Math.max(0,mt.emissiveIntensity-dt*3);
  // systems
  doFight(dt);doStrings(dt);doFootball(dt);rivalAI(dt);
  for(const s of slabs){if(s.t<1){s.t+=dt;s.m.position.y=Math.min(.8,s.m.position.y+s.vy*dt);}else if(s.t<6)s.t+=dt;else{s.m.position.y-=dt;if(s.m.position.y<-1){scene.remove(s.m);s.dead=true;}}}
@@ -368,15 +389,17 @@ function update(dt){
  if(!drag&&hs>2&&!isTouch===false){} camPos.lerp(want,1-Math.pow(.001,dt));camera.position.copy(camPos);camera.lookAt(tgt);
  signs.forEach(s=>s.lookAt(camera.position));if(plutoRing)plutoRing.rotation.y+=dt;
  for(const m of mixers)m.update(dt);
+ P.model.rotation.y+=((st.board&&!st.flying?-1.35:0)-P.model.rotation.y)*Math.min(1,dt*10); // sideways skate stance on the deck
+ if(onGround||st.board)seatFeet(dt);else P.model.position.y+=(P.footY+(st.board?DECK_TOP:0)-P.model.position.y)*Math.min(1,dt*8);
 }
 let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());try{update(dt);}catch(e){if(fails++<3){console.error(e);window.__errors.push(String(e));}}if(LITE)renderer.render(scene,camera);else composer.render();}
 
 (async()=>{const msg=t=>$('loadmsg').textContent=t;
- try{await buildWorld(msg);msg('Characters (Quaternius CC0)…');robotGLTF=await loadG('assets/models/RobotExpressive.glb');
-  P=makeChar(GUN,true);scene.add(P.o);P.o.position.copy(SPOTS.home.c).add(new THREE.Vector3(0,groundY,8));camPos.copy(P.o.position).add(new THREE.Vector3(0,4,8));
-  board=makeBoard();board.visible=false;board.scale.setScalar(1.25);scene.add(board,tether,merkaba);
+ try{await buildWorld(msg);msg('Characters (Quaternius CC0)…');robotGLTF=await loadG('assets/models/RobotExpressive.glb');msg('3D Metal…');metalGLTF=await loadG('assets/models/metal/metal_rigged_PLACEHOLDER.glb');boardGLTF=await loadG('assets/models/metal/metal_skateboard_4wheel_PLACEHOLDER.glb');
+  P=makeMetal();scene.add(P.o);P.o.position.copy(SPOTS.home.c).add(new THREE.Vector3(0,groundY,8));camPos.copy(P.o.position).add(new THREE.Vector3(0,4,8));
+  board=new THREE.Group();board.add(boardGLTF.scene);boardGLTF.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;if(/Wheel/i.test(m.material.name)){m.material.emissive=new THREE.Color(VIOLET);m.material.emissiveIntensity=.15;}}});board.visible=false;board.scale.setScalar(BOARD_S);scene.add(board,tether,merkaba);
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
-  window.__game={P,st,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);}};// test harness only (not a gameplay teleport)
+  window.__game={P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);}};// test harness only (not a gameplay teleport)
   loop();}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
