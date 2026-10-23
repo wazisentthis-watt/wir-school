@@ -353,7 +353,8 @@ function update(dt){
  merkaba.visible=st.flying;
  const run=keys.ShiftLeft||keys.ShiftRight||il>.95&&isTouch;
 if(st.wall){wallRide(dt,wish,pp);}else{
- let maxS=st.board?(run?16:11):(run?7:3.2);if(st.form===2)maxS*=1.05; // form stats placeholder
+ const SK={cruise:8.5,boost:16,acc:5,coast:.15,grav:17.5,ollie:6.8}; // v7 parity port (html_v7_parity.json: CRUISE_MAX 340px*.025, GRAV 700px*.025, coast 8.42->6.26 m/s in 2 s, ollie peak 1.31 m / air .775 s)
+ let maxS=st.board?(run?SK.boost:SK.cruise):(run?7:3.2);if(st.form===2)maxS*=1.05; // form stats placeholder
  if(st.flying){const up=(keys.Space?1:0)-(keys.KeyC&&!keys.KeyZ?0:0);const turn=Math.abs(wish.clone().normalize().dot(new THREE.Vector3(vel.x,0,vel.z).normalize()||0));
   vel.lerp(wish.clone().multiplyScalar(20).setY(up*8-(keys.ControlLeft?8:0)),dt*1.6);
   // sharp direction changes destabilise orientation; steady flight restores it
@@ -365,10 +366,10 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   if(tap('Space')){st.swing=null;tether.visible=false;vel.y+=6;st.comboPend++;}
   tether.geometry.setFromPoints([pp.clone().setY(pp.y+1.2),s.a]);setViolet(1);st.ori=Math.min(1,st.ori+dt*.2);
  } else {
-  const acc=st.board?(onGround?10:2):(onGround?18:4);const hv=new THREE.Vector3(vel.x,0,vel.z);const target=wish.clone().multiplyScalar(maxS*il);
-  if(st.board&&onGround&&il<.05)hv.multiplyScalar(1-dt*.4); else hv.lerp(target,Math.min(1,acc*dt/Math.max(1,maxS)*2));
-  vel.x=hv.x;vel.z=hv.z;vel.y-=24*dt;st.ori=Math.min(1,st.ori+dt*.3);
-  if(onGround&&tap('Space')){vel.y=st.board?7:6.2;onGround=false;if(st.board)st.comboPend++;play(P,'Jump',true);}
+  const acc=st.board?(onGround?SK.acc:2):(onGround?18:4);const hv=new THREE.Vector3(vel.x,0,vel.z);const target=wish.clone().multiplyScalar(maxS*il);
+  if(st.board&&onGround&&il<.05)hv.multiplyScalar(1-dt*SK.coast); else hv.lerp(target,Math.min(1,acc*dt/Math.max(1,maxS)*2));
+  vel.x=hv.x;vel.z=hv.z;vel.y-=(st.board?SK.grav:24)*dt;st.ori=Math.min(1,st.ori+dt*.3);
+  if(onGround&&tap('Space')){vel.y=st.board?SK.ollie:6.2;onGround=false;if(st.board)st.comboPend++;play(P,'Jump',true);}
   // kickers launch airs [S1]
   if(st.board&&onGround){for(const r of ramps)if(r.p.distanceTo(new THREE.Vector3(pp.x,0,pp.z))<r.r&&hv.length()>6){vel.y=r.kick;onGround=false;st.comboPend+=2;toast('Air!');plog('discoveries','Skatepark kicker air');}
    for(const r of rails){const ab=r.b.clone().sub(r.a);const t=THREE.MathUtils.clamp(pp.clone().sub(r.a).dot(ab)/ab.lengthSq(),0,1);const cp=r.a.clone().addScaledVector(ab,t);if(new THREE.Vector2(cp.x-pp.x,cp.z-pp.z).length()<.6&&vel.y<=0&&pp.y<1.3){pp.y=cp.y;vel.y=0;st.comboPend+=dt*3;setViolet(.7);}}}
