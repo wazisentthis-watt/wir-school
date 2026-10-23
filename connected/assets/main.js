@@ -208,10 +208,57 @@ let actx;function beep(f=440,d=.08,type='square',v=.05){try{actx=actx||new Audio
 let tod=8,weather='clear',weatherT=60;const rain=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({color:0xaaccff,size:.12,transparent:true,opacity:.6}));
 {const a=new Float32Array(3000*3);for(let i=0;i<a.length;i++)a[i]=(Math.random()-.5)*80;rain.geometry.setAttribute('position',new THREE.BufferAttribute(a,3));rain.visible=false;scene.add(rain);}
 const groundY=0.25;const BOARD_S=1.15,DECK_TOP=0.099*BOARD_S; // deck top of the 4-wheel GLB
-function collide(p){for(const b of colliders){if(p.x>b.min.x-.4&&p.x<b.max.x+.4&&p.z>b.min.z-.4&&p.z<b.max.z+.4&&p.y<b.max.y-.2){
+let lastHit=null;function collide(p){lastHit=null;for(const b of colliders){if(p.x>b.min.x-.4&&p.x<b.max.x+.4&&p.z>b.min.z-.4&&p.z<b.max.z+.4&&p.y<b.max.y-.2){
  const dx1=p.x-(b.min.x-.4),dx2=(b.max.x+.4)-p.x,dz1=p.z-(b.min.z-.4),dz2=(b.max.z+.4)-p.z;const m=Math.min(dx1,dx2,dz1,dz2);
+ const n=m===dx1?new THREE.Vector3(-1,0,0):m===dx2?new THREE.Vector3(1,0,0):m===dz1?new THREE.Vector3(0,0,-1):new THREE.Vector3(0,0,1);lastHit={b,n,into:-vel.dot(n),hv:new THREE.Vector3(vel.x,0,vel.z)};
  if(m===dx1){p.x=b.min.x-.4;vel.x=Math.min(vel.x,0);}else if(m===dx2){p.x=b.max.x+.4;vel.x=Math.max(vel.x,0);}else if(m===dz1){p.z=b.min.z-.4;vel.z=Math.min(vel.z,0);}else{p.z=b.max.z+.4;vel.z=Math.max(vel.z,0);}
  if(st.flying){st.ori-=.25;toast('Collision — orientation shaken');} return true;}}return false;}
+// ---------- WALL RIDE (gravity reorients to the wall face; four wheels stay on the surface; no teleport, no hover) ----------
+// All numbers PROPOSAL tuning — Coach to correct.
+const WR={rampCost:.06,rampMinSpeed:5,minSpeed:7.5,minInto:3,climbShare:.85,decay:.06,wallGrav:4.5,steer:9,maxSpeed:17,jumpOff:9,jumpUp:6,minRide:1.6,roofPop:1.2}; // PROPOSAL
+// Wheels read the wall material: adhesion holds him on, rolling friction drops so he stays fast. PROPOSAL numbers.
+const WALLMAT={brick:{stick:.75,roll:.55},concrete:{stick:.7,roll:.6},glass:{stick:.5,roll:.35},metal:{stick:1,roll:.25}}; // PROPOSAL
+function matOf(b){if(!b.userData)b.userData={};if(!b.userData.mat){const k=['brick','concrete','glass','metal'];const h=Math.abs(Math.floor(b.min.x*7.13+b.min.z*3.71+b.max.y*1.9));b.userData.mat=k[h%4];}return b.userData.mat;} // PLACEHOLDER material tags until buildings carry real ones
+const ramps3=[];let shimmer=null;
+function galliumRamp(pos,n){ // short curved liquid-metal ramp at the wall base; dissolves after
+ const sh=new THREE.Shape();const R=1.6;sh.moveTo(0,0);for(let i=0;i<=12;i++){const a=i/12*Math.PI/2;sh.lineTo(R-Math.cos(a)*R,R-Math.sin(a)*R+0);}sh.lineTo(R,0);sh.lineTo(0,0);
+ const g=new THREE.ExtrudeGeometry(sh,{depth:1.4,bevelEnabled:true,bevelSize:.06,bevelThickness:.06,bevelSegments:3,curveSegments:12});g.translate(-R,0,-.7);
+ const m=new THREE.MeshStandardMaterial({color:0xc9c4dd,metalness:1,roughness:.12,emissive:0x9b5cff,emissiveIntensity:.6,transparent:true,opacity:.95});
+ const mesh=new THREE.Mesh(g,m);mesh.position.set(pos.x,.25,pos.z);mesh.rotation.y=Math.atan2(n.x,n.z)+Math.PI/2;
+ // orient so curve rises toward the wall: local +x points into the wall
+ const into=n.clone().negate();mesh.rotation.y=Math.atan2(-into.z,into.x);mesh.position.addScaledVector(n,-.4);
+ scene.add(mesh);ramps3.push({mesh,t:0});}
+function tickRamps(dt){for(let i=ramps3.length-1;i>=0;i--){const r=ramps3[i];r.t+=dt;const m=r.mesh.material;if(r.t>.5){m.opacity=Math.max(0,.95-(r.t-.5)*1.2);r.mesh.scale.y=Math.max(.05,1-(r.t-.5)*.9);m.emissiveIntensity=.6+Math.sin(r.t*20)*.3;}
+ if(r.t>1.3){scene.remove(r.mesh);r.mesh.geometry.dispose();m.dispose();ramps3.splice(i,1);}}
+ if(!shimmer){shimmer=new THREE.Mesh(new THREE.RingGeometry(.12,.38,24),new THREE.MeshBasicMaterial({color:0xd8c8ff,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));scene.add(shimmer);}
+ const el=document.getElementById('wallmat');
+ if(st.wall){const w=st.wall;shimmer.position.copy(P.o.position).addScaledVector(w.n,-.38);shimmer.lookAt(shimmer.position.clone().add(w.n));shimmer.material.opacity=.25+Math.sin(performance.now()*.02)*.12;shimmer.scale.setScalar(1+Math.sin(performance.now()*.013)*.15);
+  if(el){el.style.display='block';el.textContent='WALL · '+w.mat.toUpperCase()+' · stick '+WALLMAT[w.mat].stick.toFixed(2)+' (PROPOSAL)';}}
+ else{shimmer.material.opacity=0;if(el)el.style.display='none';}}
+function floorAt(p){let y=groundY;for(const b of colliders){if(p.x>b.min.x-.3&&p.x<b.max.x+.3&&p.z>b.min.z-.3&&p.z<b.max.z+.3&&p.y>=b.max.y-.35&&b.max.y>y)y=b.max.y;}return y;} // rooftops are real floors
+function startWall(h){const n=h.n,t=new THREE.Vector3(-n.z,0,n.x);const s=Math.min(WR.maxSpeed,h.hv.length());const along=h.hv.dot(t);
+ const mat=matOf(h.b);st.wall={b:h.b,n:n.clone(),t,mat,up:Math.max(4,s*WR.climbShare)*(h.ramp?1.15:1),side:along*.9,time:0};if(h.ramp){st.gal=Math.max(0,st.gal-WR.rampCost);galliumRamp(P.o.position,n);setViolet(.8);}vel.set(0,0,0);onGround=false;st.comboPend++;
+ plog('discoveries','Wall ride — gravity point locked to the wall');toast((h.ramp?'Gallium ramp → ':'')+'WALL RIDE — '+mat+' grip');beep(520,.12,'triangle');}
+function wallRide(dt,wish,pp){const w=st.wall,b=w.b,n=w.n,t=w.t;w.time+=dt;
+ // steer across the wall (camera-relative A/D/W/S projected onto the wall plane)
+ w.side+=wish.dot(t)*WR.steer*dt;w.up+=(-wish.dot(n))*WR.steer*.6*dt;
+ // speed decays slowly; a little residual world pull keeps it a ride, not a hover
+ const M=WALLMAT[w.mat];const k=1-WR.decay*M.roll*2*dt;w.side*=k;w.up=w.up*k-WR.wallGrav*(1.5-M.stick)*dt;
+ const sp=Math.hypot(w.side,w.up);if(sp>WR.maxSpeed){w.side*=WR.maxSpeed/sp;w.up*=WR.maxSpeed/sp;}
+ pp.addScaledVector(t,w.side*dt);pp.y+=w.up*dt;
+ // pin wheels to the wall face
+ if(n.x)pp.x=n.x>0?b.max.x+.4:b.min.x-.4;else pp.z=n.z>0?b.max.z+.4:b.min.z-.4;
+ vel.copy(t).multiplyScalar(w.side).setY(w.up);setViolet(.35); // subtle seam glow while riding
+ const exit=(v,msg)=>{st.wall=null;vel.copy(v);onGround=false;if(msg)toast(msg);};
+ if(tap('Space')){exit(n.clone().multiplyScalar(WR.jumpOff).addScaledVector(t,w.side).setY(Math.max(w.up,0)+WR.jumpUp),'Kick off!');st.comboPend++;play(P,'Jump',true);return;}
+ if(st.swing){st.wall=null;return;} // chained into grapple
+ if(pp.y>=b.max.y-.15){ // crest the top onto the roof
+  pp.y=b.max.y+.05;pp.addScaledVector(n,-WR.roofPop);st.wall=null;vel.copy(n).multiplyScalar(-Math.max(5,w.up*.6)).addScaledVector(t,w.side);vel.y=0;onGround=true;bank();toast('Roof transfer');plog('discoveries','Wall ride → rooftop');return;}
+ const off=n.x?(pp.z<b.min.z-.2||pp.z>b.max.z+.2):(pp.x<b.min.x-.2||pp.x>b.max.x+.2);
+ if(off){exit(vel.clone(),'Off the edge');return;}
+ if(pp.y<=groundY+.05&&w.up<0){pp.y=groundY;exit(vel.clone().setY(0));onGround=true;bank();return;}
+ if(w.time>WR.minRide&&sp<2.2)exit(n.clone().multiplyScalar(3),'Lost the wall — gravity back to ground');}
+const _wq=new THREE.Quaternion(),_wm=new THREE.Matrix4();
 function nearest(arr,p,max){let best=null,bd=max;for(const a of arr){const d=a.distanceTo(p);if(d<bd){bd=d;best=a;}}return best;}
 function where(p){for(const s of Object.values(SPOTS)){if(s.c&&Math.abs(p.x-s.c.x)<BLOCK/2&&Math.abs(p.z-s.c.z)<BLOCK/2)return s;}return null;}
 let lastSpot=null;
@@ -305,6 +352,7 @@ function update(dt){
  if(tap('KeyF')){if(st.flying){st.flying=false;}else if(!onGround&&st.ori>.2){st.flying=true;st.swing=null;tether.visible=false;plog('discoveries','Star Merkaba flight');}else toast(onGround?'Get airborne first (ollie, kicker or swing)':'Orientation unstable — cannot lock gravity point');}
  merkaba.visible=st.flying;
  const run=keys.ShiftLeft||keys.ShiftRight||il>.95&&isTouch;
+if(st.wall){wallRide(dt,wish,pp);}else{
  let maxS=st.board?(run?16:11):(run?7:3.2);if(st.form===2)maxS*=1.05; // form stats placeholder
  if(st.flying){const up=(keys.Space?1:0)-(keys.KeyC&&!keys.KeyZ?0:0);const turn=Math.abs(wish.clone().normalize().dot(new THREE.Vector3(vel.x,0,vel.z).normalize()||0));
   vel.lerp(wish.clone().multiplyScalar(20).setY(up*8-(keys.ControlLeft?8:0)),dt*1.6);
@@ -327,16 +375,18 @@ function update(dt){
  }
  // Gallium brace (S1: 1/3 bar) — Shift+Space while flying/swinging cancels momentum
  if(!st.flying&&!st.swing)pp.addScaledVector(vel,dt);else if(st.flying)pp.addScaledVector(vel,dt);
- collide(pp);
- const wasAir=!onGround;
- if(pp.y<=groundY&&!st.swing){if(wasAir&&!st.flying){if(vel.y<-17&&!st.board){toast('Hard landing');}if(st.board){if(Math.abs(vel.y)>18)bail();else bank();}}pp.y=groundY;if(vel.y<0)vel.y=0;onGround=true;if(st.flying)st.flying=false;}
- else if(pp.y>groundY+.05&&!st.swing&&!st.flying){if(!st.board||pp.y>1.4)onGround=false;}
+ const preHit=collide(pp);if(preHit&&lastHit&&st.board&&!st.flying&&!st.swing&&lastHit.into>=WR.minInto&&lastHit.b.max.y>3){const sp=lastHit.hv.length();if(st.gal>=WR.rampCost&&sp>=WR.rampMinSpeed){lastHit.ramp=true;startWall(lastHit);}else if(sp>=WR.minSpeed)startWall(lastHit);}
+ const gY=floorAt(pp);const wasAir=!onGround;
+ if(!st.wall&&pp.y<=gY&&!st.swing){if(wasAir&&!st.flying){if(vel.y<-17&&!st.board){toast('Hard landing');}if(st.board){if(Math.abs(vel.y)>18)bail();else bank();}}pp.y=gY;if(vel.y<0)vel.y=0;onGround=true;if(st.flying)st.flying=false;}
+ else if(!st.wall&&pp.y>gY+.05&&!st.swing&&!st.flying){if(!st.board||pp.y>gY+1.15)onGround=false;}
+ }
  pp.x=THREE.MathUtils.clamp(pp.x,-200,200);pp.z=THREE.MathUtils.clamp(pp.z,-200,200);
- const hs=Math.hypot(vel.x,vel.z);if(hs>.3&&!st.swing)yaw=Math.atan2(vel.x,vel.z);P.o.rotation.y=THREE.MathUtils.lerp(P.o.rotation.y,yaw,.0)+0;P.o.rotation.y=yaw;
+ const hs=Math.hypot(vel.x,vel.z);if(hs>.3&&!st.swing)yaw=Math.atan2(vel.x,vel.z);P.o.rotation.set(0,yaw,0);
+ if(st.wall){const w=st.wall;const f=new THREE.Vector3().copy(w.t).multiplyScalar(w.side).setY(w.up);if(f.lengthSq()<.01)f.set(0,1,0);f.normalize();const x=new THREE.Vector3().crossVectors(w.n,f).normalize();f.crossVectors(x,w.n);_wm.makeBasis(x,w.n,f);_wq.setFromRotationMatrix(_wm);P.o.quaternion.slerp(_wq,1);}
  // animation select
  actT-=dt;if(actT<=0&&(P.cur.loop!==THREE.LoopOnce||!P.cur.isRunning())){
   if(st.flying||st.swing)play(P,'Jump');else if(st.board)play(P,onGround?'Skate':'Jump');else if(!onGround)play(P,'Jump');else if(hs>4.5)play(P,'Running');else if(hs>.4)play(P,'Walking');else play(P,blocking?'Standing':'Idle');}
- if(st.board){board.position.copy(pp);board.rotation.y=yaw;board.position.y=pp.y;}
+ if(st.board){board.position.copy(pp);if(st.wall)board.quaternion.copy(P.o.quaternion);else{board.rotation.set(0,yaw,0);}}
  // violet decays (only on active moves)
  for(const mt of seamMats)mt.emissiveIntensity=Math.max(0,mt.emissiveIntensity-dt*3);
  // systems
@@ -377,7 +427,7 @@ function update(dt){
  const hh=Math.floor(tod),mm=Math.floor((tod%1)*60);$('clock').textContent=`${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')} ${night?'🌙':'☀'} · ${weather}`;
  if(challenge){challenge.t-=dt;if(challenge.t<=0){toast('Forge recipe ended');challenge=null;}}
  // state + HUD
- st.state=st.flying?'FLIGHT · MERKABA':st.swing?'SWING':st.board?(onGround?'SKATE':'AIR'):(rivalSt.active?'SPAR':(lockout>0?'RECOVER':(onGround?'WALK':'AIR')));
+ st.state=st.flying?'FLIGHT · MERKABA':st.swing?'SWING':st.wall?'WALL RIDE':st.board?(onGround?'SKATE':'AIR'):(rivalSt.active?'SPAR':(lockout>0?'RECOVER':(onGround?'WALK':'AIR')));
  $('state').textContent=st.state+' · Season '+st.form+(st.comboPend>0?' · combo ×'+Math.floor(st.comboPend):'')+(challenge?` · ⏱${challenge.t|0}s ${challenge.type}`:'');
  $('mGal').style.width=st.gal*100+'%';$('mOri').style.width=st.ori*100+'%';$('mChg').style.width=st.charge*100+'%';$('mRoot').style.width=st.root*100+'%';$('mTeam').style.width=st.team*100+'%';$('mFoe').style.width=rivalSt.stance*100+'%';
  const ob=st.orbitals;const shell=(ob.work+ob.body+ob.bonds+ob.mind+ob.money)/5;$('orbs').innerHTML=Object.entries(ob).map(([k,v])=>`<b title="${k}" style="background:rgba(155,92,255,${v})"></b>`).join('')+` <small>${(shell*100|0)}% ${shell<.12?'ION':shell>.62?'NOBLE':''}</small>`;
@@ -386,8 +436,8 @@ function update(dt){
  // camera
  const dist=st.flying?9:st.board?7:5.5;const tgt=pp.clone().add(new THREE.Vector3(0,1.6,0));
  const want=tgt.clone().add(new THREE.Vector3(Math.sin(camYaw)*Math.cos(camPitch)*dist,Math.sin(camPitch)*dist+.5,Math.cos(camYaw)*Math.cos(camPitch)*dist));
- if(!drag&&hs>2&&!isTouch===false){} camPos.lerp(want,1-Math.pow(.001,dt));camera.position.copy(camPos);camera.lookAt(tgt);
- signs.forEach(s=>s.lookAt(camera.position));if(plutoRing)plutoRing.rotation.y+=dt;
+ if(!drag&&hs>2&&!isTouch===false){}if(st.wall){want.copy(tgt).addScaledVector(st.wall.n,dist*1.1).add(new THREE.Vector3(0,-1.2,0));} camPos.lerp(want,1-Math.pow(.001,dt));camera.position.copy(camPos);const upW=st.wall?new THREE.Vector3(0,1,0).lerp(st.wall.n,.45).normalize():new THREE.Vector3(0,1,0);camera.up.lerp(upW,Math.min(1,dt*4)).normalize();camera.lookAt(tgt);
+ tickRamps(dt);signs.forEach(s=>s.lookAt(camera.position));if(plutoRing)plutoRing.rotation.y+=dt;
  for(const m of mixers)m.update(dt);
  P.model.rotation.y+=((st.board&&!st.flying?-1.35:0)-P.model.rotation.y)*Math.min(1,dt*10); // sideways skate stance on the deck
  if(onGround||st.board)seatFeet(dt);else P.model.position.y+=(P.footY+(st.board?DECK_TOP:0)-P.model.position.y)*Math.min(1,dt*8);
@@ -401,5 +451,5 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
-  window.__game={P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);}};// test harness only (not a gameplay teleport)
+  window.__game={WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);}};// test harness only (not a gameplay teleport)
   loop();}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
