@@ -1,0 +1,8 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Material Scouter (PROPOSAL)</title>
+<style>body{margin:0;background:#000;color:#cfe}video{width:100vw;height:100vh;object-fit:cover}
+#ov{position:fixed;left:10px;bottom:10px;background:#0b1520dd;border:1px solid #2aa;padding:10px;border-radius:8px;max-width:80vw}
+#go{position:fixed;top:40%;left:50%;transform:translateX(-50%);padding:14px 22px;font-size:18px;background:#123;color:#9fe;border:1px solid #2aa;border-radius:8px}</style></head>
+<body><video id="v" muted></video><div id="ov">Tap Start, then point at a surface.</div><button id="go">▶ Start Scouter</button>
+<script type="module">import {startScouter} from './scouter.js';
+go.onclick=async()=>{go.remove();try{await startScouter(v,ov)}catch(e){ov.textContent='Camera/model error: '+e.message}};
+addEventListener('wir-material',e=>console.log('wir-material',e.detail));</script></body></html>
