@@ -104,11 +104,11 @@ function orientation(){
     const ni=Math.min(SLIDES.length-1,Math.floor(el/D)); if(ni!==i){i=ni;draw();}
     if(k<1) raf=requestAnimationFrame(tick); else { $('ptime').textContent='Done ✓'; const b=$('gGo'); b.disabled=false; b.textContent='Start the quiz ➜'; b.onclick=quiz; } };
   raf=requestAnimationFrame(tick);
-  window.__gateSkipVideo=()=>{t0-=D*SLIDES.length;}; // test hook
+
 }
 
 function quiz(){
-  const u=st().user, set=makeSet(u); window.__gateSet=set; let n=0, score=0, missed=[];
+  const u=st().user, set=makeSet(u); let n=0, score=0, missed=[];
   const q=()=>{ const it=set[n];
     show(`${step(2)}<p class="small">Question ${n+1} of 10 · need 10/10</p><h2 class="qq">${esc(it.q)}</h2>
      <div class="opts">${it.opts.map((o,j)=>`<button class="opt" data-j="${j}">${esc(o)}</button>`).join('')}</div>`);
