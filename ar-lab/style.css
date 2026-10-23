@@ -169,3 +169,18 @@ body:not(.more) #bar,body:not(.more) #gest,body:not(.more) #gnow{display:none!im
 #atip{bottom:calc(env(safe-area-inset-bottom) + 250px)}
 #hint{white-space:nowrap}
 #train{bottom:calc(env(safe-area-inset-bottom) + 58px)}
+
+/* v5: selfie flip pill, auto-flip chip, item tray */
+#items{position:fixed;inset:0;z-index:3;pointer-events:none}
+#flipPill,#trayBtn{position:fixed;top:calc(env(safe-area-inset-top) + 6px);z-index:10;width:38px;min-height:30px;padding:0;border-radius:15px;background:#0006;border:1px solid #ffffff38;color:#fff;font-size:16px;line-height:1}
+#flipPill{right:6px;top:calc(env(safe-area-inset-top) + 42px)} #trayBtn{right:6px;top:calc(env(safe-area-inset-top) + 78px)} #trayBtn.on{background:#7fd8ff55}
+#flipChip{position:fixed;top:calc(env(safe-area-inset-top) + 42px);right:50px;z-index:11;display:flex;gap:6px;align-items:center;background:#000a;border:1px solid #7fd8ff66;border-radius:16px;padding:5px 6px 5px 12px;color:#fff;font-size:13px}
+#flipChip[hidden]{display:none}
+#flipChip button{background:#7fd8ff;color:#002;border:0;border-radius:12px;padding:5px 10px;font-weight:600}
+#flipChip #flipNo{background:transparent;color:#fff;padding:5px 6px}
+#tray{position:fixed;left:0;top:calc(env(safe-area-inset-top) + 50px);max-height:62vh;width:112px;z-index:9;background:#0b1220d9;border:1px solid #ffffff22;border-left:0;border-radius:0 14px 14px 0;padding:8px;overflow:auto;color:#fff;font-size:12px;transform:translateX(-105%);transition:transform .25s ease}
+#tray.open{transform:none}
+#tray b{display:block;margin:0 0 6px 4px}
+#tray button{display:flex;align-items:center;gap:6px;width:100%;font-size:11px;margin:0 0 4px;background:#ffffff10;border:1px solid #ffffff1c;border-radius:10px;color:#fff;padding:6px;text-align:left}
+#tray button span{font-size:20px} #tray button.on{background:#7fd8ff33;border-color:#7fd8ff}
+#tray p{opacity:.7;font-size:10px;margin:6px 2px} #tray .clr{justify-content:center;opacity:.8}

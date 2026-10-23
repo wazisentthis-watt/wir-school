@@ -14,9 +14,10 @@ async function hash(s){ try{ const b=await crypto.subtle.digest('SHA-256',new Te
 /* Classes: ordered lessons. Each step completes on a lab event (window.labEvent). */
 const CLASSES=[
  {id:'safety',title:'1 · Lab safety',steps:[['gate','Pass the Safe Lab Gate and take the pledge']]},
- {id:'calib',title:'2 · Teach the lab your hand',steps:[['calibrated','Finish the 2-stage calibration (open, poke, ✌️, flick)']]},
+ {id:'calib',title:'2 · Teach the lab your hand',steps:[['calibrated','Finish the 2-stage calibration (open, poke, cup, flick)']]},
+ {id:'flow',title:'2b · Flowing hands (moves)',steps:[['move:pulse','Jellyfish pulse: half-close and bloom open'],['move:ripple','Finger ripple: pinky → index'],['move:bloom','Flick-open from a soft fist'],['move:scoop','Scoop: dip and sweep up']]},
  {id:'water',title:'3 · Waterbending',steps:[['mode:water','Open Water mode'],['g:open:water','Summon a water orb with an open palm'],['g:poke:water','Point and drag a water stream']]},
- {id:'earth',title:'4 · Earthbending',steps:[['mode:earth','Open Earth mode'],['g:vee:earth','Grab a rock with ✌️ two fingers']]},
+ {id:'earth',title:'4 · Earthbending',steps:[['mode:earth','Open Earth mode'],['earth:grab','Grab a rock with a soft cupped hand 🤲']]},
  {id:'fire',title:'5 · Fire and the burner',steps:[['mode:fire','Open Fire mode'],['g:poke:fire','Light your fingertip flame'],['burn','Poke a real object in your room with fire (it is only virtual)']]},
  {id:'gear',title:'6 · Lab gear',steps:[['mode:gear','Open Gear mode'],['gear:burner','Poke the Bunsen burner to light it'],['gear:heat','Heat a test tube over the flame'],['gear:pour','Poke a beaker to pour']]},
  {id:'atoms1',title:'7 · Atoms and bonds',steps:[['mode:atoms','Open Atoms mode'],['bond:H2O','Build water H₂O'],['bond:NaCl','Make salt NaCl (ionic)'],['bond:N2','Build N₂ (triple bond)']]},
@@ -26,7 +27,7 @@ const CLASSES=[
 ];
 let cur=null; // current profile doc
 const P=window.PROFILE={ STORE, CLASSES, get cur(){return cur;},
-  sync(){ if(!cur) return; cur.gate=JSON.parse(localStorage.getItem('wirlab.v1')||'{}'); const c=localStorage.getItem('wirlab.calib'); if(c) cur.calib=JSON.parse(c); cur.updated=Date.now(); STORE.put(cur.id,cur); },
+  sync(){ if(!cur) return; cur.gate=JSON.parse(localStorage.getItem('wirlab.v1')||'{}'); const c=localStorage.getItem('wirlab.calib'); if(c) cur.calib=JSON.parse(c); const mv=localStorage.getItem('wirlab.moves'); if(mv) cur.moves=JSON.parse(mv); cur.updated=Date.now(); STORE.put(cur.id,cur); },
   event(name){ if(!cur) return; cur.events=cur.events||{}; const keys=[name]; if(name.startsWith('rx:')) keys.push('rx:any');
     let fresh=false; for(const k of keys) if(!cur.events[k]){ cur.events[k]=Date.now(); fresh=true; }
     if(fresh){ STORE.put(cur.id,cur); const step=nextStep(); if(step&&keys.some(k=>doneJustNow(k))) toast('Class step done ✓'); render(); } },

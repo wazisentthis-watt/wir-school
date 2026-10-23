@@ -260,7 +260,7 @@ export function update(hands,dt){
       if(T){ const bothDone=complete(D)&&complete(T); let r=null; if(bothDone||(D.kind==='atom'&&EL[D.atoms[0].e].kind==='m'&&T.kind==='cov')) r=tryReact(D,T);
         if(!r) tryBond(D,T); } }
     // open palm near a molecule rotates it with the hand
-    if(H.g==='vee'||H.g==='open'){ const m=pick(H.palm.x,H.palm.y)||pick(H.palm.x,H.palm.y-60); if(m){ m.spin.y+=H.vx*.0009; m.spin.x+=H.vy*.0009; } }
+    if(H.g==='cup'||H.g==='open'){ const m=pick(H.palm.x,H.palm.y)||pick(H.palm.x,H.palm.y-60); if(m){ m.spin.y+=H.vx*.0009; m.spin.x+=H.vy*.0009; } }
     if(H.g==='fist'){ const m=pick(H.palm.x,H.palm.y); if(m&&m.kind!=='atom'){ m.fistT=(m.fistT||0)+dt; if(m.fistT>.7) split(m); } } }
   for(const m of MOLS){ if(m!==E_.held){ m.spin.multiplyScalar(Math.pow(.6,dt)); if(m.spin.length()<.25) m.spin.y+=.2*dt; }
     const dq=new THREE.Quaternion().setFromEuler(new THREE.Euler(m.spin.x*dt,m.spin.y*dt,0)); m.q.premultiply(dq);

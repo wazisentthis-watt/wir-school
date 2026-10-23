@@ -1,7 +1,9 @@
 /* Elements mode (water / fire / earth / air) + chemistry effects, all on the fx.js engine. */
+import {step as moveStep,defaultCal} from './moves.js';
 import {POOL,AIRB,airBall,airClear,mote,FX,L,WATER,ROCKS,rnd,addField,waterSpawn,waterThrow,waterCount,rockSpawn,rockCrumble,dust,lightAt,paperAt,paperChar} from './fx.js';
 
-export const E={ev:n=>E.onEv?.(n),mode:'water', hands:[], combo:0, onGesture:null, hot:[], booms:[]};
+export const E={ev:n=>E.onEv?.(n),mode:'water', hands:[], combo:0, onGesture:null, hot:[], booms:[], q:[]};
+E.later=(s,f)=>E.q.push({t:FX.t+s,f});
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const FING=[[8,6],[12,10],[16,14],[20,18]];
 
@@ -18,16 +20,18 @@ export function readHand(H,pts,dt,cal){
   // Gestures (phone-friendly, no pinch): POKE = index only; VEE = index+middle up; OPEN; FIST (rare: needs 6 steady frames).
   const up=f=>dist(pts[FING[f][0]],pts[0])>dist(pts[FING[f][1]],pts[0])*(cal.ext||1.12);
   const iu=up(0),mu=up(1),ru=up(2),pu=up(3);
-  let g='relaxed';
-  if(ext>=4) g='open'; else if(iu&&mu&&!ru&&!pu) g='vee'; else if(iu&&!mu&&!ru&&!pu) g='poke'; else if(ext===0) g='fist'; else if(ext>=3) g='open';
+  // Kinetic-chain move engine (moves.js): static pose open/poke/cup/fist/relaxed (no ✌️) + temporal moves, per-user calibrated.
+  if(!cal.mv) cal.mv=defaultCal();
+  const R=moveStep(H,pts,FX.t,cal.mv,dt); let g=R.g;
+  H.n=R.n; H.mvs=R.state; H.mv=R.ev.map(e=>e.k); H.mvo=R.ev; for(const e of R.ev) E.ev('move:'+e.k);
   H.cand===g?H.cn++:(H.cand=g,H.cn=1);
-  const prevG=H.g; if(H.cn>=(g==='fist'?6:g==='poke'?2:3)) H.g=g; H.pinch=H.g==='vee';
-  H.pinchPt=H.g==='vee'?{x:(pts[8].x+pts[12].x)/2,y:(pts[8].y+pts[12].y)/2}:{x:pts[8].x,y:pts[8].y};
+  const prevG=H.g; if(H.cn>=(g==='fist'?6:g==='poke'?2:3)) H.g=g; H.pinch=H.g==='cup';
+  H.pinchPt=H.g==='cup'?{x:(palm.x*2+pts[12].x)/3,y:(palm.y*2+pts[12].y)/3}:{x:pts[8].x,y:pts[8].y};
   // fingertip push toward the camera = tap
   H.tap=H.g==='poke'&&H.pushS>1.2&&(!H.tapCd||FX.t>H.tapCd); if(H.tap) H.tapCd=FX.t+.6;
   H.changed=prevG!==H.g; H.prevG=prevG;
   // circle detector on index tip (or palm)
-  const p=H.g==='poke'||H.g==='vee'?pts[8]:palm; H.trail=(H.trail||[]); H.trail.push({x:p.x,y:p.y,t:FX.t}); while(H.trail.length&&FX.t-H.trail[0].t>1.2) H.trail.shift();
+  const p=H.g==='poke'?pts[8]:palm; H.trail=(H.trail||[]); H.trail.push({x:p.x,y:p.y,t:FX.t}); while(H.trail.length&&FX.t-H.trail[0].t>1.2) H.trail.shift();
   H.circle=null; if(H.trail.length>12){ let cx=0,cy=0; for(const q of H.trail){cx+=q.x;cy+=q.y;} cx/=H.trail.length; cy/=H.trail.length;
     let acc=0,r=0; for(let i=1;i<H.trail.length;i++){ const a0=Math.atan2(H.trail[i-1].y-cy,H.trail[i-1].x-cx), a1=Math.atan2(H.trail[i].y-cy,H.trail[i].x-cx); let d=a1-a0; if(d>Math.PI)d-=2*Math.PI; if(d<-Math.PI)d+=2*Math.PI; acc+=d; r+=Math.hypot(H.trail[i].x-cx,H.trail[i].y-cy);} r/=H.trail.length;
     if(Math.abs(acc)>Math.PI*1.7&&r>35){ H.circle={x:cx,y:cy,r,dir:Math.sign(acc)}; H.trail=[]; } }
@@ -40,8 +44,17 @@ export function readHand(H,pts,dt,cal){
 /* ---- per-element behaviour ---- */
 const MODES={
  water(H,dt){ const W=WATER; W.orb=null;
-   if(H.g==='vee'){ const p=H.pinchPt; if(W.n<560*FX.Q) for(let i=0;i<2;i++) waterSpawn(p.x+rnd(-6,6),p.y+8,rnd(-15,15)+H.vx*.3,rnd(60,140),0,8);
-     if(H.changed) E.say('Pouring onto the ground'); if(POOL.n>40&&!H.poolEv){ H.poolEv=1; E.ev('water:pool'); } }
+   const has=k=>H.mv.includes(k);
+   if(has('ripple')||has('rippleIn')){ if(POOL.n>10||W.n>20){ addField({type:'push',x:H.palm.x,y:FX.groundY||H.palm.y,r:420,vx:(has('ripple')?1:-1)*500,vy:-260,dur:.4}); E.say('Ripple'); E.ev('water:ripple'); } }
+   if(has('pulse')){ for(let i=0;i<40*FX.Q;i++){ const a=rnd(-2.8,-.35), s=rnd(250,520); waterSpawn(H.palm.x,H.palm.y-H.scale*.4,Math.cos(a)*s,Math.sin(a)*s,0,2.5); } E.say('Bloom'); E.ev('water:bloom'); }
+   if(has('shake')){ for(let i=0;i<30*FX.Q;i++) waterSpawn(H.palm.x+rnd(-30,30),H.palm.y+rnd(-30,30),rnd(-500,500),rnd(-400,100),0,1.5); E.say('Droplets'); E.ev('water:shake'); }
+   if(has('scoop')&&POOL.n>8){ H.scoopT=FX.t+1.5; E.say('Scooped an orb: tilt to pour, flick to throw'); E.ev('water:scoop'); }
+   if(H.g==='cup'&&!H.holding&&!H.mvs.pour){ const p=H.pinchPt; W.path.unshift({x:p.x,y:p.y-H.scale*.2}); if(W.path.length>4) W.path.length=4;
+     if(waterCount(2)<(H.scoopT>FX.t?90:45)*FX.Q) waterSpawn(p.x+rnd(-8,8),p.y+rnd(-8,8),0,0,2,4);
+     if(H.swipe){ waterThrow(H.vx*1.1,H.vy*1.1,2); W.path=[]; E.say('Water throw!'); } return; }
+   if(H.g==='cup'&&!H.holding&&H.mvs.pour){ const d=H.mvs.pour, p={x:H.pinchPt.x+d*H.scale*.45,y:H.pinchPt.y}; for(let i=0;i<W.n;i++) if(W.mode[i]===2) W.mode[i]=0; W.path=[];
+     if(W.n<560*FX.Q) for(let i=0;i<2;i++) waterSpawn(p.x+rnd(-5,5),p.y+6,d*rnd(20,60)+H.vx*.3,rnd(60,140),0,8);
+     if(!H.pourSaid){ H.pourSaid=1; E.say('Pouring'); } if(POOL.n>40&&!H.poolEv){ H.poolEv=1; E.ev('water:pool'); } return; } else H.pourSaid=0;
    if(H.g==='open'){ waterStrands(H,dt); return; } else strandsOff(H);
    if(H.g==='poke'){ const p=H.pinchPt; W.path.unshift({x:p.x,y:p.y}); if(W.path.length>34) W.path.length=34;
      let moved=0; for(let i=0;i<W.n;i++) if(W.mode[i]===1){W.mode[i]=2;moved++;}
@@ -49,10 +62,14 @@ const MODES={
      W.orb=null; if(H.swipe&&H.speed>1700){ waterThrow(H.vx*1.1,H.vy*1.1,2); W.path=[]; E.say('Water whip!'); } }
    else { if(H.changed&&(H.prevG==='open'||H.prevG==='poke')){ const n=waterThrow(H.vx*1.1,H.vy*1.1-100,-1); if(n&&H.speed>500) E.say('Splash!'); }
      W.orb=null; W.path=[]; } },
- fire(H,dt){ const k=FX.Q;
+ fire(H,dt){ const k=FX.Q, has=q=>H.mv.includes(q);
+   if(has('ripple')||has('rippleIn')){ const ord=has('ripple')?[20,16,12,8]:[8,12,16,20]; ord.forEach((ti,j)=>E.later(j*.08,()=>{ const p=H.pts[ti]; for(let i=0;i<8*k;i++) L.fire.spawn(p.x+rnd(-3,3),p.y-4,rnd(-15,15),-rnd(90,170),{size:rnd(12,20),grow:.9,life:rnd(.25,.4),curl:1.2,a:1}); E.hot.push({x:p.x,y:p.y,r:16}); })); E.say('Flame ripple'); E.ev('fire:ripple'); }
+   if(has('bloom')) H.bloomT=FX.t+.45;
+   if(has('thumb')){ const p=H.pts[4]; for(let i=0;i<26*k;i++) L.spark.spawn(p.x,p.y,rnd(-260,260),rnd(-380,-60),{c:[1,.7,.3],size:7,life:rnd(.4,.8),grav:600}); lightAt(p.x,p.y,[1,.6,.3],1.5); E.say('Spark'); E.ev('fire:spark'); }
+   if(has('curl')){ if(E.ember?.held) E.ember=null; H.focus=0; for(let i=0;i<4;i++) L.smoke.spawn(H.palm.x+rnd(-20,20),H.palm.y-20,rnd(-30,30),rnd(-90,-40),{c:[.75,.75,.75],a:.2,size:rnd(40,70),grow:1.4,life:rnd(1,1.6),curl:1}); E.say('Snuffed'); E.ev('fire:snuff'); }
    if(H.g==='open'){ const dx=H.pts[9].x-H.pts[0].x, dy=H.pts[9].y-H.pts[0].y, d=Math.hypot(dx,dy)||1, ux=dx/d, uy=dy/d, o={x:H.pts[9].x+ux*H.scale*.5,y:H.pts[9].y+uy*H.scale*.5};
      L.glow.spawn(o.x,o.y,0,0,{c:[1,.5,.15],a:.25,size:H.scale*.9,life:.06,field:0});
-     if((H.pushS>.9||H.swipe)&&(!H.burstCd||FX.t>H.burstCd)){ H.burstCd=FX.t+.7; const bx=H.swipe?H.vx/(H.speed||1):ux, by=H.swipe?H.vy/(H.speed||1):uy;
+     if((H.pushS>.9||H.swipe||H.bloomT>FX.t||has('push'))&&(!H.burstCd||FX.t>H.burstCd)){ H.burstCd=FX.t+.7; H.bloomT=0; const bx=H.swipe?H.vx/(H.speed||1):ux, by=H.swipe?H.vy/(H.speed||1):uy;
        for(let i=0;i<34*k;i++){ const sp=rnd(420,640), sx=bx+rnd(-.12,.12), sy=by+rnd(-.12,.12); L.fire.spawn(o.x+rnd(-5,5),o.y+rnd(-5,5),sx*sp,sy*sp-30,{size:rnd(16,30),grow:1.1,life:rnd(.22,.38),drag:.9,curl:1.2,a:.8}); }
        for(let i=0;i<4;i++) E.hot.push({x:o.x+bx*60*(i+1),y:o.y+by*60*(i+1),r:30});
        lightAt(o.x,o.y,[1,.55,.2],2.2); E.say('Burst'); E.ev('fire:burst'); }
@@ -64,32 +81,36 @@ const MODES={
      lightAt(t.x,t.y,[1,.6,.25],.8*g); if(H.changed) E.say('Fingertip flame: hold still to focus it');
      if(H.focus>1&&!H.fev){ H.fev=1; E.ev('fire:flame'); } if(H.focus>2&&H.fev<2){ H.fev=2; E.ev('fire:focus'); } }
    else { H.focus=0; H.fev=0; }
-   if(H.g==='vee'){ E.ember=E.ember||{x:H.palm.x,y:H.palm.y,r:10,vx:0,vy:0,held:true}; const b=E.ember; b.held=true; b.x+=(H.palm.x-b.x)*.5; b.y+=(H.palm.y-H.scale*.4-b.y)*.5; b.vx=H.vx; b.vy=H.vy; b.r=Math.min(40,b.r+dt*30);
-     if(H.changed) E.say('Ember ball charging… flick or open your hand to throw'); if(b.r>30&&!b.ev){ b.ev=1; E.ev('fire:ember'); } }
+   if(H.g==='cup'){ E.ember=E.ember||{x:H.palm.x,y:H.palm.y,r:10,vx:0,vy:0,held:true}; const b=E.ember; b.held=true; b.x+=(H.palm.x-b.x)*.5; b.y+=(H.palm.y-H.scale*.4-b.y)*.5; b.vx=H.vx; b.vy=H.vy; b.r=Math.min(40,b.r+dt*30);
+     if(H.changed) E.say('Ember charging in your cupped hand… flick-open to throw'); if(b.r>30&&!b.ev){ b.ev=1; E.ev('fire:ember'); } }
    else if(E.ember?.held&&(H.changed||H.swipe)){ const b=E.ember; b.held=false; const s=Math.max(700,H.speed*1.2), d=Math.hypot(H.vx,H.vy)||1; b.vx=H.speed>250?H.vx/d*s:0; b.vy=H.speed>250?H.vy/d*s:-900; E.say('Fireball!'); E.ev('fire:fireball'); } },
- earth(H,dt){
+ earth(H,dt){ const has=q=>H.mv.includes(q);
+   if(has('scoop')&&(!H.liftCd||FX.t>H.liftCd)){ H.lift=rockSpawn(H.palm.x+rnd(-20,20),H.palm.y-H.scale*.2); H.liftCd=FX.t+.6; E.say('Scooped a rock up!'); E.ev('earth:rise'); }
+   if(has('shake')){ FX.shake=9; dust(H.palm.x,FX.H-6,40,1.4); for(const k of ROCKS) if(k.mode!=='held'){ k.mode='free'; k.vx=rnd(-120,120); k.vy=rnd(-380,-180); } E.say('Tremor'); E.ev('earth:tremor'); }
+   if(has('bloom')){ const k=H.rock||ROCKS.filter(q=>q.mode!=='held'||q===H.rock).sort((a,b)=>dist(a,H.palm)-dist(b,H.palm))[0]; if(k&&dist(k,H.palm)<k.r*3){ if(H.rock===k) H.rock=null; rockCrumble(k); E.say('Shattered'); E.ev('earth:shatter'); } }
    const near=(p)=>ROCKS.filter(k=>k.mode!=='held').sort((a,b)=>dist(a,p)-dist(b,p))[0];
    if(H.g==='open'){ if(H.vy<-450&&(!H.liftCd||FX.t>H.liftCd)&&!(H.lift&&ROCKS.includes(H.lift))){ H.lift=rockSpawn(H.palm.x+rnd(-20,20),H.palm.y-H.scale*.2); H.liftCd=FX.t+.6; E.say('Rock rises!'); E.ev('earth:rise'); }
      if(H.lift&&ROCKS.includes(H.lift)&&H.lift.mode!=='held'&&H.lift.mode!=='free'){ H.lift.ty=Math.min(H.lift.ty,H.palm.y-H.scale*.3); H.lift.x+=(H.palm.x-H.lift.x)*.1; if(H.lift.mode==='hover') H.lift.mode='rise'; }
      for(const k of ROCKS) if(k.mode==='hover'&&H.swipe&&dist(k,H.palm)<260){ k.mode='free'; k.vx=H.vx*1.1; k.vy=H.vy*1.1; } }
    if(H.g!=='open') H.lift=null;
-  if(H.g==='vee'){ if(!H.rock){ const k=near(H.pinchPt); if(k&&dist(k,H.pinchPt)<k.r*2.2) {H.rock=k; k.mode='held'; E.say('Got it. Flick to throw.'); E.ev('earth:grab');} }
+  if(H.g==='cup'&&!H.holding){ if(!H.rock){ const k=near(H.pinchPt); if(k&&dist(k,H.pinchPt)<k.r*2.2) {H.rock=k; k.mode='held'; E.say('Got it. Flick to throw, flick-open to shatter.'); E.ev('earth:grab');} }
      if(H.rock){ H.rock.hx=H.pinchPt.x; H.rock.hy=H.pinchPt.y; } }
    else if(H.rock){ const k=H.rock; H.rock=null; if(!ROCKS.includes(k)) return;
      if(H.g==='fist'){ rockCrumble(k); E.say('Crushed to dust'); }
      else { k.mode=H.speed>300?'free':'hover'; k.ty=k.y; k.vx=H.vx*1.2; k.vy=H.vy*1.2; if(k.mode==='free'){ E.say('Thrown!'); E.ev('earth:throw'); } } }
    if(H.g==='fist'&&H.changed&&!H.rock){ const k=near(H.palm); if(k&&dist(k,H.palm)<k.r*1.6){ rockCrumble(k); E.say('Crushed to dust'); } } },
- air(H,dt){ const tip=H.g==='open'?H.palm:H.tip, pv=H.lastTip||tip, sp=Math.hypot(tip.x-pv.x,tip.y-pv.y)/dt; H.lastTip={x:tip.x,y:tip.y};
-   const w=circRate(H,H.g==='vee'?H.pinchPt:tip);
+ air(H,dt){ const has=q=>H.mv.includes(q); const tip=H.g==='open'?H.palm:H.tip, pv=H.lastTip||tip, sp=Math.hypot(tip.x-pv.x,tip.y-pv.y)/dt; H.lastTip={x:tip.x,y:tip.y};
+   const w=circRate(H,H.g==='cup'?H.palm:tip);
    if(sp>120&&Math.random()<.5*FX.Q) mote(tip.x+rnd(-20,20),tip.y+rnd(-20,20),(tip.x-pv.x)/dt*.5,(tip.y-pv.y)/dt*.5);
    let b=H.ball&&AIRB.includes(H.ball)?H.ball:null;
-   if(H.g==='vee'){ const c={x:(H.pts[8].x+H.pts[12].x)/2,y:(H.pts[8].y+H.pts[12].y)/2-H.scale*.25};
-     if(!b||b.free){ b=H.ball=airBall(c.x,c.y,14); E.say('Air ball: circle your hand to spin it'); E.ev('air:ball'); }
+   if(has('pulse')&&(!b||b.free)) H.pulseHold=FX.t+1.2;
+   if(H.g==='cup'||(H.pulseHold>FX.t&&H.g!=='fist')){ const c={x:H.palm.x,y:H.palm.y-H.scale*.75};
+     if(!b||b.free){ b=H.ball=airBall(c.x,c.y,14); E.say('Air ball: spiral your wrist to spin it'); E.ev('air:ball'); }
      b.held=true; b.x+=(c.x-b.x)*.5; b.y+=(c.y-b.y)*.5; b.r=Math.min(Math.max(34,H.scale*.55),b.r+dt*40); feedSpin(b,w,dt,H); }
    if(b&&b.held){ const s=Math.abs(b.spin); if(s>5) E.ev('air:spin'); const ps=Math.max(s,b.peak||0); b.keepT=s>5?(b.keepT||0)+dt:0; if(b.keepT>3&&!b.kev){ b.kev=1; E.ev('air:keep'); }
-     if(H.swipe&&H.speed>900){ if(ps>5){ b.held=false; b.free=true; b.vx=H.vx*1.1; b.vy=H.vy*1.1; b.life=1; H.ball=null; E.say('Air ball thrown'); E.ev('air:throw'); }
+     if((H.swipe&&H.speed>900)||has('push')){ if(ps>5){ if(!H.swipe){ H.vx=0; H.vy=-1100; } b.held=false; b.free=true; b.vx=H.vx*1.1; b.vy=H.vy*1.1; b.life=1; H.ball=null; E.say('Air ball thrown'); E.ev('air:throw'); }
        else if(!H.spinCd||FX.t>H.spinCd){ H.spinCd=FX.t+2; E.say('Spin it first: keep circling'); } }
-     else if(H.g!=='vee'&&H.g!=='open') b.held=false; }
+     else if(H.g!=='cup'&&H.g!=='open'&&!(H.pulseHold>FX.t)) b.held=false; }
    if(H.g==='open'&&H.swipe&&(!H.gustCd||FX.t>H.gustCd)){ H.gustCd=FX.t+.5; addField({type:'push',x:H.palm.x,y:H.palm.y,r:320,vx:H.vx,vy:H.vy,dur:.5});
      const g=airBall(H.palm.x,H.palm.y,26); g.held=false; g.free=true; g.vx=H.vx*.9; g.vy=H.vy*.9; g.spin=4*Math.sign(H.vx||1); g.life=.6;
      for(let i=0;i<14*FX.Q;i++) mote(H.palm.x+rnd(-50,50),H.palm.y+rnd(-50,50),H.vx*rnd(.5,1),H.vy*rnd(.5,1)); E.say('Gust!'); } },
@@ -98,7 +119,7 @@ const MODES={
 const TIPS=[4,8,12,16,20];
 function strandsOff(H,sink){ for(const S of WATER.strands) S.on=false; for(let i=0;i<WATER.n;i++) if(WATER.mode[i]===4){ WATER.mode[i]=0; WATER.vy[i]=sink?200:0; } H.amt=0; }
 function waterStrands(H,dt){ const W=WATER, gy=FX.groundY; if(!gy) return;
-  if(POOL.n+W.strands.reduce((s,S)=>s+S.n,0)<12){ if(!H.dryCd||FX.t>H.dryCd){ H.dryCd=FX.t+4; E.say('Pour water first: ✌️ over the floor'); } return; }
+  if(POOL.n+W.strands.reduce((s,S)=>s+S.n,0)<12){ if(!H.dryCd||FX.t>H.dryCd){ H.dryCd=FX.t+4; E.say('Pour water first: cup your hand and tilt it over the floor'); } return; }
   if(H.vy>650&&(H.amt||0)>.2){ strandsOff(H,true); E.say('Sink'); E.ev('water:sink'); return; }
   H.amt=Math.max(0,Math.min(1,(H.amt||0)-H.vy*dt/260));       // raise the palm to pull up, push down to sink back
   let on=0;
@@ -148,7 +169,7 @@ function pairBall(hs,dt){ const [a,b]=hs; if(hs.length<2||a.g!=='open'||b.g!=='o
   const p=E.pair; p.held=true; p.x=c.x; p.y=c.y; p.r+=(Math.max(24,gap*.36)-p.r)*.2; feedSpin(p,circRate(a,a.palm),dt); if(Math.abs(p.spin)>5) E.ev('air:spin'); }
 function combo(hs,dt){ if(E.mode==='air') pairBall(hs,dt); if(hs.length<2) { E.prevGap=null; return; } const [a,b]=hs, gap=dist(a.palm,b.palm);
   const closing=E.prevGap!=null?(E.prevGap-gap)/dt:0; E.prevGap=gap;
-  if(gap<a.scale*1.3&&closing>500&&(!E.comboCd||FX.t>E.comboCd)&&!['poke','vee'].includes(a.g)&&!['poke','vee'].includes(b.g)){ E.comboCd=FX.t+1.2; const x=(a.palm.x+b.palm.x)/2, y=(a.palm.y+b.palm.y)/2; burst(x,y); } }
+  if(gap<a.scale*1.3&&closing>500&&(!E.comboCd||FX.t>E.comboCd)&&!['poke','cup'].includes(a.g)&&!['poke','cup'].includes(b.g)){ E.comboCd=FX.t+1.2; const x=(a.palm.x+b.palm.x)/2, y=(a.palm.y+b.palm.y)/2; burst(x,y); } }
 export function burst(x,y){ E.say('COMBO: Elemental burst!'); addField({type:'blast',x,y,r:420,str:6000,dur:.4}); FX.shake=10;
   if(E.mode==='fire') boom(x,y,50);
   else if(E.mode==='water'){ for(let i=0;i<220*FX.Q;i++){const a=rnd(0,6.28),s=rnd(300,1200); waterSpawn(x,y,Math.cos(a)*s,Math.sin(a)*s-200,0,2);} }
@@ -161,6 +182,7 @@ export function update(hands,dt){
   if(MODES[E.mode]) for(const H of hands){ MODES[E.mode](H,dt); if(H.circle&&!(E.mode==='air'&&(H.ball||E.pair))&&!(E.mode==='water'&&H.g==='open')) vortex(H.circle); }
   if(!hands.some(h=>h.g==='open')&&E.mode==='water') WATER.orb=null;
   if(MODES[E.mode]) combo(hands,dt);
+  for(let i=E.q.length-1;i>=0;i--) if(FX.t>=E.q[i].t){ const f=E.q[i].f; E.q.splice(i,1); f(); }
   stepEmber(dt); stepVortexFx(dt); }
 export function clearAll(){ WATER.n=0; WATER.orb=null; WATER.path=[]; for(const k of [...ROCKS]) rockCrumble(k); E.ember=null; E.vortex=null; FX.fields.length=0; airClear(); E.pair=null; for(const S of WATER.strands) S.on=false; }
 

@@ -28,14 +28,23 @@ function detect(now){
   if(!dets) return;
   for(const d of dets){ let best=null,bs=0; for(const o of B.objs){ if(o.label!==d.label) continue; const s=iou(o.box,d.box)+(1-Math.min(1,Math.hypot(o.box.x+o.box.w/2-d.box.x-d.box.w/2,o.box.y+o.box.h/2-d.box.y-d.box.h/2)/Math.max(d.box.w,d.box.h))); if(s>bs){bs=s;best=o;} }
     if(best&&bs>.35){ const o=best, k=B.still?(iou(o.box,d.box)>.8?0:.15):.55; o.vx=((d.box.x-o.box.x))/Math.max(.05,(now-o.seenMs)/1000); o.vy=((d.box.y-o.box.y))/Math.max(.05,(now-o.seenMs)/1000);
-      for(const p of ['x','y','w','h']) o.box[p]+=(d.box[p]-o.box[p])*k; o.seen=FX.t; o.seenMs=now; }
+      for(const p of ['x','y','w','h']) o.box[p]+=(d.box[p]-o.box[p])*(o.held?.85:k); o.seen=FX.t; o.seenMs=now; heldCheck(o); }
     else B.objs.push({label:d.label,box:{...d.box},seen:FX.t,seenMs:now,vx:0,vy:0,fire:0,chars:(mem[d.label]||[]).map(c=>({...c})),safe:NEVER.test(d.label)}); }
   B.objs=B.objs.filter(o=>FX.t-o.seen<2.5); }
+/* real handheld objects: a detected box that overlaps a gripping hand is "held"; between detections the box rides on the palm */
+B.palms=[];
+function heldCheck(o){ if(o.safe){ o.held=null; return; } const b=o.box; let best=null;
+  for(const p of B.palms){ if(!['cup','fist','relaxed','poke'].includes(p.g)) continue; const pad=p.s*.35;
+    if(p.x>b.x-pad&&p.x<b.x+b.w+pad&&p.y>b.y-pad&&p.y<b.y+b.h+pad) best=p; }
+  if(best){ if(!o.held) say?.(`Holding the ${o.label}: effects follow your hand`); o.held=best.id; o.hoff={x:b.x-best.x,y:b.y-best.y}; } else o.held=null; }
 export function update(dt,now,active){
   if(!cv) return; cx.clearRect(0,0,cv.width,cv.height); if(!active&&!B.objs.some(o=>o.fire>0)) { if(!active) return; }
   detect(now);
   for(const o of B.objs){ const b=o.box;
-    if(FX.t-o.seen>.1&&FX.t-o.seen<1){ b.x+=o.vx*dt*.5; b.y+=o.vy*dt*.5; } // short extrapolation between detections
+    const hp=o.held!=null&&B.palms.find(p=>p.id===o.held);
+    if(hp&&o.hoff){ b.x+=(hp.x+o.hoff.x-b.x)*.6; b.y+=(hp.y+o.hoff.y-b.y)*.6; o.seen=Math.max(o.seen,FX.t-1); }
+    else if(FX.t-o.seen>.1&&FX.t-o.seen<1){ b.x+=o.vx*dt*.5; b.y+=o.vy*dt*.5; } // short extrapolation between detections
+    if(o.held!=null&&!hp) o.held=null;
     // ignite from any fire hot-spot inside the box
     for(const h of E.hot){ if(h.x>b.x-h.r*.3&&h.x<b.x+b.w+h.r*.3&&h.y>b.y-h.r*.3&&h.y<b.y+b.h+h.r*.3){
       if(o.safe){ if(FX.t-B.lastSay>3){ B.lastSay=FX.t; say(`Not the ${o.label}. Fire is never for living things.`);} continue; }
@@ -58,8 +67,8 @@ export function update(dt,now,active){
       else { const g=cx.createRadialGradient(0,0,0,0,0,rr); g.addColorStop(0,'rgba(10,6,4,.9)'); g.addColorStop(.6,'rgba(40,20,8,.6)'); g.addColorStop(1,'rgba(60,30,10,0)'); cx.fillStyle=g; cx.beginPath(); cx.arc(0,0,rr,0,7); cx.fill(); }
       if(o.fire>0){ cx.globalCompositeOperation='lighter'; const g=cx.createRadialGradient(0,0,rr*.5,0,0,rr); g.addColorStop(0,'rgba(255,90,20,0)'); g.addColorStop(.8,'rgba(255,120,30,.5)'); g.addColorStop(1,'rgba(255,60,0,0)'); cx.fillStyle=g; cx.beginPath(); cx.arc(0,0,rr,0,7); cx.fill(); }
       cx.restore(); }
-    const tgt=B.debug||o.fire>0||(B.tip&&B.tip.x>b.x-30&&B.tip.x<b.x+b.w+30&&B.tip.y>b.y-30&&B.tip.y<b.y+b.h+30);
+    const tgt=B.debug||o.fire>0||o.held!=null||(B.tip&&B.tip.x>b.x-30&&B.tip.x<b.x+b.w+30&&B.tip.y>b.y-30&&B.tip.y<b.y+b.h+30);
     if(tgt&&(active||B.still)){ cx.save(); cx.strokeStyle=o.safe?'rgba(127,255,212,.45)':o.fire>0?'rgba(255,170,80,.6)':'rgba(255,255,255,.35)'; cx.lineWidth=1.2; cx.beginPath(); cx.roundRect?cx.roundRect(b.x,b.y,b.w,b.h,10):cx.rect(b.x,b.y,b.w,b.h); cx.stroke();
-      cx.fillStyle='rgba(255,255,255,.7)'; cx.font='10px system-ui'; cx.fillText((o.safe?'🛡 ':'')+o.label,b.x+6,b.y+13); cx.restore(); } } }
+      cx.fillStyle='rgba(255,255,255,.7)'; cx.font='10px system-ui'; cx.fillText((o.safe?'🛡 ':'')+(o.held!=null?'✋ ':'')+o.label,b.x+6,b.y+13); cx.restore(); } } }
 export function zones(tip){ const z=B.objs.filter(o=>!o.safe).map(o=>({...o.box,up:Math.min(140,o.box.h*.8)})); if(tip) z.push({x:tip.x-18,y:tip.y-18,w:36,h:36,up:40}); return z; }
 export function forget(){ for(const k in mem) delete mem[k]; saveMem(); B.objs.forEach(o=>o.chars=[]); }

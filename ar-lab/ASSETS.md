@@ -30,3 +30,7 @@ Runtime models (loaded from Google's CDN, not bundled):
 - MediaPipe Hand Landmarker — Apache-2.0 (existing)
 
 Atoms (Bohr atoms, ball-and-stick) and liquids are procedural three.js geometry; colours follow the CPK/Jmol convention. No Nexus Mods assets.
+
+## v5 (moves + item tray)
+- Item tray objects (paper ball, candle, wood block, ice cube, coin, leaf, cup of water) are drawn procedurally in items.js on a 2D canvas: no external assets added.
+- Move engine (moves.js) and its synthetic test hand are original code.

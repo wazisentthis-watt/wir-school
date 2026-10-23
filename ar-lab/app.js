@@ -1,3 +1,4 @@
+import * as MV from './moves.js';
 import * as STL from './still.js';
 import * as TR from './train.js';
 import * as FXE from './fx.js';
@@ -7,6 +8,7 @@ import * as AT from './atoms.js';
 import * as GE from './gear.js';
 import * as BU from './burn.js';
 import * as BO from './body.js';
+import * as IT from './items.js';
 const {E}=EL;
 const VISION = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 const $ = id => document.getElementById(id);
@@ -176,7 +178,7 @@ async function startCamera(){
     S.stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:S.facing},width:{ideal:1280},height:{ideal:720}}});
     video.srcObject=S.stream; await video.play().catch(()=>{}); camOn(true); startTrackLoop();
     video.classList.toggle('mirror',S.facing==='user'); video.onloadedmetadata=()=>FXE.setCamera(true,S.facing==='user'); FXE.setCamera(true,S.facing==='user');
-    status(S.landmarker?'Point ☝️ to poke, ✌️ to grab.':'Camera on. Loading hand tracking…');
+    status(S.landmarker?'Point ☝️ to poke, cup 🤲 to hold.':'Camera on. Loading hand tracking…');
   }catch(err){
     const denied = err && (err.name==='NotAllowedError'||err.name==='SecurityError');
     camError(denied
@@ -197,7 +199,7 @@ async function initHands(){
     const opts=d=>({baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',delegate:d},runningMode:'VIDEO',numHands:2,minHandDetectionConfidence:.4,minHandPresenceConfidence:.4,minTrackingConfidence:.4});
     try{ S.landmarker=await v.HandLandmarker.createFromOptions(fs,opts('GPU')); }
     catch{ S.landmarker=await v.HandLandmarker.createFromOptions(fs,opts('CPU')); }
-    status(S.stream?'Hand tracking ready. Point ☝️ to poke, ✌️ to grab.':'Hand tracking ready (no camera yet).');
+    status(S.stream?'Hand tracking ready. Point ☝️ to poke, cup 🤲 to hold.':'Hand tracking ready (no camera yet).');
   }catch(e){ console.warn('hands failed',e); status('Hand tracking could not load. Touch and controller still work.'); }
 }
 const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
@@ -236,7 +238,7 @@ const BONES=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11
 function drawSkel(hs){ hs=(hs||[]).map(h=>Array.isArray(h)?{pts:h,g:''}:h); const dpr=Math.min(devicePixelRatio,2);
   if(skel.width!==innerWidth*dpr){skel.width=innerWidth*dpr;skel.height=innerHeight*dpr;}
   sk.setTransform(dpr,0,0,dpr,0,0); sk.clearRect(0,0,innerWidth,innerHeight);
-  for(const h of hs){ const pts=h.pts; if(!pts) continue; const col=h.g==='poke'||h.g==='vee'?'#5fff8a':h.g==='fist'?'#ff9a5a':h.g==='open'?'#7fd8ff':'#c8f5ff';
+  for(const h of hs){ const pts=h.pts; if(!pts) continue; const col=h.g==='poke'||h.g==='cup'?'#5fff8a':h.g==='fist'?'#ff9a5a':h.g==='open'?'#7fd8ff':'#c8f5ff';
     for(const [w,c] of [[6,'#0008'],[2.5,col]]){ sk.lineWidth=w; sk.strokeStyle=c; sk.lineCap='round'; sk.beginPath();
       for(const [a,b] of BONES){sk.moveTo(pts[a].x,pts[a].y);sk.lineTo(pts[b].x,pts[b].y);} sk.stroke(); }
     for(const [i,p] of pts.entries()){ const tip=i===4||i===8; sk.fillStyle=tip?'#ffd27f':'#fff'; sk.strokeStyle='#000a'; sk.lineWidth=1.5;
@@ -244,11 +246,11 @@ function drawSkel(hs){ hs=(hs||[]).map(h=>Array.isArray(h)?{pts:h,g:''}:h); cons
 const hint=m=>{const h=$('hint'); h.hidden=!m; if(m) h.textContent=m;};
 /* Two-stage calibration (saved to the profile, done once):
    Stage 1 static: open hand → learns how "extended" your fingers read.
-   Stage 2 movement signature: ☝️ poke, ✌️ two fingers, then 3 flicks → learns curled-finger ratio and your flick speed.
+   Stage 2 movement signature: ☝️ poke, 🤲 soft cup, then 3 flicks → learns curled-finger ratio and your flick speed.
    Result: per-user finger-extension threshold (S.ext) and swipe threshold (S.swipeT). */
 const CAL_STEPS=[{k:'open',icon:'1',msg:'Stage 1: show your OPEN hand, fingers spread, arm\'s length away'},
  {k:'poke',icon:'2a',msg:'Stage 2: POINT one finger (others curled) and hold'},
- {k:'vee',icon:'2b',msg:'Now TWO fingers up ✌️ and hold'},
+ {k:'cup',icon:'2b',msg:'Now CUP your hand softly, like holding water, and hold'},
  {k:'flick',icon:'2c',msg:'Now FLICK your hand sideways fast, 3 times'}];
 const ratio=(pts,f)=>{ const [t,p]=[[8,6],[12,10],[16,14],[20,18]][f]; return Math.hypot(pts[t].x-pts[0].x,pts[t].y-pts[0].y)/(Math.hypot(pts[p].x-pts[0].x,pts[p].y-pts[0].y)||1); };
 function startCalib(){ S.calib={i:0,open:[],curl:[],flicks:[],peak:0,t:0}; $('calbox').hidden=false; calShow(); }
@@ -256,7 +258,7 @@ function calShow(){ const s=CAL_STEPS[S.calib.i]; $('calIcon').textContent=s.ico
 function stepCalib(h,dt){ const c=S.calib; if(!c||!h?.pts) return; const s=CAL_STEPS[c.i], pts=h.pts, need=25;
   if(s.k==='open'){ c.open.push(Math.min(...[0,1,2,3].map(f=>ratio(pts,f)))); c.n++; }
   if(s.k==='poke'&&ratio(pts,0)>Math.max(ratio(pts,1),ratio(pts,2))+.1){ c.curl.push(Math.max(ratio(pts,1),ratio(pts,2),ratio(pts,3))); c.n++; }
-  if(s.k==='vee'&&Math.min(ratio(pts,0),ratio(pts,1))>Math.max(ratio(pts,2),ratio(pts,3))+.1){ c.curl.push(Math.max(ratio(pts,2),ratio(pts,3))); c.n++; }
+  if(s.k==='cup'&&(h.g==='cup'||h.g==='relaxed')){ c.n++; } // the move engine (moves.js) is learning this hand's range meanwhile
   if(s.k==='flick'){ c.peak=Math.max(c.peak,h.speed||0); if((h.speed||0)<250&&c.peak>700){ c.flicks.push(c.peak); c.peak=0; } c.n=c.flicks.length*need/3; }
   $('calFill').style.width=Math.min(100,c.n/need*100)+'%';
   if(c.n<need) return;
@@ -265,12 +267,15 @@ function stepCalib(h,dt){ const c=S.calib; if(!c||!h?.pts) return; const s=CAL_S
   const o=pct(c.open,.2), k=pct(c.curl,.8);
   if(o-k<.06){ $('calMsg').textContent='Open and curled looked too similar. Move closer to the light and try again.'; S.calib={i:0,open:[],curl:[],flicks:[],peak:0}; setTimeout(calShow,1600); return; }
   S.ext=Math.max(1.02,Math.min(1.3,(o+k)/2)); S.swipeT=Math.max(700,Math.min(1800,med(c.flicks)*.6)); S.calV=2;
-  localStorage.setItem('wirlab.calib',JSON.stringify({v:2,ext:+S.ext.toFixed(3),swipe:Math.round(S.swipeT),on:S.pinchOn,off:S.pinchOff}));
+  saveMv(); localStorage.setItem('wirlab.calib',JSON.stringify({v:2,ext:+S.ext.toFixed(3),swipe:Math.round(S.swipeT),on:S.pinchOn,off:S.pinchOff}));
   window.PROFILE?.sync(); window.labEvent?.('calibrated');
   S.calib=null; $('calbox').hidden=true; status(`Calibrated to your hand (finger threshold ${S.ext.toFixed(2)}, flick ${Math.round(S.swipeT)} px/s). Saved to your profile.`); }
 const HANDS=[{},{}]; const FL=[0,1].map(()=>[...Array(42)].map(()=>new OneEuro()));
 function smooth(slot,pts,dt){ const f=FL[slot]; return pts.map((p,i)=>({x:f[i*2].f(p.x,dt),y:f[i*2+1].f(p.y,dt)})); }
-function cal(){ return {on:S.pinchOn,off:S.pinchOff,ext:S.ext,swipe:S.swipeT}; }
+try{ S.mvCal=JSON.parse(localStorage.getItem('wirlab.moves')||'null'); }catch{} if(!S.mvCal?.lo) S.mvCal=MV.defaultCal();
+function saveMv(){ try{ localStorage.setItem('wirlab.moves',JSON.stringify({lo:S.mvCal.lo.map(v=>+v.toFixed(3)),hi:S.mvCal.hi.map(v=>+v.toFixed(3)),faceSign:0,sens:S.mvCal.sens})); }catch{} }
+setInterval(()=>{ if(S.handSeen&&!synth) saveMv(); },15000);
+function cal(){ return {on:S.pinchOn,off:S.pinchOff,ext:S.ext,swipe:S.swipeT,mv:S.mvCal}; }
 S.lat={inf:0,e2e:0,trk:0,trkN:0,trkT:0};
 let synth=null; // test hook: screen-pixel landmarks for headless tests
 let detect=function(now){
@@ -284,7 +289,8 @@ let detect=function(now){
 function trackHands(now,dt){
   const got=detect(now); if(got===undefined) return;
   const fdt=Math.max(dt,1/120);
-  if(!got.length){ S.lostT+=dt; if(S.lostT<.3&&S.handsNow?.length){ skel.style.opacity=1-S.lostT/.3; } if(S.lostT>.3){ S.handSeen=false; S.palmT=0; $('palm').style.opacity=0; drawSkel([]); FL.forEach(f=>f.forEach(o=>o.x=null)); HANDS.forEach(h=>{h.palm=null;h.g='none';});
+  if(!got.length){ S.lostT+=dt; if(S.lostT<.3&&S.handsNow?.length){ skel.style.opacity=1-S.lostT/.3; } if(S.lostT>8&&S.facing==='environment'&&!S.flipAsked&&S.stream){ S.flipAsked=1; $('flipChip').hidden=false; }
+    if(S.lostT>.3){ S.handSeen=false; S.palmT=0; $('palm').style.opacity=0; drawSkel([]); FL.forEach(f=>f.forEach(o=>o.x=null)); HANDS.forEach(h=>{h.palm=null;h.g='none';});
       if(S.pinch&&S.lostT>.8){S.pinch=false;release();} if(S.src==='hand') S.handsNow=[];
       if(S.src==='hand'||S.lostT>3) hint('Show your hand to the camera'); }
     return; }
@@ -301,33 +307,33 @@ function trackHands(now,dt){
   if(S.calib){ return stepCalib(h,dt); }
   if(E.mode!=='chem'){ gestureHud(hs); return; }
   const sp=h.pinchPt; S.cursor.x+=(sp.x-S.cursor.x)*.6; S.cursor.y+=(sp.y-S.cursor.y)*.6;
-  const pinch=h.g==='poke'||h.g==='vee';
+  const pinch=h.g==='poke'||h.g==='cup';
   if(pinch&&!S.pinch) grab(); if(!pinch&&S.pinch) release(); S.pinch=pinch;
   if(h.g==='open'&&!S.held&&!S.busy){ S.palmT+=dt; $('palm').style.opacity=1; $('palmFill').style.width=Math.min(100,S.palmT*100)+'%';
     if(S.palmT>=1){ S.palmT=0; $('palm').style.opacity=0; ignite(); } }
   else { S.palmT=0; $('palm').style.opacity=0; }
 }
 const GHINT={
- water:[['vee','✌️ Two fingers','pour onto the floor'],['open','Open palm + lift','5 strands, 1 per finger'],['open','Curl / spread fingers','shape the strands'],['open','Push down fast','sink it'],['swipe','Flick','whip']],
- fire:[['poke','☝️ Point, hold still','flame grows with focus'],['open','Open palm + push','short burst'],['vee','✌️ Two fingers','ember ball'],['swipe','Flick','throw fireball'],['circle','Circle','fire tornado'],['combo','Clap 2 hands','explosion']],
- earth:[['open','Palm lifts up','raise a rock'],['vee','✌️ Two fingers on rock','grab it'],['swipe','Flick','throw it'],['fist','Hold a fist on rock','crush to dust'],['combo','Clap 2 hands','rock wall']],
- air:[['vee','✌️ Two fingers / 2 palms','air ball'],['circle','Keep circling','spin it up'],['swipe','Flick (spinning)','throw it'],['open','Open palm swipe','gust']],
- atoms:[['poke','Point at a tile / atom','take it, drag it'],['poke','Drop on another','bond or react'],['vee','✌️ over molecule','rotate it'],['fist','Fist hold on molecule','split to atoms']],
+ water:[['cup','🤲 Cup, then tilt','hold water · pour it'],['ripple','〰 Finger ripple','wave over the pool'],['pulse','🪼 Jellyfish pulse','bloom spray'],['scoop','Scoop','lift an orb'],['open','Open palm + lift','5 strands, 1 per finger'],['open','Curl / spread fingers','shape the strands'],['open','Push down fast','sink it'],['swipe','Flick','whip']],
+ fire:[['poke','☝️ Point, hold still','flame grows with focus'],['bloom','💥 Flick-open / push','short burst'],['cup','🤲 Cup','ember ball'],['swipe','Flick','throw fireball'],['ripple','〰 Ripple','fingertip flames'],['thumb','👍 Thumb sweep','sparks'],['curl','✊ Curl one by one','snuff'],['circle','Circle','fire tornado'],['combo','Clap 2 hands','explosion']],
+ earth:[['scoop','Scoop / palm lifts','raise a rock'],['cup','🤲 Cup on the rock','grab it'],['bloom','💥 Flick-open','shatter it'],['shake','Shake','tremor'],['swipe','Flick','throw it'],['fist','Hold a fist on rock','crush to dust'],['combo','Clap 2 hands','rock wall']],
+ air:[['pulse','🪼 Pulse / 🤲 cup / 2 palms','air ball'],['spiral','🌀 Spiral the wrist','spin it up'],['push','Push or flick (spinning)','throw it'],['open','Open palm swipe','gust']],
+ atoms:[['poke','Point at a tile / atom','take it, drag it'],['poke','Drop on another','bond or react'],['cup','🤲 Cup over molecule','rotate it'],['fist','Fist hold on molecule','split to atoms']],
  gear:[['poke','☝️ Poke an item','press: light / pour / drop'],['poke','Poke, hold, move','carry it'],['poke','Hold over lit burner','heat it']],
  chem:[['poke','Point','grab element'],['open','Open palm 1 s','ignite']],
 };
 function buildHud(){ $('gest').innerHTML=GHINT[E.mode].map(([k,a,b])=>`<div class="gh" data-k="${k}"><b>${a}</b><span>${b}</span></div>`).join(''); }
-function gestureHud(hs){ const act=new Set(); for(const h of hs){ act.add(h.g); if(h.swipe) act.add('swipe'); if(h.circle) act.add('circle'); } if(hs.length>1) act.add('combo');
+function gestureHud(hs){ const act=new Set(); for(const h of hs){ act.add(h.g); if(h.swipe) act.add('swipe'); if(h.circle) act.add('circle'); for(const k of h.mv||[]){ act.add(k); if(k==='spiral') act.add('circle'); } if(h.mvs?.cup) act.add('cup'); } if(hs.length>1) act.add('combo');
   document.querySelectorAll('.gh').forEach(n=>n.classList.toggle('on',act.has(n.dataset.k)));
-  $('gnow').textContent=hs.map((h,i)=>`${hs.length>1?(i?'R ':'L '):''}${({open:'open palm',poke:'☝️ poke',vee:'✌️ two fingers',fist:'fist',relaxed:'relaxed',none:'—'})[h.g]||h.g}`).join('   '); }
+  $('gnow').textContent=hs.map((h,i)=>`${hs.length>1?(i?'R ':'L '):''}${({open:'open palm',poke:'☝️ poke',cup:'🤲 cup',fist:'fist',relaxed:'relaxed',none:'—'})[h.g]||h.g}`).join('   '); }
 function setMode(m){ E.mode=m; document.querySelectorAll('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
   const chem=m==='chem'; $('shelf').hidden=!chem; $('targets').hidden=!chem; $('cursor').hidden=!chem; $('ignite').hidden=!chem;
   EL.clearAll(); buildHud(); AT.show(m==='atoms'); GE.show(m==='gear'); window.labEvent?.('mode:'+m);
   requestAnimationFrame(()=>{ const r={}; document.querySelectorAll('.tg').forEach(t=>r[t.dataset.id]=t.getBoundingClientRect()); EL.chemProps(chem,r); });
-  status(m==='atoms'?'Atoms: pinch an element tile, bring atoms together to bond. Open palm rotates.':chem?'Chem lab: pinch an element, drop it on the dish, burner or paper.':({water:'✌️ pour · open palm + lift = strands',fire:'☝️ hold still = flame · push palm = burst',earth:'lift palm = rock · ✌️ grab',air:'✌️ air ball · circle to spin · flick to throw'})[m]||'Tap ⋯ for moves, 🎓 to train'); }
+  status(m==='atoms'?'Atoms: pinch an element tile, bring atoms together to bond. Open palm rotates.':chem?'Chem lab: pinch an element, drop it on the dish, burner or paper.':({water:'🤲 cup + tilt = pour · open palm + lift = strands',fire:'☝️ hold still = flame · flick-open = burst',earth:'scoop = rock · 🤲 cup = grab',air:'🪼 pulse = air ball · spiral to spin · push to throw'})[m]||'Tap ⋯ for moves, 🎓 to train'); }
 
 /* ---------- virtual hand (touch / controller) -> same gesture pipeline ---------- */
-function pose(x,y,g,s=90){ const ext=[[0,-.45],[0,-.75],[0,-1]], cur=[[0,-.3],[0,-.05],[0,.15]];
+function pose(x,y,g,s=90){ if(typeof g==='object') return MV.synth(x,y,{s,...g}); if(g==='cup') return MV.synth(x,y+s*.55,{s,n:[.45,.4,.4,.4,.4]}); const ext=[[0,-.45],[0,-.75],[0,-1]], cur=[[0,-.3],[0,-.05],[0,.15]];
   const mcp=[[-.35,-.95],[0,-1],[.3,-.95],[.55,-.85]]; const P=[[0,0],[-.35,-.3],[-.6,-.55],[-.75,-.8],[-.85,-1.05]];
   if(g==='pinch'||g==='point') g='poke'; const fingers=g==='fist'?[0,0,0,0]:g==='poke'?[1,0,0,0]:g==='vee'?[1,1,0,0]:g==='relaxed'?[0,0,1,1]:[1,1,1,1];
   mcp.forEach((m,f)=>{ P.push(m); const seg=fingers[f]?ext:cur; seg.forEach(d=>P.push([m[0]+d[0]*(f===3?.8:1),m[1]+d[1]*(f===3?.8:1)])); });
@@ -336,7 +342,7 @@ function pose(x,y,g,s=90){ const ext=[[0,-.45],[0,-.75],[0,-1]], cur=[[0,-.3],[0
   let ox=.03,oy=-.75; if(g==='poke'){ox=-.35;oy=-1.95;} if(g==='vee'){ox=-.17;oy=-1.97;}
   return P.map(([px,py])=>({x:x+(px-ox)*s,y:y+(py-oy)*s})); }
 const VH={on:false,x:0,y:0,g:'relaxed',off:0};
-const virtG=(n)=>({gear:['poke','vee'],atoms:['poke','vee'],water:['poke','open'],fire:['open','fist'],earth:['vee','fist'],air:['poke','open'],chem:['poke','open']})[E.mode][n>1?1:0];
+const virtG=(n)=>({gear:['poke','cup'],atoms:['poke','cup'],water:['cup','open'],fire:['open','cup'],earth:['cup','fist'],air:['poke','open'],chem:['poke','open']})[E.mode][n>1?1:0];
 /* Poke-to-press: point one finger at a button, then push the fingertip toward the camera (or hold still 1 s) = tap. */
 const PT={el:null,t:0};
 function pokeTap(hs,dt){ const h=hs.find(h=>h.g==='poke'&&!h.virtual); if(!h||!h.pts){ if(PT.el) PT.el.classList.remove('poking'); PT.el=null; return; }
@@ -359,8 +365,8 @@ function pollPad(dt){
     if(E.mode==='chem'){
       if(A&&!padPrev.A){ S.src='pad'; if(!$('card').hidden) $('cardClose').click(); else if(S.held) release(); else grab(); }
       if(B&&!padPrev.B) ignite(); }
-    else { const gg=A?(E.mode==='fire'?'open':E.mode==='earth'?'vee':'poke'):B?'open':X?'fist':null;
-      if(gg){ if(!VH.on&&E.mode==='earth'&&gg==='vee') maybeRock(S.cursor.x,S.cursor.y); VH.on=true; VH.g=gg; }
+    else { const gg=A?(E.mode==='fire'?'open':E.mode==='earth'?'cup':'poke'):B?'open':X?'fist':null;
+      if(gg){ if(!VH.on&&E.mode==='earth'&&gg==='cup') maybeRock(S.cursor.x,S.cursor.y); VH.on=true; VH.g=gg; }
       else if(VH.on){ VH.on=false; VH.off=5; }
       VH.x=S.cursor.x; VH.y=S.cursor.y; }
     if(Y&&!padPrev.Y) setMode(MODES_LIST[(MODES_LIST.indexOf(E.mode)+1)%MODES_LIST.length]);
@@ -391,7 +397,7 @@ function loop(now){
   pollPad(dt);
   const hs=(S.handsNow||[]).filter(h=>h.palm);
   pokeTap(hs,dt); for(const h of hs) if(h.changed&&h.g!=='relaxed'&&h.g!=='none') window.labEvent?.(`g:${h.g}:${E.mode}`);
-  try{ if(E.mode==='atoms') AT.update(hs,dt); EL.update(E.mode==='chem'||E.mode==='atoms'||E.mode==='gear'?[]:hs,dt); GE.update(E.mode==='gear'?hs:[],dt); const elm=['water','fire','earth','air'].includes(E.mode), still=STL.update(dt,now); BU.B.still=still&&elm; BU.B.tip=hs[0]?.pinchPt||null; BU.B.debug=document.body.classList.contains('more'); FX.clip=BU.B.still?BU.zones(hs[0]?.pinchPt):null; stillHud(still);
+  try{ if(E.mode==='atoms') AT.update(hs,dt); EL.update(E.mode==='chem'||E.mode==='atoms'||E.mode==='gear'?[]:hs,dt); GE.update(E.mode==='gear'?hs:[],dt); const elm=['water','fire','earth','air'].includes(E.mode), still=STL.update(dt,now); BU.B.still=still&&elm; BU.B.tip=hs[0]?.pinchPt||null; BU.B.palms=hs.filter(h=>h.palm).map((h,i)=>({id:i,x:h.palm.x,y:h.palm.y,s:h.scale,g:h.g})); IT.update(hs,dt); BU.B.debug=document.body.classList.contains('more'); FX.clip=BU.B.still?BU.zones(hs[0]?.pinchPt).concat(IT.zones()):null; stillHud(still);
     BU.update(dt,now,E.mode==='fire'||E.mode==='gear'||BU.B.still); EL.chemStep(dt); FXE.step(dt); TR.update(dt,hs.length>0); }catch(e){ console.warn(e); }
   if(E.mode==='chem'){ cur.style.left=S.cursor.x+'px'; cur.style.top=S.cursor.y+'px';
     document.querySelectorAll('.tg').forEach(t=>t.classList.toggle('hot',!!S.held&&hit('.tg',S.cursor.x,S.cursor.y)===t)); }
@@ -418,12 +424,14 @@ function startTrackLoop(){ if(S.rvfc||!('requestVideoFrameCallback' in HTMLVideo
 const MODES_LIST=['water','fire','earth','air','atoms','gear','chem'];
 let started=false;
 window.startLab=()=>{ if(started) return; started=true; hud.hidden=false; refreshLocks();
-  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); STL.init(video); TR.init({pose,say:E.say,setMode}); E.onEv=n=>{ TR.onEv(n); window.labEvent?.(n); }; setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
-  status('Pick a mode. Hands: ☝️ point = poke/press, ✌️ two fingers = grab, open palm, flick, circle. No camera? Drag with one or two fingers.'); };
+  initThree(); AT.init(FX.scene,E.say); GE.init(FX.scene,E.say); E.onBurn=()=>window.labEvent?.('burn'); BU.init(video,toScreen,E.say,VISION); IT.init(E.say); STL.init(video); TR.init({pose,say:E.say,setMode}); E.onEv=n=>{ TR.onEv(n); window.labEvent?.(n); }; setMode('water'); requestAnimationFrame(loop); startCamera(); initHands();
+  status('Pick a mode. Hands: ☝️ point = poke/press, 🤲 cup = hold, flowing moves (ripple, pulse, scoop…) in ⋯.  No camera? Drag with one or two fingers.'); };
 $('modes').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b&&b.dataset.m){ setMode(b.dataset.m); TR.T.on&&TR.T.el!==b.dataset.m&&TR.stop(); } });
 $('boost').onclick=()=>{ S.boost={auto:'on',on:'off',off:'auto'}[S.boost]; updBoostBtn(); };
 $('calib').onclick=startCalib; $('calSkip').onclick=()=>{S.calib=null;$('calbox').hidden=true;};
-$('flip').onclick=()=>{ S.facing=S.facing==='user'?'environment':'user'; startCamera(); };
+function flipCam(to){ S.facing=to||(S.facing==='user'?'environment':'user'); $('flipChip').hidden=true; startCamera(); E.say(S.facing==='user'?'Selfie view (mirrored): play facing the screen, items on the desk in front of you':'Room view'); $('flipPill').classList.toggle('on',S.facing==='user'); }
+$('flip').onclick=$('flipPill').onclick=()=>flipCam();
+$('flipYes').onclick=()=>flipCam('user'); $('flipNo').onclick=()=>{ $('flipChip').hidden=true; S.flipAsked=2; };
 $('ignite').onclick=ignite; $('reset').onclick=()=>{ resetLab(); EL.clearAll(); };
 $('lowpow').onchange=e=>{ S.low=e.target.checked; if(S.low) FX.Q=Math.min(FX.Q,.5); resize(); status(S.low?'Low power: no bloom, fewer particles, hands every other frame.':'Full power.'); };
 window.__lab={AT:AT._test,S,E,FX,L:FXE.L,ROCKS:FXE.ROCKS,WATER:FXE.WATER,react,ignite,grab,release,drawSkel,startCalib,setMode,pose,feed:h=>{synth=h;},burst:EL.burst};
@@ -440,4 +448,4 @@ function lightWarn(m){ const w=$('lightwarn'), now=performance.now();
 $('more').onclick=()=>{ document.body.classList.toggle('more'); $('more').textContent=document.body.classList.contains('more')?'✕':'⋯'; };
 $('trainBtn').onclick=$('trainBtn2').onclick=()=>{ document.body.classList.remove('more'); $('more').textContent='⋯'; TR.menu(); };
 $('wipeBtn').onclick=()=>window.wipeNow?.();
-window.__lab2={TR,POOL:FXE.POOL,AIRB:FXE.AIRB,STL,GE,BU,BO,S};
+window.__lab2={IT,flipCam,TR,POOL:FXE.POOL,AIRB:FXE.AIRB,STL,GE,BU,BO,S};
