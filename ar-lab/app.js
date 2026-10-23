@@ -235,13 +235,16 @@ function updBoostBtn(){ const b=$('boost'); if(b) b.textContent='Boost: '+(S.boo
 /* skeleton overlay */
 const skel=$('skel'), sk=skel.getContext('2d');
 const BONES=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+/* v6: one colour per hand, eased over ~150 ms toward the (debounced) pose colour, so fast transitions don't flicker */
+const SKC={poke:[95,255,138],cup:[95,255,138],fist:[255,154,90],open:[127,216,255]}, SKD=[200,245,255], skCur=[null,null];
+function skelCol(i,g){ const t=SKC[g]||SKD; const c=skCur[i]||(skCur[i]=[...t]); for(let k=0;k<3;k++) c[k]+=(t[k]-c[k])*.18; return `rgb(${c.map(v=>v|0).join(',')})`; }
 function drawSkel(hs){ hs=(hs||[]).map(h=>Array.isArray(h)?{pts:h,g:''}:h); const dpr=Math.min(devicePixelRatio,2);
   if(skel.width!==innerWidth*dpr){skel.width=innerWidth*dpr;skel.height=innerHeight*dpr;}
   sk.setTransform(dpr,0,0,dpr,0,0); sk.clearRect(0,0,innerWidth,innerHeight);
-  for(const h of hs){ const pts=h.pts; if(!pts) continue; const col=h.g==='poke'||h.g==='cup'?'#5fff8a':h.g==='fist'?'#ff9a5a':h.g==='open'?'#7fd8ff':'#c8f5ff';
+  for(const [hi,h] of hs.entries()){ const pts=h.pts; if(!pts) continue; const col=skelCol(hi,h.g);
     for(const [w,c] of [[6,'#0008'],[2.5,col]]){ sk.lineWidth=w; sk.strokeStyle=c; sk.lineCap='round'; sk.beginPath();
       for(const [a,b] of BONES){sk.moveTo(pts[a].x,pts[a].y);sk.lineTo(pts[b].x,pts[b].y);} sk.stroke(); }
-    for(const [i,p] of pts.entries()){ const tip=i===4||i===8; sk.fillStyle=tip?'#ffd27f':'#fff'; sk.strokeStyle='#000a'; sk.lineWidth=1.5;
+    for(const [i,p] of pts.entries()){ const tip=i===4||i===8; sk.fillStyle=tip?col:'#fff'; sk.strokeStyle='#000a'; sk.lineWidth=1.5;
       sk.beginPath(); sk.arc(p.x,p.y,tip?6:3.5,0,7); sk.fill(); sk.stroke(); } } }
 const hint=m=>{const h=$('hint'); h.hidden=!m; if(m) h.textContent=m;};
 /* Two-stage calibration (saved to the profile, done once):
@@ -314,16 +317,17 @@ function trackHands(now,dt){
   else { S.palmT=0; $('palm').style.opacity=0; }
 }
 const GHINT={
- water:[['cup','🤲 Cup, then tilt','hold water · pour it'],['ripple','〰 Finger ripple','wave over the pool'],['pulse','🪼 Jellyfish pulse','bloom spray'],['scoop','Scoop','lift an orb'],['open','Open palm + lift','5 strands, 1 per finger'],['open','Curl / spread fingers','shape the strands'],['open','Push down fast','sink it'],['swipe','Flick','whip']],
- fire:[['poke','☝️ Point, hold still','flame grows with focus'],['bloom','💥 Flick-open / push','short burst'],['cup','🤲 Cup','ember ball'],['swipe','Flick','throw fireball'],['ripple','〰 Ripple','fingertip flames'],['thumb','👍 Thumb sweep','sparks'],['curl','✊ Curl one by one','snuff'],['circle','Circle','fire tornado'],['combo','Clap 2 hands','explosion']],
- earth:[['scoop','Scoop / palm lifts','raise a rock'],['cup','🤲 Cup on the rock','grab it'],['bloom','💥 Flick-open','shatter it'],['shake','Shake','tremor'],['swipe','Flick','throw it'],['fist','Hold a fist on rock','crush to dust'],['combo','Clap 2 hands','rock wall']],
- air:[['pulse','🪼 Pulse / 🤲 cup / 2 palms','air ball'],['spiral','🌀 Spiral the wrist','spin it up'],['push','Push or flick (spinning)','throw it'],['open','Open palm swipe','gust']],
+ water:[['charge','🙌 Heels together, clap','charge + blast'],['cup','🤲 Cup, then tilt','hold water · pour it'],['ripple','〰 Finger ripple','wave over the pool'],['pulse','🪼 Jellyfish pulse','bloom spray'],['scoop','Scoop','lift an orb'],['open','Open palm + lift','5 strands, 1 per finger'],['open','Curl / spread fingers','shape the strands'],['open','Push down fast','sink it'],['swipe','Flick','whip']],
+ fire:[['keep','🔥 Any move','feeds the keeper flame'],['charge','🙌 Heels together, clap','charge + blast'],['poke','☝️ Point, hold still','flame grows with focus'],['bloom','💥 Flick-open / push','short burst'],['cup','🤲 Cup','ember ball'],['swipe','Flick','throw fireball'],['ripple','〰 Ripple','fingertip flames'],['thumb','👍 Thumb sweep','sparks'],['curl','✊ Curl one by one','snuff'],['circle','Circle','fire tornado'],['combo','Clap 2 hands','explosion']],
+ earth:[['charge','🙌 Heels together, clap','charge + blast'],['scoop','Scoop / palm lifts','raise a rock'],['cup','🤲 Cup on the rock','grab it'],['bloom','💥 Flick-open','shatter it'],['shake','Shake','tremor'],['swipe','Flick','throw it'],['fist','Hold a fist on rock','crush to dust'],['combo','Clap 2 hands','rock wall']],
+ air:[['charge','🙌 Heels together, clap','charge + blast'],['pulse','🪼 Pulse / 🤲 cup / 2 palms','air ball'],['spiral','🌀 Spiral the wrist','spin it up'],['push','Push or flick (spinning)','throw it'],['open','Open palm swipe','gust']],
  atoms:[['poke','Point at a tile / atom','take it, drag it'],['poke','Drop on another','bond or react'],['cup','🤲 Cup over molecule','rotate it'],['fist','Fist hold on molecule','split to atoms']],
  gear:[['poke','☝️ Poke an item','press: light / pour / drop'],['poke','Poke, hold, move','carry it'],['poke','Hold over lit burner','heat it']],
  chem:[['poke','Point','grab element'],['open','Open palm 1 s','ignite']],
 };
 function buildHud(){ $('gest').innerHTML=GHINT[E.mode].map(([k,a,b])=>`<div class="gh" data-k="${k}"><b>${a}</b><span>${b}</span></div>`).join(''); }
-function gestureHud(hs){ const act=new Set(); for(const h of hs){ act.add(h.g); if(h.swipe) act.add('swipe'); if(h.circle) act.add('circle'); for(const k of h.mv||[]){ act.add(k); if(k==='spiral') act.add('circle'); } if(h.mvs?.cup) act.add('cup'); } if(hs.length>1) act.add('combo');
+function gestureHud(hs){ const act=new Set(); for(const h of hs){ act.add(h.g); if(h.swipe) act.add('swipe'); if(h.circle) act.add('circle'); for(const k of h.mv||[]){ act.add(k); if(k==='spiral') act.add('circle'); } if(h.mvs?.cup) act.add('cup'); } if(hs.length>1) act.add('combo'); if(E.chg?.state==='charging') act.add('charge'); if(E.mode==='fire'&&hs.some(h=>h.mv?.length||h.mvs?.cup)) act.add('keep');
+  if(hs.some(h=>h.mvs?.tiltHint)&&!E.chg?.state?.startsWith('ch')&&(!S.tiltT||performance.now()-S.tiltT>7000)){ S.tiltT=performance.now(); E.say('Palm up? Tilt your palm toward you (not fingers at the camera)'); window.labEvent?.('hint:tilt'); }
   document.querySelectorAll('.gh').forEach(n=>n.classList.toggle('on',act.has(n.dataset.k)));
   $('gnow').textContent=hs.map((h,i)=>`${hs.length>1?(i?'R ':'L '):''}${({open:'open palm',poke:'☝️ poke',cup:'🤲 cup',fist:'fist',relaxed:'relaxed',none:'—'})[h.g]||h.g}`).join('   '); }
 function setMode(m){ E.mode=m; document.querySelectorAll('#modes button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
@@ -434,7 +438,7 @@ $('flip').onclick=$('flipPill').onclick=()=>flipCam();
 $('flipYes').onclick=()=>flipCam('user'); $('flipNo').onclick=()=>{ $('flipChip').hidden=true; S.flipAsked=2; };
 $('ignite').onclick=ignite; $('reset').onclick=()=>{ resetLab(); EL.clearAll(); };
 $('lowpow').onchange=e=>{ S.low=e.target.checked; if(S.low) FX.Q=Math.min(FX.Q,.5); resize(); status(S.low?'Low power: no bloom, fewer particles, hands every other frame.':'Full power.'); };
-window.__lab={AT:AT._test,S,E,FX,L:FXE.L,ROCKS:FXE.ROCKS,WATER:FXE.WATER,react,ignite,grab,release,drawSkel,startCalib,setMode,pose,feed:h=>{synth=h;},burst:EL.burst};
+window.__lab={AT:AT._test,S,E,FX,L:FXE.L,ROCKS:FXE.ROCKS,WATER:FXE.WATER,react,ignite,grab,release,drawSkel,startCalib,setMode,pose,feed:h=>{synth=h;},burst:EL.burst,blast:EL.launchBlast};
 
 /* camera indicator, classes, body layer, wipe */
 $('camOn').onclick=()=>{ if(S.stream) window.__stopCamera(); else startCamera(); };

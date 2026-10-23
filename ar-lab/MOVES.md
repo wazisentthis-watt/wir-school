@@ -79,3 +79,21 @@ A natural strings combo would then read: **pulse (Open) → ripple (Weave) → c
 
 ## Test results (synthetic sequences)
 `node tests/moves.test.mjs`: 18/18 moves recognised; 180/180 under jitter, 180/180 for a stiff-fingered user (range 0.2–0.7) with calibration. Negatives (3 s idle open hand with noise, steady point, slow sideways move, 2 s cup hold) fire no move events.
+
+## v6 — keeper flame, floating water, wrist skill, two-palm charge blast (+ phone-video fixes)
+**Keeper flame (Fire).** One small flame always hovers in front of your hands, like carrying a flame you must keep alive while walking. Every move feeds or shapes it (`keeper.js` FEED table): ripple / reverse ripple = flicker · jellyfish pulse = it breathes · flick-open = flare · spiral / wrist roll = swirl · push = it stretches out · pull / beckon = drawn in close · curl / palm down = banked low (**never goes out**, heat floor 0.15) · palm up / scoop = lifted · pluck / thumb sweep = sparks · thumb roll = weave ring · flip = lean · shake = wild flicker · cup = sheltered · pour = spills sideways. No dark smoke anywhere in Fire mode (curl no longer makes smoke; explosion smoke is light and faint).
+
+**Floating water (Water).** Cupped water (and held water over an empty floor) floats **above** the hand as a ribbon with 5 control points, one per fingertip: height = that finger's extension, x = its tip, and the tip's own velocity bends its part. Curl one finger and only its part drops.
+
+**Palm up = wrist skill.** Kept on purpose: fingers pointing straight at the camera do not count; angle the palm toward you. Tolerance relaxed (Q ratio 0.62 → 0.68, `PU_TOL`). Half-tilt held 0.45 s shows "Palm up? Tilt your palm toward you". New lesson **Oru of the Quiet Wrist** (🎓 → Wrist): keep-alive pulse, palm up, palm down, wrist roll, charge, clap-release.
+
+**Two-palm charge blast (all four elements).** Heels of both hands together, fingers open like a bowl → after 0.25 s it charges (glow + inflowing element particles, full at 1.6 s). Already holding the element (cupped ember / held rock / air ball / held water) makes it bigger and is consumed. **Clap to release, predicted early:** the fingertip-gap closing speed is extrapolated; when time-to-contact < 0.16 s (and speed > 2.2 hand-sizes/s) the blast launches, so it leaves your hands before they meet. The blast grows toward the viewer (flies out of the screen): fire / water spray / stone dust + shards / wind streaks. Slow drift, heels apart, prayer hands, or clapping before it is charged never release. `charge.js`.
+
+**Phone-video fixes (`aim.js`).**
+- Object ignition: a flame's **center** must be on the object box (12 px pad) for 0.25 s; a big flame nearby no longer lights the phone.
+- "Not the person" guard: held flames in front of you (keeper flame, cupped ember) are ignored (in selfie view the person box is always behind the hands). It warns only when an **aimed** fire (fingertip flame, thrown fireball, blast) stays on the face/torso core for 0.6 s. People/animals are still never burnable.
+- Cup hysteresis: cup needs 6 steady frames to enter and 4 to leave, so flat hands don't show "Ember charging". The ember throws only after 0.5 s cupped, on flick-open or a flick out of the cup (no "Fireball!" while you are cupping).
+- Skeleton colour: one colour per hand, eased over ~150 ms (no per-joint flicker in fast transitions).
+
+### v6 tests
+`node tests/v6.test.mjs`: 28/28. Keeper: all 20 moves/states change the flame; alive after 400 dim moves and 10 s idle; follows the hands. Ribbon: 5 points above the tips; middle-finger curl moves mostly its own point. Palm-up fires at tilt 0.6, half-tilt gives the hint. Charge: starts at 0.23 s, grows, normal clap releases 67 ms **before** contact, 80 ms clap too; slow drift / heels apart / prayer / uncharged → no release; 20/20 under jitter. Fixes: 11 checks (hitbox, dwell, person guard ×4, cup hysteresis ×2, ember ×2). `node tests/moves.test.mjs` still 18/18, 180/180 jitter, 180/180 stiff.

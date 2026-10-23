@@ -38,6 +38,14 @@ export const LESSONS={
   {ev:'water:bloom',say:'Jellyfish pulse: close halfway and bloom open for a spray.',ghost:t=>({x:W()*.5,y:Hh()*.6,g:pulse(t)})},
   {ev:'water:throw',say:'Combo: raise the strands again, then flick to whip them.',ghost:t=>{const p=(t*.7)%1; return {x:W()*(.3+p*.5),y:Hh()*(.8-p*.35),g:'open'};}},
  ]},
+ wrist:{mode:'fire',teacher:'Oru of the Quiet Wrist',intro:'Small angles, held still. Palm toward you, not fingers at the camera. This is wrist control.',steps:[
+  {ev:'fire:keep:pulse',say:'Keep the flame alive: soft jellyfish pulse makes it breathe.',ghost:t=>({x:W()*.5,y:Hh()*.62,g:pulse(t)})},
+  {ev:'move:palmUp',say:'Palm up: tip the palm so it faces you / the ceiling. If fingers point straight at the camera it will not count. Angle it.',ghost:t=>({x:W()*.5,y:Hh()*.62,g:{...OPEN,tilt:.4+.4*Math.sin(t*2)}})},
+  {ev:'move:palmDown',say:'Palm down: turn it over to cover the flame, and hold the angle.',ghost:t=>({x:W()*.5,y:Hh()*.62,g:{...OPEN,flip:-1,tilt:.4+.4*Math.sin(t*2)}})},
+  {ev:'move:twist',say:'Wrist roll: turn the hand like a dial, slow.',ghost:t=>({x:W()*.5,y:Hh()*.62,g:{...OPEN,roll:Math.sin(t*1.5)*.9}})},
+  {ev:'blast:charge',say:'Both hands: heels together, fingers open like a bowl. Hold to charge.',ghost:t=>({x:W()*.5,y:Hh()*.6,g:{...OPEN,roll:-.6}})},
+  {ev:'blast:release',say:'Clap to release. It launches as your hands close, before they meet.',ghost:t=>({x:W()*.5,y:Hh()*.6,g:{...OPEN,roll:-.6*Math.abs(Math.cos(t*2))}})},
+ ]},
  air:{teacher:'Tavi of the High Wind',intro:'Air never stops moving. Keep it turning.',steps:[
   {ev:'air:ball',say:'Jellyfish pulse (or a soft cup, or two palms close) to gather a ball of air.',ghost:t=>({x:W()*.5,y:Hh()*.6,g:pulse(t)})},
   {ev:'air:spin',say:'Spiral your wrist in circles, like spinning a basketball.',ghost:t=>({...circ(W()*.5,Hh()*.6,45)(t),g:CUP})},

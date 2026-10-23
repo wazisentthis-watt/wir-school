@@ -38,6 +38,7 @@ export function defaultCal(){ return {lo:[.1,.1,.1,.1,.1],hi:[.85,.9,.9,.9,.85],
 function adapt(cal,ext,dt){ for(let f=0;f<5;f++){ const e=ext[f];
   cal.lo[f]=e<cal.lo[f]?e:cal.lo[f]+(Math.min(.25,e)-cal.lo[f])*dt*.02; cal.hi[f]=e>cal.hi[f]?e:cal.hi[f]+(Math.max(.6,e)-cal.hi[f])*dt*.02; } }
 const CD=.55;
+export const PU_TOL=.68; // v6: was .62. Palm-up/down needs the palm angled toward the camera/you; fingers straight at the camera stays a half-tilt (hint) on purpose: fine wrist control.
 export function step(H,pts,t,cal,dt=1/30){
   const F=feats(pts); adapt(cal,F.ext,dt);
   const n=F.ext.map((e,f)=>cl((e-cal.lo[f])/Math.max(.25,cal.hi[f]-cal.lo[f])));
@@ -85,7 +86,8 @@ export function step(H,pts,t,cal,dt=1/30){
     const W6=win(.7); if(W6.length>3){ const dr=rollU-W6[0].roll; if(Math.abs(dr)>1.3) fire('twist',{dir:Math.sign(dr)}); } }
   // ---- palm turn up / down: palm foreshortens (length/width ratio Q drops) ----
   { X.Q0=X.Q0?X.Q0+(F.Q-X.Q0)*(F.Q>X.Q0?.02:.003):F.Q; const W7=win(.7); const hiQ=Math.max(...W7.map(h=>h.Q));
-    if(hiQ>X.Q0*.85&&hiQ<X.Q0*1.25&&F.Q<X.Q0*.62&&W7.every(h=>Math.sign(h.cross)===Math.sign(F.cross))){ const faceNow=Math.sign(F.cross)===(cal.faceSign||1); fire(faceNow?'palmUp':'palmDown'); } }
+    if(hiQ>X.Q0*.85&&hiQ<X.Q0*1.25&&F.Q<X.Q0*PU_TOL&&W7.every(h=>Math.sign(h.cross)===Math.sign(F.cross))){ const faceNow=Math.sign(F.cross)===(cal.faceSign||1); fire(faceNow?'palmUp':'palmDown'); } }
+  { const half=X.Q0&&F.Q<X.Q0*.9&&F.Q>=X.Q0*PU_TOL&&m>.55; X.half=half?(X.half||0)+dt:0; X.state.tiltHint=X.half>.45; }
   // ---- scoop: down then up (U) with a soft cupped hand ----
   { const W8=win(.8); let s=0,yb=0; for(const h of W8){ if(s===0&&h.vy>160) s=1; else if(s===1&&h.vy<-160&&h.m<.8){ s=2; } }
     const ys=W8.map(h=>h.y); if(s===2&&Math.max(...ys)-Math.min(ys[0],ys[ys.length-1])>F.sc*.35) fire('scoop'); }

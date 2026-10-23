@@ -4,6 +4,7 @@
    Char is remembered per label in localStorage. People are never burnable. Purely visual, nothing real is affected. */
 import {FX,L,rnd,lightAt} from './fx.js';
 import {E} from './elements.js';
+import {aimStep} from './aim.js';
 const MODEL='https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.tflite';
 const NEVER=/person|dog|cat|bird|horse|sheep|cow|bear|elephant|zebra|giraffe/;
 export const B={maxFires:2,still:false,on:false,det:null,objs:[],last:0,status:'off',inject:null,lastSay:0};
@@ -46,13 +47,13 @@ export function update(dt,now,active){
     else if(FX.t-o.seen>.1&&FX.t-o.seen<1){ b.x+=o.vx*dt*.5; b.y+=o.vy*dt*.5; } // short extrapolation between detections
     if(o.held!=null&&!hp) o.held=null;
     // ignite from any fire hot-spot inside the box
-    for(const h of E.hot){ if(h.x>b.x-h.r*.3&&h.x<b.x+b.w+h.r*.3&&h.y>b.y-h.r*.3&&h.y<b.y+b.h+h.r*.3){
-      if(o.safe){ if(FX.t-B.lastSay>3){ B.lastSay=FX.t; say(`Not the ${o.label}. Fire is never for living things.`);} continue; }
+    { const A=aimStep(o,E.hot,dt); if(A.warn&&FX.t-B.lastSay>3){ B.lastSay=FX.t; say(`Not the ${o.label}. Fire is never for living things.`); }
+    const h=A.ignite; if(h&&!o.safe){
       const u=Math.min(1,Math.max(0,(h.x-b.x)/b.w)), v=Math.min(1,Math.max(0,(h.y-b.y)/b.h));
-      const burning=B.objs.filter(q=>q.fire>0).length; if(o.fire<=0&&burning>=B.maxFires){ if(FX.t-B.lastSay>2){B.lastSay=FX.t; say(`${B.maxFires} fires already: let one burn out first`);} continue; }
+      const burning=B.objs.filter(q=>q.fire>0).length; if(o.fire<=0&&burning>=B.maxFires){ if(FX.t-B.lastSay>2){B.lastSay=FX.t; say(`${B.maxFires} fires already: let one burn out first`);} } else {
       if(o.fire<=0){ say(`The ${o.label} caught fire!`); E.onBurn?.(o.label); }
       o.fire=Math.min(2.5,o.fire+dt*2+.5*(o.fire<=0)); const near=o.chars.find(c=>Math.hypot(c.u-u,c.v-v)<.12);
-      if(near) near.r=Math.min(.2,near.r+dt*.08); else if(o.chars.length<4) o.chars.push({u,v,r:.05,s:Math.random()}); } }
+      if(near) near.r=Math.min(.2,near.r+dt*.08); else if(o.chars.length<4) o.chars.push({u,v,r:.05,s:Math.random()}); } } }
     if(o.fire>0){ o.fire-=dt; const k=FX.Q;
       for(const c of o.chars){ c.r=Math.min(.2,c.r+dt*.005); const x=b.x+c.u*b.w, y=b.y+c.v*b.h, rr=c.r*Math.min(b.w,b.h);
         for(let i=0;i<3*k;i++) L.fire.spawn(x+rnd(-rr,rr)*.5,y+rnd(-rr,rr)*.3,rnd(-12,12),-rnd(70,150),{size:rnd(14,26),grow:.8,life:rnd(.3,.5),curl:1.2,a:.8});
