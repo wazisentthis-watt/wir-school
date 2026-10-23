@@ -1,0 +1,34 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>WIR School (campus + gradebook, PROPOSAL / demo)</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;background:#0d1b2a;color:#eee}header{background:#1b263b;padding:8px 12px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+header b{margin-right:auto}button{background:#2a9d8f;color:#fff;border:0;border-radius:8px;padding:8px 12px;margin:3px;font-size:15px;cursor:pointer}
+.wir-panel{max-width:860px;margin:12px auto;background:#14213d;padding:14px;border-radius:12px}input,textarea{width:100%;box-sizing:border-box;font-size:16px;padding:8px;border-radius:6px;border:0}
+.wir-av{font-size:24px;background:#333}.wir-av.sel{outline:3px solid #ffb703}.wir-note{background:#263c5a;padding:8px;border-radius:8px;font-size:14px}.wir-t{width:100%;border-collapse:collapse}.wir-t td,.wir-t th{border-bottom:1px solid #345;padding:5px;text-align:left}
+.wir-tag{font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px}.wir-observed{background:#2a9d8f}.wir-experimental{background:#e9c46a;color:#000}.wir-hypothetical{background:#e76f51}.wir-fictional{background:#c03}.wir-simulated{background:#8338ec}.wir-source_needed{background:#e76f51}.wir-sq{font-size:11px;opacity:.8}
+fieldset{border:1px solid #345;border-radius:8px;margin:8px 0}label{display:block;padding:4px}.wir-fb.ok{color:#8f8}.wir-fb.no{color:#f99}.wir-result{font-weight:700;font-size:18px;margin-top:8px}a{color:#8ecae6}.wir-label{color:#ffb703;font-size:12px}
+.banner{background:#ffb703;color:#000;text-align:center;font-size:13px;padding:4px}</style></head><body>
+<style>#c{position:fixed;inset:0}#hud{position:fixed;top:44px;left:8px;right:8px;display:flex;flex-wrap:wrap;justify-content:space-between;z-index:3}
+#prompt{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:#000a;padding:10px 16px;border-radius:10px;display:none;z-index:3}
+#pad{position:fixed;bottom:14px;left:14px;display:none;grid-template-columns:repeat(3,54px);gap:4px;z-index:3}#pad button{height:50px;margin:0}@media (pointer:coarse){#pad{display:grid}}
+#ov{position:fixed;inset:0;background:#0d1b2af2;z-index:6;overflow:auto;display:none}#ov.on{display:block}#ovx{position:sticky;top:6px;float:right;z-index:7}.banner{pointer-events:none;position:fixed;top:0;left:0;right:0;z-index:4}</style></head><body>
+<div class="banner">PROPOSAL / demo — not WIR canon. AMU rooms: PROPOSAL pending Canon Bot review. Practice grades stay on this device unless you use a progress code. Real animals = RESEARCH.</div>
+<canvas id="c"></canvas>
+<div id="hud"><div><b id="who"></b> <small>WASD/arrows · E to enter a door</small></div><div><button data-v="report">Report card</button><button data-v="transcript">Transcript</button><button data-v="code">Progress code</button><button id="bAR">AR</button><button id="out">Switch student</button></div></div>
+<div id="prompt"></div>
+<div id="pad"><span></span><button data-k="f">▲</button><span></span><button data-k="l">◀</button><button data-k="e">Enter</button><button data-k="r">▶</button><span></span><button data-k="b">▼</button><span></span></div>
+<div id="ov"><button id="ovx">✕ Back to campus</button><div id="ovm"></div></div>
+<script src="wir-gradebook.js"></script><script src="class-view.js"></script><script src="class-painted-dogs.js"></script><script src="class-amu.js"></script>
+<script>window.CAMPUS_NO_EXAMPLES=true;var S=WIRSchool,O=document.getElementById('ov'),M=document.getElementById('ovm');
+function ov(fn){O.classList.add('on');fn(M)}function close(){if(S.current())O.classList.remove('on')}
+document.getElementById('ovx').onclick=close;
+function who(){var p=S.current();document.getElementById('who').textContent=p?p.avatar+' '+p.name+' · streak '+S.streak()+'d':'';if(!p)ov(S.ui.login)}
+document.querySelectorAll('[data-v]').forEach(function(b){b.onclick=function(){var v=b.dataset.v;ov(v==='report'?S.ui.reportCard:v==='transcript'?S.ui.transcript:S.ui.progressCode)}});
+document.getElementById('out').onclick=function(){S.logout()};S.on(function(t){if(t==='login'){O.classList.remove('on');who()}if(t==='logout')who()});
+window.addEventListener('wir-campus-ready',function(){S.classes().forEach(function(c){campus.registerDoor({id:c.id,name:c.room+': '+c.title.replace(/^.*?: /,''),building:c.wing})});
+ campus.registerDoor({id:'ramaza-wing',name:'RaMaZa Wing',url:'../ramaza/',building:'ramaza'});
+ campus.registerDoor({id:'sci-ar-safe-lab',name:'AR Safe Lab (Oscar)',url:'../ar-lab/',building:'ar-safe-lab'})});
+window.addEventListener('wir-campus-door',function(e){var d=e.detail;if(d.id==='sci-ar-safe-lab'){e.preventDefault();fetch(d.url,{method:'HEAD'}).then(function(r){if(r.ok)location.href=d.url;else throw 0}).catch(function(){ov(function(el){el.innerHTML='<div class="wir-panel"><h2>AR Safe Lab</h2><p class="wir-note">Coming soon (Oscar). Grades from it use class id sci-ar-safe-lab via WIRSchool.recordAttempt.</p></div>'})});return}
+ if(d.url)return; e.preventDefault();
+ if(!S.current())return who();ov(function(el){S.ui.classRoom(el,d.id)})});
+who();</script>
+<script type="module" src="campus/campus.js"></script></body></html>

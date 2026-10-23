@@ -49,6 +49,6 @@ window.campus={registerDoor({id,name,url='',building,placeholder=false,color}){i
  goTo(id){const d=doors.find(x=>x.c.id===id);if(!d)return false;player.x=d.x;player.z=d.z;player.yaw=d.z>d.c.pos[1]?Math.PI:0;return true},
  doors:()=>DOORS.map(({id,name,url,building})=>({id,name,url,building})),};
 // Example doors only so the map isn't empty (PLACEHOLDER; replace via campus.registerDoor). Skip with ?empty=1
-if(Q.get('empty')!=='1'){[['science','Science (PLACEHOLDER)'],['math','Math (PLACEHOLDER)'],['reading','Reading (PLACEHOLDER)'],['wir-lore','WIR Lore (PLACEHOLDER — not canon)']].forEach(([id,name])=>window.campus.registerDoor({id,name,placeholder:true}))}
+if(Q.get('empty')!=='1'&&!window.CAMPUS_NO_EXAMPLES){[['science','Science (PLACEHOLDER)'],['math','Math (PLACEHOLDER)'],['reading','Reading (PLACEHOLDER)'],['wir-lore','WIR Lore (PLACEHOLDER — not canon)']].forEach(([id,name])=>window.campus.registerDoor({id,name,placeholder:true}))}
 Q.getAll('door').forEach(r=>{const[id,name,url]=r.split("|");window.campus.registerDoor({id,name,url})});
 window.dispatchEvent(new Event('wir-campus-ready'));
