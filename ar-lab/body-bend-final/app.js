@@ -63,11 +63,11 @@ function frame(ts){ const now=ts/1000, dt=Math.min(.1,now-(S.lastT||now)); S.las
   let pts=null; if(S.mode==='sim'){ pts=simPose(now); if(S.flow) pts=simFlow(pts,now,dt); drawSimScene(sx,W,H,pts,now); } else pts=camStep(now);
   S.pts=pts; update(pts,now,dt); compose(now); hud(now); }
 function update(pts,now,dt){
-  if(!pts){ if(S.flow&&S.started) S.fst=feng.update({t:now,pts:null}); $('hint').textContent=S.started?'':''; return; }
+  if(!pts){ if(!S.started&&S.mode==='cam') $('hint').textContent='Camera on. Back up until your whole body is in view.'; if(S.flow&&S.started) S.fst=feng.update({t:now,pts:null}); $('hint').textContent=S.started?'':''; return; }
   const sc=spaceCheck(pts,aspect);
   if(!S.started){ if(sc.ok){ S.okSince??=now; } else S.okSince=null;
     const left=S.okSince!=null?Math.max(0,AUTO_START_SEC-(now-S.okSince)):null;
-    $('gateMsg').textContent=sc.ok?('Space looks clear. Hold still, starting in '+Math.ceil(left)+'…'):('Step back until your whole body fits: '+sc.reasons.join(' · '));
+    $('hint').textContent=$('gateMsg').textContent=sc.ok?('Space looks clear. Hold still, starting in '+Math.ceil(left)+'…'):('Step back until your whole body fits: '+sc.reasons.join(' · '));
     $('bStart').disabled=!(S.okSince!=null&&now-S.okSince>=1.5);
     if(left===0) beginPlay(); return; }
   const rs=rest.update(now*1000); rec.paused=rs==='rest'; $('rest').classList.toggle('show',rs==='rest'); if(rs==='rest') $('restLeft').textContent=Math.ceil(rest.restLeftMs(now*1000)/1000)+' s';
@@ -122,7 +122,7 @@ function flowHud(){ const st=S.fst; if(!S.flow||!st) return; const q=Math.round(
   $('ftxt').textContent='flow (Simulated) '+q+'%'+(st.flow.resting?' · resting':''); $('ctxt').textContent='charge (Simulated)'+(c?' '+c+'%':''); }
 $('bClr').onclick=()=>world.clear(performance.now()/1000);
 $('bCam').onclick=()=>startCamera(); $('bSim').onclick=()=>toSim();
-$('bGateCam').onclick=()=>startCamera(); $('bGateSim').onclick=()=>toSim();
+$('bGateCam').onclick=()=>{ $('gate').classList.remove('show'); startCamera(); }; $('bGateSim').onclick=()=>toSim();
 function beginPlay(){ if(S.started) return; S.started=true; $('gate').classList.remove('show'); rest.begin(performance.now()); rec.reset(); }
 $('bStart').onclick=beginPlay;
 addEventListener('keydown',e=>{ if(S.mode!=='sim') return; const k=e.key, now=performance.now()/1000; const st=.02;
