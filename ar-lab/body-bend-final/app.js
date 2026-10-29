@@ -2,6 +2,7 @@ const AUTO_START_SEC=3; // hands-free: starts by itself after the camera sees a 
 /* app.js — camera/sim glue (final merged build). PLACEHOLDER / PROPOSAL – not canon. Everything is Simulated.
    Network: ONLY the MediaPipe library + models (pose; hands only if you turn the flow layer on) are loaded from a CDN when you press "camera". No uploads, no recording, no analytics.
    If the CDN/camera is unavailable the page works offline in "sim" mode (keyboard-driven fake body). */
+import {ElementFX,Smoother,ELEMENTS} from './elements.js?v=7';
 import {StompRecognizer,MotionQuality,RestTimer,World,spaceCheck,measure,framesPerMetre} from './body.js?v=4';
 import {drawPool,drawRipple,drawRock,drawBoat,drawFlow,drawPerson,drawSimScene,horizonY} from './render.js';
 import {Engine as FlowEngine,STRINGS,Grade} from './flow.js';
@@ -10,13 +11,14 @@ import {DEFAULTS} from './config.js';
 import {makePose,standPose,walkPose,stompFrames,jumpFrames} from './fixtures.js';
 const VISION='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 const HAND_MODEL='https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
-const MODEL='https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+const MODEL='https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task';
 const $=id=>document.getElementById(id), view=$('view'), ctx=view.getContext('2d');
 const mk=n=>{ const c=document.createElement('canvas'); return c; };
 const src=mk(), sx=src.getContext('2d'), pc=mk(), pctx=pc.getContext('2d'), mc=mk(), mctx=mc.getContext('2d');
 const S={mode:'sim',started:false,okSince:null,pts:null,prev:null,flow:DEFAULTS.flowLayer,str:DEFAULTS.string,hud:DEFAULTS.hud,skel:true,fsim:new FlowSim(),fst:null,fe:null,handsRes:null,hands:null,hn:0,fq:0,mp:null,fs:null,auto:false,hold:false,clapT:-1,tilt:.85,stiff:false,tog:0,drive:0,video:null,landmarker:null,maskOK:false,maskFresh:0,maskFails:0,
   walk:false,seq:null,sim:{cx:.5,floor:.84,stance:1,bend:0},lastT:0,hand:null,rest:null,debug:new URLSearchParams(location.search).has('debug')};
 // camera-friendly thresholds (real phones are noisier than the sim): softer stomp, shorter hold
+const fxe=new ElementFX(), smooth=new Smoother();
 const rec=new StompRecognizer({impactAnkleVel:1.4,impactLift:.12,impactHipVel:.2,impactHipDrop:.015,minStance:.45,landedVel:1.4,calmAnkle:1.2,calmHip:1.2,holdMs:150,setTimeoutMs:1200}), quality=new MotionQuality(), world=new World(), rest=new RestTimer(DEFAULTS.restEveryMs,DEFAULTS.restMs), feng=new FlowEngine({seed:11});
 const q=new URLSearchParams(location.search); if(q.get('rest')) rest.everyMs=+q.get('rest')*1000; // test hook
 let W=540,H=960,aspect=W/H; function size(w,h){ W=w;H=h; for(const c of [view,src,pc,mc]){ if(c!==mc){c.width=w;c.height=h;} } aspect=w/h; world.aspect=aspect; }
@@ -62,7 +64,8 @@ function camStep(now){ const v=S.video; if(!v||!v.videoWidth) return null; if(v.
 /* ---------- main loop ---------- */
 function frame(ts){ const now=ts/1000, dt=Math.min(.1,now-(S.lastT||now)); S.lastT=now; requestAnimationFrame(frame);
   let pts=null; if(S.mode==='sim'){ pts=simPose(now); if(S.flow) pts=simFlow(pts,now,dt); drawSimScene(sx,W,H,pts,now); } else pts=camStep(now);
-  S.pts=pts; update(pts,now,dt); compose(now); hud(now); }
+  if(S.mode==='cam') pts=smooth.step(pts);
+  S.pts=pts; fxe.update(pts,W,H,dt,false); update(pts,now,dt); compose(now); hud(now); }
 function update(pts,now,dt){
   if(!pts){ if(!S.started&&S.mode==='cam') $('hint').textContent='Camera on. Back up until your whole body is in view.'; if(S.flow&&S.started) S.fst=feng.update({t:now,pts:null}); $('hint').textContent=S.started?'':''; return; }
   const sc=spaceCheck(pts,aspect);
@@ -87,6 +90,7 @@ function compose(now){ ctx.drawImage(src,0,0);
   for(const it of items){ drawRipple(ctx,it,world.rippleAmount(it,now),W,H); if(it.kind==='boat') drawBoat(ctx,it,world,now,W,H); else drawRock(ctx,it,world,now,W,H);
     // HIDE-BEHIND: if the player's feet are nearer the camera than the rock base, re-draw the player's body mask over the rock.
     if(S.pts&&world.playerInFront(it,feetY(S.pts))){ if(!cutReady){ buildCutout(); cutReady=true; } ctx.drawImage(pc,0,0); } }
+  fxe.draw(ctx);
   if(S.flow&&S.fst) drawFlow(ctx,S.fst,W,S.mode==='cam',{string:S.str>=0});
   if(S.skel&&S.pts){ ctx.save(); ctx.strokeStyle='rgba(255,210,127,.5)'; ctx.lineWidth=2; for(const [a,b] of [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]]){ ctx.beginPath(); ctx.moveTo(S.pts[a].x*W,S.pts[a].y*H); ctx.lineTo(S.pts[b].x*W,S.pts[b].y*H); ctx.stroke(); } ctx.restore(); } }
 /* player cutout = camera pixels where the person is. Real segmentation mask when available, else a rough pose-capsule silhouette. */
@@ -132,3 +136,6 @@ addEventListener('keydown',e=>{ if(S.mode!=='sim') return; const k=e.key, now=pe
   else if(k==='p'||k==='P') setPool(!world.pool); else if(k==='g'||k==='G') $('bStr').click(); else if(k==='l'||k==='L') $('bFlow').click(); else if(k==='f'||k==='F') S.auto=!S.auto; else if(k==='h'||k==='H') S.hold=!S.hold; else if(k==='c'||k==='C'){ if(S.clapT<0) S.clapT=0; } else if(k==='t'||k==='T') S.tilt=S.tilt>.5?.15:.85; else if(k==='x'||k==='X') S.stiff=!S.stiff; else if(k==='k'||k==='K') S.skel=!S.skel; else if(k==='r'||k==='R') $('bClr').click(); });
 window.__bb={S,world,rec,rest,quality,feng,startSeq,setPool,setFlow,setString,setHud,now:()=>performance.now()/1000}; // test hook only
 $('keys').style.display='block'; status('sim mode (no camera) · simulated body'); requestAnimationFrame(frame);
+
+/* element picker */
+{ const b=document.createElement('button'); b.id='bEl'; let i=0; const lab=()=>b.textContent='element: '+ELEMENTS[i]; lab(); b.onclick=()=>{ i=(i+1)%ELEMENTS.length; fxe.set(ELEMENTS[i]); lab(); }; const bar=$('bCam').parentElement; bar.appendChild(b); }
