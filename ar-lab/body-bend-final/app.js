@@ -1,3 +1,4 @@
+const AUTO_START_SEC=3; // hands-free: starts by itself after the camera sees a clear space for 3 s
 /* app.js — camera/sim glue (final merged build). PLACEHOLDER / PROPOSAL – not canon. Everything is Simulated.
    Network: ONLY the MediaPipe library + models (pose; hands only if you turn the flow layer on) are loaded from a CDN when you press "camera". No uploads, no recording, no analytics.
    If the CDN/camera is unavailable the page works offline in "sim" mode (keyboard-driven fake body). */
@@ -64,7 +65,11 @@ function frame(ts){ const now=ts/1000, dt=Math.min(.1,now-(S.lastT||now)); S.las
 function update(pts,now,dt){
   if(!pts){ if(S.flow&&S.started) S.fst=feng.update({t:now,pts:null}); $('hint').textContent=S.started?'':''; return; }
   const sc=spaceCheck(pts,aspect);
-  if(!S.started){ $('gateMsg').textContent=sc.ok?'':sc.reasons.join(' · '); if(sc.ok){ S.okSince??=now; } else S.okSince=null; $('bStart').disabled=!(S.okSince!=null&&now-S.okSince>=1.5); return; }
+  if(!S.started){ if(sc.ok){ S.okSince??=now; } else S.okSince=null;
+    const left=S.okSince!=null?Math.max(0,AUTO_START_SEC-(now-S.okSince)):null;
+    $('gateMsg').textContent=sc.ok?('Space looks clear. Hold still, starting in '+Math.ceil(left)+'…'):('Step back until your whole body fits: '+sc.reasons.join(' · '));
+    $('bStart').disabled=!(S.okSince!=null&&now-S.okSince>=1.5);
+    if(left===0) beginPlay(); return; }
   const rs=rest.update(now*1000); rec.paused=rs==='rest'; $('rest').classList.toggle('show',rs==='rest'); if(rs==='rest') $('restLeft').textContent=Math.ceil(rest.restLeftMs(now*1000)/1000)+' s';
   // pushers: wrists with velocity (frame-widths/s)
   const push=[]; if(S.prev&&dt>0) for(const i of [15,16]) push.push({x:pts[i].x,y:pts[i].y,vx:(pts[i].x-S.prev[i].x)/dt});
@@ -118,7 +123,8 @@ function flowHud(){ const st=S.fst; if(!S.flow||!st) return; const q=Math.round(
 $('bClr').onclick=()=>world.clear(performance.now()/1000);
 $('bCam').onclick=()=>startCamera(); $('bSim').onclick=()=>toSim();
 $('bGateCam').onclick=()=>startCamera(); $('bGateSim').onclick=()=>toSim();
-$('bStart').onclick=()=>{ S.started=true; $('gate').classList.remove('show'); rest.begin(performance.now()); rec.reset(); };
+function beginPlay(){ if(S.started) return; S.started=true; $('gate').classList.remove('show'); rest.begin(performance.now()); rec.reset(); }
+$('bStart').onclick=beginPlay;
 addEventListener('keydown',e=>{ if(S.mode!=='sim') return; const k=e.key, now=performance.now()/1000; const st=.02;
   if(k==='ArrowLeft') S.sim.cx=Math.max(.15,S.sim.cx-st); else if(k==='ArrowRight') S.sim.cx=Math.min(.85,S.sim.cx+st);
   else if(k==='ArrowUp') S.sim.floor=Math.max(.55,S.sim.floor-st); else if(k==='ArrowDown') S.sim.floor=Math.min(.94,S.sim.floor+st);
