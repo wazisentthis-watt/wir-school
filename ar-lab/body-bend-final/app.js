@@ -14,7 +14,7 @@ const MODEL='https://storage.googleapis.com/mediapipe-models/pose_landmarker/pos
 const $=id=>document.getElementById(id), view=$('view'), ctx=view.getContext('2d');
 const mk=n=>{ const c=document.createElement('canvas'); return c; };
 const src=mk(), sx=src.getContext('2d'), pc=mk(), pctx=pc.getContext('2d'), mc=mk(), mctx=mc.getContext('2d');
-const S={mode:'sim',started:false,okSince:null,pts:null,prev:null,flow:DEFAULTS.flowLayer,str:DEFAULTS.string,hud:DEFAULTS.hud,skel:false,fsim:new FlowSim(),fst:null,fe:null,handsRes:null,hands:null,hn:0,fq:0,mp:null,fs:null,auto:false,hold:false,clapT:-1,tilt:.85,stiff:false,tog:0,drive:0,video:null,landmarker:null,maskOK:false,maskFresh:0,maskFails:0,
+const S={mode:'sim',started:false,okSince:null,pts:null,prev:null,flow:DEFAULTS.flowLayer,str:DEFAULTS.string,hud:DEFAULTS.hud,skel:true,fsim:new FlowSim(),fst:null,fe:null,handsRes:null,hands:null,hn:0,fq:0,mp:null,fs:null,auto:false,hold:false,clapT:-1,tilt:.85,stiff:false,tog:0,drive:0,video:null,landmarker:null,maskOK:false,maskFresh:0,maskFails:0,
   walk:false,seq:null,sim:{cx:.5,floor:.84,stance:1,bend:0},lastT:0,hand:null,rest:null,debug:new URLSearchParams(location.search).has('debug')};
 // camera-friendly thresholds (real phones are noisier than the sim): softer stomp, shorter hold
 const rec=new StompRecognizer({impactAnkleVel:1.4,impactLift:.12,impactHipVel:.2,impactHipDrop:.015,minStance:.45,landedVel:1.4,calmAnkle:1.2,calmHip:1.2,holdMs:150,setTimeoutMs:1200}), quality=new MotionQuality(), world=new World(), rest=new RestTimer(DEFAULTS.restEveryMs,DEFAULTS.restMs), feng=new FlowEngine({seed:11});
@@ -121,8 +121,8 @@ function flowHud(){ const st=S.fst; if(!S.flow||!st) return; const q=Math.round(
   $('ffill').style.transform=`scaleX(${Math.max(0,st.quality).toFixed(3)})`; $('cfill').style.transform=`scaleX(${st.charge.toFixed(3)})`;
   $('ftxt').textContent='flow (Simulated) '+q+'%'+(st.flow.resting?' · resting':''); $('ctxt').textContent='charge (Simulated)'+(c?' '+c+'%':''); }
 $('bClr').onclick=()=>world.clear(performance.now()/1000);
-$('bCam').onclick=()=>startCamera(); $('bSim').onclick=()=>toSim();
-$('bGateCam').onclick=()=>{ $('gate').classList.remove('show'); startCamera(); }; $('bGateSim').onclick=()=>toSim();
+$('bCam').onclick=()=>{ startCamera(); if(!S.flow) setFlow(true); }; $('bSim').onclick=()=>toSim();
+$('bGateCam').onclick=()=>{ $('gate').classList.remove('show'); startCamera(); if(!S.flow) setFlow(true); }; $('bGateSim').onclick=()=>toSim();
 function beginPlay(){ if(S.started) return; S.started=true; $('gate').classList.remove('show'); rest.begin(performance.now()); rec.reset(); }
 $('bStart').onclick=beginPlay;
 addEventListener('keydown',e=>{ if(S.mode!=='sim') return; const k=e.key, now=performance.now()/1000; const st=.02;
