@@ -1,0 +1,127 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>License QC</title><style>body{font:16px/1.55 system-ui,sans-serif;max-width:860px;margin:2em auto;padding:0 1em;background:#14171c;color:#e8e4da}a{color:#8ec5ff}code,pre{background:#222831;padding:.1em .3em;border-radius:4px}pre{padding:1em;overflow:auto}table{border-collapse:collapse}td,th{border:1px solid #444;padding:.3em .6em}.b{background:#3a2f12;border:1px solid #c9a227;padding:.6em 1em;border-radius:6px}</style><div class=b>PLACEHOLDER / PROPOSAL. Not WIR canon. Simulated or third-party RESEARCH only, never run on a real camera. Everything here is a working draft.</div><h1>License QC — 10 repos from bending-research-2026-10-28.md</h1>
+<p>Date: 2026-10-28 (America/New_York). Status: RESEARCH / QC only. Not legal advice.</p>
+<p><strong>Method:</strong> read-only. For each repo I fetched GitHub's <code>/repos/&lt;owner&gt;/&lt;repo&gt;/license</code> endpoint (WebFetch). It returns the actual license file path, its decoded text and GitHub's detected SPDX id. I decoded the license text to check that the file body matches the id and read the copyright line. I also read the raw README for 5 repos (Bending Sandbox, Sadball, webcam_to_avatar, Morphix, Gesture3D-Suite). Nothing was cloned, built, installed, published or contacted. I did not browse the repo file trees, so bundled assets and dependencies are NOT audited except where a README says something.</p>
+<h2>Tags</h2>
+<ul>
+<li>VERIFIED-LICENSE: 9</li>
+<li>MISMATCH: 1 (Bending Sandbox)</li>
+<li>COULD-NOT-VERIFY: 0</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Repo</th>
+<th>Oscar's label</th>
+<th>Actual license file</th>
+<th>Tag</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>TM-Mehrab-Hasan/Gesture3D-Suite</td>
+<td>MIT</td>
+<td><code>LICENSE</code> = MIT, "Copyright (c) 2026 [Your Name]"</td>
+<td>VERIFIED-LICENSE</td>
+<td>Real MIT text, but the copyright holder is an unfilled placeholder, so the owner is not named. README also has placeholder contact and links (yourusername, your.email@example.com). README says Three.js (MIT) and MediaPipe (Apache-2.0) load from CDN, not bundled. Keep the notice.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>yingwang/justmove</td>
+<td>MIT</td>
+<td><code>LICENSE</code> = MIT, (c) 2026 Ying Wang</td>
+<td>VERIFIED-LICENSE</td>
+<td>Clean. README and assets not audited.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>OJ102/IRLSurfer</td>
+<td>MIT</td>
+<td><code>LICENSE</code> = MIT, (c) 2026 Om Jadhav</td>
+<td>VERIFIED-LICENSE</td>
+<td>Clean. It controls a commercial game, so don't use that game's name (Oscar already noted). Assets not audited.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>maarcoscuesta18/Sadball</td>
+<td>MIT</td>
+<td><code>LICENSE</code> = MIT, (c) 2026 maarcoscuesta18</td>
+<td>VERIFIED-LICENSE</td>
+<td>README confirms MIT. Other terms apply to dependencies and models, which are NOT in the repo: YOLO weights ("not included, train your own"), MediaPipe <code>.task</code> model files (download separately), and ultralytics/YOLO and PySide6 packages. I did not check those licenses. From general knowledge, ultralytics YOLO is usually AGPL-3.0, so verify before depending on it (unverified here). The kinetic-chain / foot-speed ideas stay usable with no YOLO.</td>
+</tr>
+<tr>
+<td>5</td>
+<td>0toN/FruitNinja-with-Kinect</td>
+<td>Apache-2.0</td>
+<td><code>LICENSE</code> = Apache-2.0 full text, appendix boilerplate left unfilled (no named copyright holder)</td>
+<td>VERIFIED-LICENSE</td>
+<td>Standard Apache text, but no copyright holder is named. Unity and the Kinect SDK have their own terms (not checked). The name echoes a commercial game; don't reuse names or art. Repo contents not audited.</td>
+</tr>
+<tr>
+<td>6</td>
+<td>grep-many/morphix</td>
+<td>MIT</td>
+<td><code>LICENSE</code> = MIT, (c) 2026 grep-many</td>
+<td>VERIFIED-LICENSE</td>
+<td>README badge and text say MIT. Its tree has <code>src/assets/animations</code> and <code>src/assets/models</code> (VRM avatars, Mixamo animations). The README states no license for them. Mixamo content has Adobe's own terms. Treat those assets as NOT covered by the MIT claim. It uses Kalidokit and MediaPipe, loaded from CDN.</td>
+</tr>
+<tr>
+<td>7</td>
+<td>europanite/webcam_to_avatar</td>
+<td>Apache-2.0</td>
+<td><code>LICENSE</code> = Apache-2.0, "Copyright 2025 europanite"</td>
+<td>VERIFIED-LICENSE</td>
+<td>README says Apache-2.0. <strong>Third-party asset:</strong> the sample VRM avatar (<code>VRoid_Woman.vrm</code>) is "provided by メタバースヨコスカ (Metaverse Yokosuka)", with no license stated. Don't reuse the avatar without checking their terms. Code is the usable part.</td>
+</tr>
+<tr>
+<td>8</td>
+<td>yeemachine/kalidokit</td>
+<td>MIT</td>
+<td><code>LICENSE.md</code> = MIT, (c) 2021 yeemachine</td>
+<td>VERIFIED-LICENSE</td>
+<td>License file is <code>LICENSE.md</code> (not <code>LICENSE</code>). Demo assets and models not audited.</td>
+</tr>
+<tr>
+<td>9</td>
+<td>google-ai-edge/mediapipe-samples</td>
+<td>Apache-2.0</td>
+<td><code>LICENSE</code> = Apache-2.0, with an extra first line "Copyright 2022 The TensorFlow Authors. All rights reserved."</td>
+<td>VERIFIED-LICENSE</td>
+<td>The license is Apache-2.0. The notice reads a bit unusually (TensorFlow Authors; appendix says 2017). Model files are downloaded separately and may carry their own terms (Oscar already noted this). Per-sample bundled assets not audited.</td>
+</tr>
+<tr>
+<td>10</td>
+<td>achrefelouafi/AvatarCastingAbilitiesThreeJS ("Bending Sandbox")</td>
+<td>conflicting</td>
+<td><code>LICENSE</code> = MIT, "Copyright (c) 2026 mohamedachrefelouafi"</td>
+<td><strong>MISMATCH</strong></td>
+<td><strong>What the repo says.</strong> The license file and GitHub's field say MIT, which matches the first half of Oscar's note. The README "Licence" section says: "Code is provided as-is for the purposes of this project. The bundled HDR probe and the character FBX retain their original licences." These do not contradict each other strictly (MIT code, other terms on two assets), but the README does not mention MIT, and the exact terms of the two assets are not stated. The README's Assets table lists <code>public/models/Standing Idle.fbx</code> (a Mixamo export, which carries Adobe/Mixamo terms) and <code>public/hdri/spruit_sunrise.hdr</code> (source and license not stated; I did not look it up). The README also describes the project as "Avatar-inspired", mentions "an air scooter, from the show" as a reference, and the code has show-derived concepts. <strong>Verdict: the MIT claim covers code only. Keep it IDEA-ONLY as Oscar had it.</strong> Don't copy the FBX, the HDR, names or the look.</td>
+</tr>
+</tbody>
+</table>
+<h2>Exceptions Oscar's file should reflect</h2>
+<ol>
+<li><strong>Bending Sandbox (#10): MISMATCH.</strong> MIT file, but the README carves out two assets with unstated terms. Stay IDEA-ONLY.</li>
+<li><strong>Gesture3D-Suite (#1) and FruitNinja-Kinect (#5):</strong> license text is real, but the copyright holder is a placeholder/unfilled. Fine to use under the license, but the notice to preserve names nobody. Low-risk oddity.</li>
+<li><strong>webcam_to_avatar (#7) and Morphix (#6):</strong> the code is OK, but the bundled avatars/animations have separate or unstated terms. Do not reuse them.</li>
+<li><strong>Sadball (#4):</strong> MIT code, but its YOLO and other dependencies and model files have their own licenses. Check before depending on them.</li>
+<li>Oscar's "9 are MIT or Apache-2.0" holds for the repo license files themselves. My checks did not cover Kalidokit's, JustMove's or IRLSurfer's bundled assets, FruitNinja's contents or mediapipe-samples' per-sample assets. Those stay "check bundled assets and model files separately", as Oscar already advised.</li>
+</ol>
+<h2>Sources (all opened this turn)</h2>
+<ul>
+<li>https://api.github.com/repos/TM-Mehrab-Hasan/Gesture3D-Suite/license</li>
+<li>https://api.github.com/repos/yingwang/justmove/license</li>
+<li>https://api.github.com/repos/OJ102/IRLSurfer/license</li>
+<li>https://api.github.com/repos/maarcoscuesta18/Sadball/license</li>
+<li>https://api.github.com/repos/0toN/FruitNinja-with-Kinect/license</li>
+<li>https://api.github.com/repos/grep-many/morphix/license</li>
+<li>https://api.github.com/repos/europanite/webcam_to_avatar/license</li>
+<li>https://api.github.com/repos/yeemachine/kalidokit/license</li>
+<li>https://api.github.com/repos/google-ai-edge/mediapipe-samples/license</li>
+<li>https://api.github.com/repos/achrefelouafi/AvatarCastingAbilitiesThreeJS/license</li>
+<li>Raw READMEs: AvatarCastingAbilitiesThreeJS, Sadball, webcam_to_avatar, morphix, Gesture3D-Suite (raw.githubusercontent.com, main branch)</li>
+</ul>
+<h2>Limits</h2>
+<p>Based on the default branch as fetched today; licenses can change. No bundled-asset or dependency audit beyond README statements. Not legal advice.</p><p><a href="./">Back</a></p>

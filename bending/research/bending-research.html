@@ -1,0 +1,432 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Bending research: 24 projects, 12 videos (RESEARCH)</title><style>body{font:16px/1.55 system-ui,sans-serif;max-width:860px;margin:2em auto;padding:0 1em;background:#14171c;color:#e8e4da}a{color:#8ec5ff}code,pre{background:#222831;padding:.1em .3em;border-radius:4px}pre{padding:1em;overflow:auto}table{border-collapse:collapse}td,th{border:1px solid #444;padding:.3em .6em}.b{background:#3a2f12;border:1px solid #c9a227;padding:.6em 1em;border-radius:6px}</style><div class=b>PLACEHOLDER / PROPOSAL. Not WIR canon. Simulated or third-party RESEARCH only, never run on a real camera. Everything here is a working draft.</div><h1>Bending / Elemental Pose-Game Research — 2026-10-28</h1>
+<p><strong>Status: RESEARCH (all of it) with Part C clearly marked PROPOSAL.</strong>
+<strong>Scope:</strong> read-only web research. No outreach, no pushing, no downloads of media, no code or art copied. Local file only (not in the site folder).
+<strong>Requested by:</strong> Coach, via Oscar. <em>"look at 20 different models/projects … and 10 videos that cover bending; learn the arts so we can make it into gameplay."</em>
+<strong>Coach's ethic (applies to everything below):</strong> <em>"Don't get smart to hurt nobody."</em></p>
+<hr />
+<h2>0. Ground rules and honesty notes</h2>
+<ul>
+<li><strong>Tag:</strong> every item below is <code>RESEARCH</code>. The only <code>PROPOSAL</code> material is Part C.</li>
+<li><strong>Only items I actually opened are listed.</strong> "Opened" = the URL loaded through WebFetch (or curl for the GitHub license field) in this session. Items that failed to load were dropped (see Section D).</li>
+<li><strong>Third-party material is not WIR canon.</strong> Avatar / Korra material is third-party RESEARCH. Nothing here is canon, and nothing here should be read as WIR canon. WIR Canon Bot and RB1 own locks.</li>
+<li><strong>Neutral names only in the game.</strong> No show names, no show move names, no show characters. (Per the canon flag: "Hover" is also dropped from the list; it is tied to a Season 5 PROPOSAL.)</li>
+<li><strong>License rule (per parent steering):</strong></li>
+<li>License is recorded <strong>as stated at the source</strong>, or <strong>UNKNOWN</strong> if not stated.</li>
+<li>For GitHub repos the source is GitHub's license field (<code>/license</code> endpoint) plus the README where I read it. "No license file found" is recorded as <strong>UNKNOWN</strong>. In law that means <em>all rights reserved by default</em>, so it is idea-only.</li>
+<li>Only <strong>CC0 / MIT / Apache-2.0 / BSD-style</strong> are marked <strong>"SAFE TO BUILD ON"</strong>. Everything else is <strong>"IDEA-ONLY — no code, art, models or names copied."</strong></li>
+<li>Even for "SAFE" items: keep the license and copyright notice, and check bundled assets, model files and dependencies separately, because those can carry different licenses. This is a license-class label, not legal advice.</li>
+<li><strong>How I read each item</strong> is shown in the "Read" field: <code>README</code> (full README text read), <code>page</code> (page loaded; only title/description read), <code>search-summary</code> (search snippet of the README plus the page loading). I do not claim more than that.</li>
+<li><strong>Videos:</strong> I did <strong>not</strong> watch any video. I only read page text (auto-transcript or description) and the oEmbed title/channel. Each entry says which.</li>
+</ul>
+<hr />
+<h2>Part A — 24 verified projects / tools / products (all RESEARCH)</h2>
+<h3>A1. Open-source or hobby projects that read a camera (opened and license-checked)</h3>
+<p><strong>1. Avatar-PoseNet — "Bending the Four Elements with PoseNet"</strong> <code>RESEARCH</code>
+- URL: https://github.com/RenzoBenemerito/Avatar-PoseNet (blog: https://renzobenemerito.github.io/Bending-The-Four-Elements/) — both opened
+- What: webcam app. TensorFlow.js PoseNet tracks body points; <strong>hand/foot speed over a moving average above a threshold = "punch/kick"</strong>, which spawns four particle styles chosen by key press.
+- Tracking tech: TensorFlow.js PoseNet (MobileNetV1, single pose).
+- Idea worth borrowing: a <strong>speed threshold on a moving average</strong> is the simplest trigger. The author's own known flaw: moving averages cause sync errors and ignore the x-axis, which is exactly why we want hysteresis plus a stage-order check. <strong>Do not borrow the punch/kick framing.</strong> Our triggers are stomp and sweep, not strikes.
+- License: <strong>UNKNOWN</strong> (GitHub license field: none found; blog states none). → <strong>IDEA-ONLY.</strong>
+- Read: blog full text; repo page.</p>
+<p><strong>2. "Avatar Element Bending" (Design for Expression/Creativity project, Medium)</strong> <code>RESEARCH</code>
+- URL: https://medium.com/hci-with-galaan/avatar-element-bending-a-design-for-expression-creativity-project-80cb45839e1c — opened
+- What: p5.js + ml5 PoseNet. A held <strong>pose picks the element</strong>; particles then follow the hands; target practice added later. <strong>User testing (Bucknell students/staff) found people struggled with the right standing distance, and the authors say it needs a lot of space and cannot handle fast movement.</strong>
+- Tech: ml5.js PoseNet, p5.js.
+- Idea: the <strong>clear-space and stand-distance problem is the number one real-world failure</strong>. Build a distance/space gate before gameplay. Also: after a focus group asked for variety, water became a <em>continuous flowing</em> visual and earth <em>separated rocks</em>; target-practice scoring was liked.
+- License: <strong>UNKNOWN</strong> (article, no license stated). → <strong>IDEA-ONLY.</strong> (It used a character image from the show; we must not.)
+- Read: full article.</p>
+<p><strong>3. Elemental Mastery</strong> <code>RESEARCH</code>
+- URL: https://github.com/awesomeadi00/Elemental_Mastery — opened (README read raw)
+- What: ml5 handpose + p5.js. Voice or tap picks an element. Fire on hands; <strong>fast hand movement fires a burst</strong>; water particles gravitate to hands; <strong>raising hands to the top of the canvas raises earth pillars</strong>; a fast sideways move sends them.
+- Tech: ml5 next-gen handpose, p5 speech recognition.
+- Idea: <strong>hands-high → earth rises</strong> and <strong>fast move = burst</strong> (we'd use only a calm version, no attack). The pillar rise is a nice model for "stomp → rock rises."
+- License: <strong>UNKNOWN</strong> (GitHub: none found; README has no license section). → <strong>IDEA-ONLY.</strong></p>
+<p><strong>4. universe-hands</strong> <code>RESEARCH</code>
+- URL: https://github.com/Abeelha/universe-hands — opened (page loaded; README seen in search summary)
+- What: hand-driven visual instruments over the live webcam. One scene is fire from the palms: <strong>open hand burns, fist snuffs it, moving fast bends the plume; heat haze warps the video; embers rise.</strong>
+- Tech: Vite + TypeScript, Three.js, MediaPipe Tasks Vision HandLandmarker.
+- Idea: <strong>open vs. closed hand as on/off</strong> and <strong>velocity bends the effect</strong> — a cheap, readable mapping. Heat-haze warp is a nice, safe visual.
+- License: <strong>UNKNOWN</strong> (GitHub: none found). → <strong>IDEA-ONLY.</strong>
+- Read: search-summary + page.</p>
+<p><strong>5. Bending Sandbox (AvatarCastingAbilitiesThreeJS)</strong> <code>RESEARCH</code>
+- URL: https://github.com/achrefelouafi/AvatarCastingAbilitiesThreeJS — opened (README read raw)
+- What: Three.js sandbox. <strong>Draw a path on the ground and an element travels along the spline.</strong> Earth "paves" slabs then breaks them; fire/water are ray-marched; air is a ride mode. Includes an in-game VFX editor with presets.
+- Tech: Three.js, Vite, GLSL, particles (no camera tracking; mouse input).
+- Idea: <strong>path-follows-arc-length</strong> (constant speed regardless of frame rate), <strong>pooled particles</strong>, <strong>settings-as-API tuning panel</strong> with presets, and the <strong>three-beat earth rise</strong> (pave → crack → tower). Great for our "stomp → rock rise" visuals and calm physics.
+- License: <strong>AMBIGUOUS.</strong> GitHub's license field reported MIT, but the README's own licence section says "code is provided as-is for the purposes of this project; bundled HDR and character FBX retain their original licences." Because the two conflict and assets differ, I am treating it as <strong>IDEA-ONLY.</strong> (Also built from show references; do not copy names or look.)</p>
+<p><strong>6. Gesture3D-Suite</strong> <code>RESEARCH</code>
+- URL: https://github.com/TM-Mehrab-Hasan/Gesture3D-Suite — opened (page loaded; details from search summary)
+- What: seven 3D web apps controlled by webcam hand gestures (pinch, fist, peace), including 3D particles.
+- Tech: MediaPipe Hands + Three.js.
+- Idea: a <strong>small gesture vocabulary (pinch / fist / open)</strong> with particles that react smoothly.
+- License: <strong>MIT</strong> (GitHub license field). → <strong>SAFE TO BUILD ON</strong> (keep the notice; check bundled assets).</p>
+<p><strong>7. HookEm Hacks 2026 "Beach Box"</strong> <code>RESEARCH</code>
+- URL: https://github.com/tuann72/2026-hookemhacks — opened (README seen in search result)
+- What: two-player webcam fighting game, 3D arena, p2p sync. Pose is solved to avatar bones; pose snapshot sent about 12 times a second (~2 KB) so the other player's avatar stays in sync. Has guard flags.
+- Tech: MediaPipe pose + hands, React Three Fiber, Supabase Realtime, Kalidokit-style rigging.
+- Idea (non-combat only): <strong>send compact solved poses at ~12 Hz</strong> for any shared-room mode; <strong>calibration state in the store</strong>; <strong>guard/"rest" flag</strong>. We do <strong>not</strong> borrow the fighting/HP framing.
+- License: <strong>UNKNOWN</strong> (GitHub: none found). → <strong>IDEA-ONLY.</strong></p>
+<p><strong>8. JustMove</strong> <code>RESEARCH</code>
+- URL: https://github.com/yingwang/justmove — opened
+- What: "Just Dance"-style game. Beat-synced pose targets, Perfect/Great/Good/Miss scoring, combos, head-nod to start.
+- Tech: MediaPipe Holistic, HTML canvas.
+- Idea: <strong>target-pose + timing-window scoring</strong> is a ready model for our stage checks; <strong>score tiers instead of pass/fail</strong> keeps it friendly.
+- License: <strong>MIT</strong> (GitHub license field). → <strong>SAFE TO BUILD ON.</strong></p>
+<p><strong>9. Polaris — multiplayer fitness platformer</strong> <code>RESEARCH</code>
+- URL: https://github.com/qiuethan/Polaris — opened (README via search result)
+- What: body-controlled platformer. Two players from one webcam, sliding-window gesture recognition with confidence scoring.
+- Tech: MediaPipe + custom gesture logic, FastAPI/WebSockets, Three.js.
+- Idea: <strong>sliding-window + confidence scoring</strong>; <strong>two players on one camera</strong> (a later "pair mode"). We would drop the jump.
+- License: <strong>UNKNOWN</strong> (GitHub: none found). → <strong>IDEA-ONLY.</strong></p>
+<p><strong>10. HCI Snake Game</strong> <code>RESEARCH</code>
+- URL: https://github.com/joy-andraos/hci-snake-game — opened (README seen in search result)
+- What: Snake you can steer by keyboard, finger-pointing, voice, or full-body pose (arm positions).
+- Tech: MediaPipe Hands + BlazePose, TensorFlow.js speech commands, vanilla JS.
+- Idea: <strong>offer several input modes</strong> (accessibility: seated/hand-only mode); "set speed to SLOW for best accuracy" is a reminder that slow-first design reads better.
+- License: <strong>UNKNOWN</strong> (GitHub: none found). → <strong>IDEA-ONLY.</strong></p>
+<p><strong>11. IRLSurfer</strong> <code>RESEARCH</code>
+- URL: https://github.com/OJ102/IRLSurfer — opened (README read raw, full)
+- What: full-body webcam controller (side-step, jump, duck, wrists together held 0.3 s). Python desktop + TypeScript web demo.
+- Tech: MediaPipe Pose Landmarker, <strong>One Euro filter</strong>, <strong>Schmitt-trigger (hysteresis) state machine</strong>, 2-second calibration, <strong>distances measured in shoulder-widths</strong> so thresholds hold at any camera distance; "STEP BACK / STEP CLOSER" HUD text.
+- Idea: the <strong>best engineering reference found</strong>. Normalize by shoulder width; velocity-gate every trigger (position <strong>and</strong> speed); hysteresis dead-band; auto-recentering; record-label-evaluate tooling. Its own README reports 0 false triggers in its small benchmark (author's claim, a small dataset, not independently checked).
+- License: <strong>MIT</strong> (README + GitHub license field). → <strong>SAFE TO BUILD ON.</strong> (It controls a commercial game; do not use that game's name.)</p>
+<p><strong>12. Subway-Surfers-Motion-Controlled (punyamodi)</strong> <code>RESEARCH</code>
+- URL: https://github.com/punyamodi/Subway-Surfers-Motion-Controlled — opened (README via search result)
+- What: MediaPipe pose → keyboard presses. Three-zone lane tracking, <strong>jump = upward velocity of shoulder midpoint</strong>, <strong>duck = nose-to-hip distance ÷ torso length</strong>, each gesture has an <strong>independent cooldown</strong>.
+- Idea: <strong>torso-length ratio for crouch depth</strong> (distance-independent) and <strong>per-gesture cooldowns</strong>, which matches our "cooldown on every move."
+- License: <strong>UNKNOWN</strong> (GitHub: none found). → <strong>IDEA-ONLY.</strong></p>
+<p><strong>13. Sadball</strong> <code>RESEARCH</code>
+- URL: https://github.com/maarcoscuesta18/Sadball — opened (README read raw, full)
+- What: single-camera soccer shooting analyzer. <strong>Two-tier detection: a foot-speed spike plus foot-to-hip proximity, then optional physics validation.</strong> Computes a <strong>"kinetic chain score (sequential activation 0–1)"</strong>, hip-shoulder separation, balance; OneEuro smoothing; 1-second cooldown; state machine IDLE → TRACKING → CONFIRMING → DONE.
+- Tech: MediaPipe Pose (33 joints), YOLO for ball, optional TCN.
+- Idea: closest thing found to our <strong>stage-order checker</strong> (a "sequential activation" score) and a model for <strong>foot-speed-spike detection = stomp</strong>. Only the foot/hip logic is relevant; we have no ball.
+- License: <strong>MIT</strong> (README + GitHub license field). → <strong>SAFE TO BUILD ON.</strong> (Its YOLO dependency has its own license; I did not check it. Do not assume it is permissive.)</p>
+<p><strong>14. FruitNinja-with-Kinect</strong> <code>RESEARCH</code>
+- URL: https://github.com/0toN/FruitNinja-with-Kinect — opened (page loaded)
+- What: a Fruit Ninja-style game controlled by Kinect (Unity3D, Kinect SDK, C#), per its one-line repo description. I read nothing more than that.
+- Tech: Kinect depth sensor + Unity.
+- Idea (my inference, not from the repo): depth cameras give a real <strong>z-axis</strong>, which a webcam does not, so a plain webcam can't reliably read pushing toward the camera. Old hardware; low value, listed for completeness.
+- License: <strong>Apache-2.0</strong> (GitHub license field). → <strong>SAFE TO BUILD ON</strong> (practically, Kinect-bound).</p>
+<p><strong>15. Morphix</strong> <code>RESEARCH</code>
+- URL: https://github.com/grep-many/morphix — opened (README seen in search result)
+- What: browser mocap. MediaPipe Holistic → Kalidokit → VRM avatar bones; Mixamo fallback animation; debug sliders.
+- Idea: <strong>fallback animation when tracking drops</strong>; per-limb guards. Good if we ever show a stand-in character.
+- License: <strong>MIT</strong> (GitHub license field). → <strong>SAFE TO BUILD ON.</strong></p>
+<p><strong>16. webcam_to_avatar</strong> <code>RESEARCH</code>
+- URL: https://github.com/europanite/webcam_to_avatar — opened
+- What: browser playground, pose estimation drives a VRoid/VRM avatar; frontend-only (privacy: nothing leaves the device).
+- Tech: MediaPipe Holistic + Kalidokit + three-vrm; Expo/React Native for web.
+- Idea: <strong>all processing on-device, no backend</strong> — matches our privacy stance. Documents the practical "Holistic is not a constructor" CDN-loading gotcha.
+- License: <strong>Apache-2.0</strong> (GitHub license field). → <strong>SAFE TO BUILD ON.</strong></p>
+<p><strong>17. Kalidokit</strong> <code>RESEARCH</code>
+- URL: https://github.com/yeemachine/kalidokit — opened
+- What: converts MediaPipe/TF.js face, pose and hand landmarks into rig angles (kinematics calculator).
+- Idea: <strong>joint-angle solving from landmarks</strong>, handy for hip/torso/shoulder angle readouts in a chain checker.
+- License: <strong>MIT</strong> (GitHub license field; LICENSE.md in repo). → <strong>SAFE TO BUILD ON.</strong></p>
+<p><strong>18. MediaPipe Samples (Google AI Edge)</strong> <code>RESEARCH</code>
+- URL: https://github.com/google-ai-edge/mediapipe-samples — opened (page loaded)
+- What: Google's official samples for pose landmarker, hand landmarker, image segmenter (incl. the background-segmenter webcam demo).
+- Idea: the <strong>official starting point</strong>: pose landmarker (33 points) and the segmenter demo for hide-behind.
+- License: <strong>Apache-2.0</strong> (GitHub license field). → <strong>SAFE TO BUILD ON.</strong> (Model files are downloaded separately; check their terms when we pick them.)</p>
+<h3>A2. Platform docs and official tooling (opened)</h3>
+<p><strong>19. MediaPipe Image Segmenter (Google AI Edge docs)</strong> <code>RESEARCH</code>
+- URL: https://developers.google.com/edge/mediapipe/solutions/vision/image_segmenter — opened (full page read)
+- What: person/background masks. Models: SelfieSegmenter (square 256×256, landscape 144×256), multi-class, hair. Outputs a category mask or confidence mask; runs in IMAGE / VIDEO / LIVE_STREAM modes.
+- Reported latency on a Pixel 6: about 33–35 ms per frame for SelfieSegmenter (vendor benchmark, not ours).
+- Idea: <strong>hide-behind occlusion</strong> — draw the effect first, then draw camera pixels where the person-mask is "person." The effect then sits behind the player.
+- License: <strong>UNKNOWN on the page</strong> (docs). The sample code repo in item 18 is Apache-2.0, but the page itself states no license. → <strong>IDEA-ONLY for the page; use item 18 for code.</strong></p>
+<p><strong>20. Snap Lens Studio — Full Body Triggers template</strong> <code>RESEARCH</code>
+- URL: https://developers.snap.com/lens-studio/features/ar-tracking/body/body-templates/full-body-triggers — opened (full page read)
+- What: AR-filter template. A <strong>Gesture = a list of pose triggers; first pose matched fires "start," last pose fires "complete"</strong>, with a <strong>Threshold</strong>. Also "screen trigger" (a joint touches an on-screen area) and "distance check" between two joints. You capture a custom pose by tapping and copying the logged joint positions.
+- Idea: <strong>gesture = ordered list of poses with a start and a complete event</strong> is almost our stage-order model. The <strong>record-a-pose-by-tapping</strong> workflow is a good way for Coach to author moves himself.
+- License: <strong>UNKNOWN</strong> (Snap developer docs; no open license stated). → <strong>IDEA-ONLY.</strong></p>
+<p><strong>21. Meta Interaction SDK — Hand Pose Detection docs</strong> <code>RESEARCH</code>
+- URL: https://developers.meta.com/horizon/documentation/unity/unity-isdk-hand-pose-detection/ — opened (full page read)
+- What: VR hand tracking. Poses are shapes + transforms. <strong>A <code>Sequence</code> chains steps, each with a minimum active time and a maximum step time; if a step runs too long the sequence restarts; there is an optional cooldown.</strong> Velocity states use <strong>hysteresis ("threshold width") and "min time in state"</strong> to stop flicker. A debug tree shows which step is firing.
+- Idea: <strong>this is the cleanest published model of our stage-order checker with timing windows</strong>: step order + min hold + max gap + cooldown + hysteresis + a debug view. We should copy the <em>concept</em>, not the code.
+- License: <strong>UNKNOWN</strong> (Meta developer docs; SDK license not stated on the page). → <strong>IDEA-ONLY.</strong></p>
+<h3>A3. Shipped games (commercial; read from the store or press pages)</h3>
+<p><strong>22. Elements Divided (Quest and PC VR)</strong> <code>RESEARCH</code>
+- URL: https://roadtovr.com/elements-divided-avatar-airbender-quest-steamvr-release/ — opened (Road to VR, April 23, 2025)
+- What: VR four-element online PvP/co-op game, gesture-driven abilities (guide water flow, summon stone barriers). 60 attacks and abilities across the four elements; level-up and loadouts; $10 at launch (Road to VR, Apr 23, 2025).
+- Idea: <strong>gesture-driven summoning where the <em>shape of your motion</em> shapes the effect</strong> (guide the flow). <strong>Do not borrow the PvP combat</strong> or any names.
+- License: <strong>UNKNOWN</strong> (commercial product). → <strong>IDEA-ONLY.</strong></p>
+<p><strong>23. Bending Champions (Quest)</strong> <code>RESEARCH</code>
+- URL: https://altlabvr.com/bending-champions — opened (full page read)
+- What: Quest game where <strong>"you must strike martial-art poses to bend the elements"</strong>; four elements with distinct play styles (earth defensive/slow, water rapid/buildup, air mobile). Supports standing, roomscale and sitting. One store review (Aug 2025) says the move-demo/tutorial for some moves (earth wall) did not work for them. It is a fighting game (1v1 to 4-player brawls); we borrow none of that.
+- Idea: <strong>"strike a pose to cast"</strong> matches our locked-stance design; <strong>supports sitting mode</strong>; a <strong>user review complains the in-game move demo failed</strong>, so our first-run tutorial must be bulletproof.
+- License: <strong>UNKNOWN</strong> (commercial). → <strong>IDEA-ONLY.</strong></p>
+<p><strong>24. The Wizards — Quest Edition (Carbon Studio)</strong> <code>RESEARCH</code>
+- URL: https://carbonstudio.pl/en/the-wizards-quest-en/ — opened (full page read)
+- What: VR spell-caster. Hand-gesture spell system, element-based spells to <strong>learn, practice and upgrade</strong>, combos, left-handed mode.
+- Idea: <strong>learn → practice → upgrade</strong> progression, <strong>left-handed mode</strong> (we need a mirror option).
+- License: <strong>UNKNOWN</strong> (commercial). → <strong>IDEA-ONLY.</strong></p>
+<h3>A4. License summary (Part A)</h3>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th>Items</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>SAFE TO BUILD ON</strong> (MIT/Apache-2.0, license field read at source)</td>
+<td>#6 Gesture3D-Suite (MIT), #8 JustMove (MIT), #11 IRLSurfer (MIT), #13 Sadball (MIT), #14 FruitNinja-Kinect (Apache-2.0), #15 Morphix (MIT), #16 webcam_to_avatar (Apache-2.0), #17 Kalidokit (MIT), #18 MediaPipe Samples (Apache-2.0) — <strong>9 items</strong></td>
+</tr>
+<tr>
+<td><strong>IDEA-ONLY — UNKNOWN license</strong></td>
+<td>#1, #2, #3, #4, #7, #9, #10, #12, #19, #20, #21, #22, #23, #24 — <strong>14 items</strong></td>
+</tr>
+<tr>
+<td><strong>IDEA-ONLY — conflicting statements</strong></td>
+<td>#5 Bending Sandbox — <strong>1 item</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Count: 24 verified and opened. 9 safe-to-build-on, 15 idea-only.</strong> (Target was 20; met honestly, not padded. Several are doc pages or shipped games, not repos, and they are labelled as such.)</p>
+<p><strong>Honest limits:</strong> (a) I read full READMEs for #3, #5, #11, #13 and the full docs for #19–#21, #23, #24. For other repos I saw the README only through search snippets, noted above. (b) Nothing here was run or tested on a camera. (c) Reliability numbers quoted from READMEs are author claims.</p>
+<hr />
+<h2>Part B — 12 verified videos (all RESEARCH)</h2>
+<p><strong>Method:</strong> each URL was opened; title and channel confirmed through YouTube's oEmbed data; page text (auto-transcript or description) read where noted. <strong>I did not watch any video.</strong> "Basis" says what I read. Where a video also shows strikes, kicks or joint locks, those parts are <strong>excluded</strong> and only the posture, breath or body-connection teaching is used.</p>
+<h3>B1. Bending choreography and the real arts behind it</h3>
+<p><strong>1. How "Avatar: The Last Airbender" Animated Its Realistic Fight Scenes | Movies Insider</strong>
+- Channel: Insider — https://www.youtube.com/watch?v=DJ86QWzI2Wo — <code>RESEARCH</code>
+- Basis: transcript text read.
+- Teaches: the animators filmed real martial artists and mapped one real art to each element, then broke reference footage into short chunks to choreograph. (Third-party show material.)
+- Principle to turn into a mechanic: <strong>a clear wind-up → release → settle shape for each element</strong>, built from short readable chunks. We will use that as a three-beat timing window, not the show's moves.</p>
+<p><strong>2. Interviewing Sifu Kisu of Avatar Last Airbender for Afrocomicon</strong>
+- Channel: THE YAMA SYSTEM — https://www.youtube.com/watch?v=iqpyRkblyxw — <code>RESEARCH</code>
+- Basis: transcript text read.
+- Teaches: a martial-arts consultant on the show describes how the arts were matched to the elements and the core idea that <strong>power runs through the whole body, joint by joint</strong>, with the body moving as one connected unit; calm, grounded breath for the softer styles. (He also describes fighting application; excluded.)
+- Mechanic: <strong>whole-body connection, not arms-only.</strong> A cast counts only when more than the arms move. This is the strongest statement of our stage-order idea.</p>
+<p><strong>3. Learn Baguazhang "Cheng Style 程氏" | Step by Step Tutorial</strong>
+- Channel: Sonny Mannon Kung Fu — https://www.youtube.com/watch?v=Iu2pe1PPTvg — <code>RESEARCH</code>
+- Basis: transcript text read.
+- Teaches: circle-walking, the turning of the body around a centre, stepping with the feet low and smooth, and keeping the upper body steady while the legs travel.
+- Mechanic: <strong>air "drift" as a circle walk</strong>: steady torso while feet travel a circle; reward even tempo and level hips. A camera reads it as a shoulder-line heading that turns smoothly while hip height stays flat. (Spin-away turns hurt tracking; see Part C.)</p>
+<p><strong>4. Learn Grasp the Bird's Tail Without Feeling Confused (Mirrored, Step-by-Step)</strong>
+- Channel: Lady Tai Chi — https://www.youtube.com/watch?v=mdwaB8qsxuc — <code>RESEARCH</code>
+- Basis: transcript text read.
+- Teaches: a slow Tai Chi sequence; weight shifts between the legs, the waist turns, and the arms follow; mirrored view so a viewer can copy it; the host also shows a <strong>seated option</strong>.
+- Mechanic: <strong>water "flow"</strong>: weight shift → waist turn → arms follow, at slow tempo. Score smoothness and order, and reject speed. Seated variant = an accessibility path.</p>
+<p><strong>5. Learn Hung Gar Tiger and Crane Form | Kung Fu Tutorial</strong>
+- Channel: The Kung Fu Platform — https://www.youtube.com/watch?v=nN6JVDUxfTA — <code>RESEARCH</code>
+- Basis: transcript text read.
+- Teaches: low rooted stances (horse stance), counted breaths, and holding the posture steady. (The form's strikes are excluded; <strong>only stance and breath are used.</strong>)
+- Mechanic: <strong>earth "lock"</strong>: stance depth + hold time + breath count before a slab rises. Stillness is the input.</p>
+<p><strong>6. 3. Tan Tui — Form 1 — Demo and how to do it (Excerpt from Tan Tui DVD)</strong>
+- Channel: Iron Palm Productions — https://www.youtube.com/watch?v=Cny8AwqwH3I — <code>RESEARCH</code>
+- Basis: transcript text read.
+- Teaches: Northern Shaolin training in <strong>three stages</strong>: (1) hold each posture still for a count so the shape is right; (2) move continuously so the power linking foot to hand is smooth; (3) only then add speed and snap. Stresses unifying the whole body into a single motion. (The combat uses it describes are excluded.)
+- Mechanic: <strong>a 3-stage learning ladder for every move: HOLD → LINK → SNAP</strong>, which is the best direct source for how a beginner progresses through our levels. Beginners only ever need stage 1.</p>
+<p><strong>7. Yang Chengfu's 10 Essential Points Explained by Adam Mizner</strong>
+- Channel: Discover Taiji — https://www.youtube.com/watch?v=2DiUOg_Ytjo — <code>RESEARCH</code>
+- Basis: transcript text read.
+- Teaches: relax and lengthen the waist, "when one part moves, all parts move", the "harmonies" (hips with shoulders, elbows with knees, feet with hands) and the contrast between <strong>whole-body-together</strong> and <strong>sequential</strong> ways of making power.
+- Mechanic: <strong>two checks, not one</strong>: <em>stage-order</em> (stomp, sweep: hips lead, hands follow) and <em>together</em> (flow: hips and shoulders move in the same phase). Slow flow uses the second; stomp uses the first.</p>
+<h3>B2. Kinetic-chain biomechanics</h3>
+<p><strong>8. Turn from the waist (Yao) and not the hip (Kua)</strong>
+- Channel: James Roach — https://www.youtube.com/watch?v=B7iFQWYQwEM — <code>RESEARCH</code>
+- Basis: transcript text read (auto-transcript, rough; low confidence in detail).
+- Teaches: keep the pelvis settled and turn the torso at the waist so the upper body rotates against a stable base.
+- Mechanic: <strong>a "stable pelvis" check</strong>: shoulder-line angle changes while hip-line angle stays nearly constant. A 2D camera can read this only approximately.</p>
+<p><strong>9. The Football Kick's Kinetic Chain</strong>
+- Channel: Physiotutors — https://www.youtube.com/watch?v=wyGw1Eu3i2k — <code>RESEARCH</code>
+- Basis: <strong>partial</strong> transcript read.
+- Teaches: sports-science description of <strong>proximal-to-distal sequencing</strong>: big, near-the-centre segments accelerate first and slow down as the next segment speeds up, so energy hands off along the leg.
+- Mechanic: <strong>peak-velocity ordering with a hand-off</strong>: hip peak, then torso peak, then wrist peak, with a small allowed gap between them. (Football context excluded; only the biomechanics is used.)</p>
+<h3>B3. Pose-tracking game building</h3>
+<p><strong>10. Full-Body Tracking with Avatar via Webcam! | Google MediaPipe Pose, Unity, Open Source</strong>
+- Channel: ganthefan — https://www.youtube.com/watch?v=icS2yforZpw — <code>RESEARCH</code>
+- Basis: description only.
+- Teaches: pipeline of MediaPipe Pose in Python streaming landmarks into Unity to move an avatar.
+- Mechanic/idea: <strong>separate "perception" from "game"</strong>, sending landmarks over a simple socket. I did <strong>not</strong> open any code repo linked from it, so license is <strong>UNKNOWN</strong>; treat as idea-only.</p>
+<p><strong>11. Subway Surfers Using Pose | Detection OpenCV + MediaPipe</strong>
+- Channel: Arnab500th — https://www.youtube.com/watch?v=IiCIRFEjUi0 — <code>RESEARCH</code>
+- Basis: description only.
+- Teaches: pose gestures as game controls with OpenCV + MediaPipe.
+- Idea: <strong>an explicit "start" gesture</strong>, then controls. License of any linked code: <strong>UNKNOWN.</strong></p>
+<p><strong>12. Interactive Games with Computer Vision | AI Fun Project</strong>
+- Channel: SOURAV SIR'S CLASSES — https://www.youtube.com/watch?v=F41JdzZ4KV4 — <code>RESEARCH</code>
+- Basis: description only (it is a class advertisement, so low value).
+- Teaches: little beyond "camera-based games are possible." Listed so the count is honest; not relied on for any design decision.</p>
+<h3>B4. Video summary</h3>
+<ul>
+<li><strong>12 videos verified</strong> (title + channel confirmed, page opened). Target was 10.</li>
+<li><strong>Strong (transcript read, teaches the arts or biomechanics): #1–#9.</strong> Of those, #3, #4, #5 and #6 are the four art-specific teaching videos (air-style, water-style, earth-style, fire-style stance/flow); #2 covers the whole-body principle from a show consultant.</li>
+<li><strong>Thin (description only): #10–#12.</strong></li>
+<li><strong>Gap (honest):</strong> I did <strong>not</strong> find a verified, usable dedicated Northern Shaolin <em>fire-style</em> lesson beyond Tan Tui (#6), and no separate Ba Gua <em>air</em> video beyond #3. Both are single-source.</li>
+</ul>
+<hr />
+<h2>Part C — Synthesis: from the arts to gameplay  <code>PROPOSAL</code></h2>
+<p><em>Everything in this part is a PROPOSAL built on the RESEARCH above. Numeric thresholds are untested starting guesses, not facts. Neutral names only. No show names or moves. Third-party Avatar/Korra material is research input, not WIR canon.</em></p>
+<h3>C1. What the research says, in plain words</h3>
+<ol>
+<li><strong>Every art teaches the same shape of movement:</strong> root first, then waist, then arms, with the whole body connected (videos #2, #4, #6, #7). That is a <strong>ground-up chain</strong>, and it backs the stage-order checker.</li>
+<li><strong>Two chain modes exist</strong> (video #7): <em>sequential</em> (feet → hips → torso → hands, for a stomp or sweep) and <em>together</em> (hips and shoulders in the same phase, for slow flow). Our checker should support both.</li>
+<li><strong>Teaching comes in three stages</strong> (video #6): <strong>HOLD</strong> a shape, <strong>LINK</strong> it into one smooth motion, then (optionally) <strong>SNAP</strong> for speed. Beginners only need HOLD. Keep SNAP out of the early game.</li>
+<li><strong>Breath and stillness count as skill</strong> (videos #4, #5): count the breath, reward the hold.</li>
+<li><strong>The cleanest software model of an ordered, timed gesture is Meta's Sequence pattern</strong> (#21): ordered steps, a min hold per step, a max time per step, cooldown, hysteresis, and a debug view.</li>
+<li><strong>The most reliable camera engineering</strong> (#11 IRLSurfer, #13 Sadball): measure in shoulder-widths, smooth with a One Euro filter, require <strong>position and speed</strong> together, use a dead-band (hysteresis), calibrate for 2 seconds, show "STEP BACK" prompts.</li>
+<li><strong>Biggest real-world failure</strong> (#2 Medium, #11): wrong distance and not enough space. Space/distance gating is the first feature, not the last.</li>
+<li><strong>Hide-behind needs a person mask</strong> (#19): draw the effect first, then draw camera pixels where "person" is true.</li>
+</ol>
+<h3>C2. The stage-order checker — how it maps to a move  <code>PROPOSAL</code></h3>
+<p>For each move the checker watches a list of <strong>stages</strong>, each with: <em>what signal</em>, <em>min hold</em>, <em>max step time</em>, <em>order</em>.</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Body signal (MediaPipe landmark idea)</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0. Gate</td>
+<td>shoulder-width in frame, body fully visible, space clear</td>
+<td>must pass before anything else</td>
+</tr>
+<tr>
+<td>1. Root</td>
+<td>ankle/knee: stance depth or foot-speed spike</td>
+<td>starts the chain</td>
+</tr>
+<tr>
+<td>2. Hips</td>
+<td>hip-centre drop, push or turn</td>
+<td>peaks <strong>after</strong> root</td>
+</tr>
+<tr>
+<td>3. Torso</td>
+<td>shoulder-line angle or lean</td>
+<td>peaks <strong>after</strong> hips (allowed gap ≈ 100–300 ms, untested)</td>
+</tr>
+<tr>
+<td>4. Arms</td>
+<td>wrist velocity or span</td>
+<td>peaks <strong>after</strong> torso</td>
+</tr>
+<tr>
+<td>5. Settle</td>
+<td>all velocities back under a calm threshold</td>
+<td>required to score the move</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Score = <strong>order correct + timing within window + calm settle</strong>. Never score force.</li>
+<li>Use a <strong>tolerance of about ±150 ms</strong> (the window IRLSurfer used) and a <strong>per-move cooldown</strong>.</li>
+<li><strong>Beginner level:</strong> HOLD stages only (1–2, plus settle). <strong>Level 2:</strong> LINK (all stages, slow). <strong>Level 3:</strong> optional faster timing windows.</li>
+<li><strong>Seated and hands-only variants</strong> use only stages 3–5.</li>
+<li>A "<strong>debug tree</strong>" (visible in a dev mode) shows which stage is firing, so Coach can tune moves by eye.</li>
+</ul>
+<h3>C3. Top 8 mechanics to build next — ranked by how reliably a camera can read them  <code>PROPOSAL</code></h3>
+<p><em>(My judgement from the sources above. Rank 1 = most reliable. Nothing is tested on our own camera yet.)</em></p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Mechanic (neutral name)</th>
+<th>What the camera reads</th>
+<th>Why this rank</th>
+<th>Source ideas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Space gate + calm start</strong> (clear-space check, 2-s calibration, "STEP BACK")</td>
+<td>shoulder-width, body visibility, still pose</td>
+<td>pure position and presence, no timing; fixes the #1 real failure</td>
+<td>#2, #11</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Locked stance</strong> (earth-style hold)</td>
+<td>hip/knee depth ratio held still for N seconds</td>
+<td>position + stillness + hysteresis; simple</td>
+<td>#5, #6, #11, #12</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Calm hold / breath count</strong> (heal-style)</td>
+<td>low velocity for a set time; optional on-screen breath pace</td>
+<td>stillness is easy to read; no fast motion</td>
+<td>#4, #5</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>Stomp slab</strong> (stomp → rock rises)</td>
+<td>one-ankle downward speed spike near the hip + hip drop, <strong>no jump</strong></td>
+<td>foot-speed spike is proven (#13), but ankle landmarks are noisy; gate on speed and hip drop</td>
+<td>#3, #13</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>Wide two-arm sweep</strong> (mist/air)</td>
+<td>wrist-to-wrist span in shoulder-widths, low and wide, smooth</td>
+<td>span and wrist-touch were reliable in #11's benchmark (author's own data)</td>
+<td>#11</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>Hide-behind</strong> (effect passes behind the player)</td>
+<td>person mask from the segmenter</td>
+<td>mask is a model output, not a gesture, but costs extra compute (~33 ms on a phone per vendor); needs testing in cluttered rooms</td>
+<td>#19</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>Stage-order chain</strong> (the core scoring layer)</td>
+<td>peak-velocity order hips → torso → wrists</td>
+<td>order of peaks is noisy at 30 fps, needs the ±150 ms window and filtering; <strong>build it early with recorded poses</strong>, even though it ranks lower on raw reliability</td>
+<td>#13, #21, #9, #7</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>Flow ribbon + freeze</strong> (water-style)</td>
+<td>wrist path drives a ribbon; "freeze" when everything stops; smoothness = length</td>
+<td>needs continuous tracking and a smoothness score; fine with slow tempo</td>
+<td>#4, #3, #5</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Deliberately not in the top 8 (least reliable on a flat webcam):</strong>
+- <strong>Spin-away turns</strong>: the body turning its back loses left/right and the landmarks swap. Use <em>partial</em> turns only, or a hand-circle proxy.
+- <strong>Push toward the camera</strong>: needs depth, which a plain webcam does not give (#14 hints at why Kinect-style depth was used).
+- <strong>Jumps</strong>: excluded for safety anyway.</p>
+<h3>C4. Safety and ethics (applies to every mechanic)  <code>PROPOSAL</code></h3>
+<ul>
+<li><strong>"Don't get smart to hurt nobody."</strong> The game targets are <strong>objects only</strong>: rocks, ribbons, rings, light. <strong>No person, avatar or other player is ever a target.</strong> No hit-detection against people.</li>
+<li><strong>No strikes, kicks, punches, joint locks or any fighting move as gameplay</strong>, even though several researched sources use them (#1, #7 in Part A, #22, #23, and some video content). We take only stance, breath, root, flow and timing.</li>
+<li><strong>Foot-speed spikes are used only for a stomp onto the floor</strong>, never a kick.</li>
+<li><strong>No jumps. No fast spinning.</strong> Slow tempo is rewarded; speed is never required at Level 1–2.</li>
+<li><strong>Clear-space prompt</strong> before every session; a <strong>rest pose</strong> that pauses the game; <strong>seated and hands-only</strong> options; <strong>left-handed/mirror</strong> option (#24).</li>
+<li><strong>Score is a game score only.</strong> It is not training data, a fitness test or a skill claim.</li>
+<li><strong>Privacy:</strong> process on-device, send no video (as in #16).</li>
+<li><strong>Canon:</strong> all of this is a PROPOSAL until a Canon Bot or RB1 lock. Nothing here is canon.</li>
+</ul>
+<h3>C5. Suggested next steps  <code>PROPOSAL</code></h3>
+<ol>
+<li>Build mechanics #1–#3 first (they need no speed). Test the space gate on a few real webcams.</li>
+<li>Add #4 stomp and #5 sweep with the speed-and-position gate. Record 20-second pose clips and replay them to tune thresholds, as IRLSurfer did.</li>
+<li>Build the stage-order checker (#7) on the recorded clips before wiring it to the live camera.</li>
+<li>Prototype hide-behind (#6) with the official segmenter sample (#18) in a throwaway test page.</li>
+<li>If code is reused, take it <strong>only</strong> from the nine SAFE items in Section A4, keep each license and notice, and check bundled assets and model files separately.</li>
+</ol>
+<hr />
+<h2>Section D — Verification log and what was dropped</h2>
+<ul>
+<li><strong>Opened and listed:</strong> 24 projects/tools/products (Part A), 12 videos (Part B).</li>
+<li><strong>License checks:</strong> GitHub license field read via <code>api.github.com/repos/&lt;owner&gt;/&lt;repo&gt;/license</code>. "Not found" = UNKNOWN. Several READMEs were also read directly (#3, #5, #11, #13).</li>
+<li><strong>Dropped (not opened or failed to load):</strong></li>
+<li><code>Potato3090/motion-rush…</code> — repo page returned 404.</li>
+<li><code>sadewadee/Fruit-ninja</code>, <code>Yaxyobek0877/3d-avatar-camera</code> — seen only in search results, never opened.</li>
+<li><code>everythingishacked/Gamebody</code> — the license check was blocked and I did not retry; dropped.</li>
+<li><code>tensorflow/tfjs-models</code>, <code>google-ai-edge/mediapipe</code> — license field not checked in a way I can cite for the repo, so not listed (item #18 covers MediaPipe samples).</li>
+<li>Videos: <code>DgPlRmRHu-c</code> (404), <code>MviUVwyKvew</code> (404), <code>INOuG0XpHmg</code> (unrelated combat-technique video; excluded for the ethic), <code>sErdfk8Td5Q</code> (title/channel only, nothing read; its content duplicates #4).</li>
+<li><strong>Not done:</strong> no video was watched; no code was run; no device was tested; no one was contacted.</li>
+<li><strong>Limits:</strong> license class ≠ legal advice; bundled assets and dependencies not audited; author benchmark numbers are unverified claims.</li>
+</ul><p><a href="./">Back</a></p>

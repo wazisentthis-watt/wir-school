@@ -1,0 +1,1 @@
+{"name":"bend-stage-checker","private":true,"description":"PROPOSAL / Simulated only. Standalone kinetic-chain stage-order scorer. Not canon, never run on a live camera.","scripts":{"test":"node --test tests/"}}

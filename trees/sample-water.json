@@ -1,0 +1,588 @@
+{
+  "date": "2026-10-20",
+  "theme": "Water: one sticky molecule, six worlds",
+  "root": {
+    "title": "Water Is Sticky",
+    "body": "Water is polar: oxygen hogs the shared electrons, so one end is slightly − and the other slightly +. The + end of one molecule attracts the − end of another. That pull is a hydrogen bond. It makes water cohesive (sticks to itself), adhesive (sticks to surfaces), and a great solvent.",
+    "questions": [
+      {
+        "q": "Water is made of…",
+        "choices": [
+          "2 hydrogens + 1 oxygen",
+          "2 oxygens + 1 hydrogen",
+          "Only hydrogen"
+        ],
+        "answer": "2 hydrogens + 1 oxygen",
+        "level": "easy"
+      },
+      {
+        "q": "Water molecules tend to…",
+        "choices": [
+          "Stick together",
+          "Repel each other",
+          "Never touch"
+        ],
+        "answer": "Stick together",
+        "level": "easy"
+      },
+      {
+        "q": "Which part of water is slightly negative?",
+        "choices": [
+          "Oxygen",
+          "Hydrogen",
+          "Neither"
+        ],
+        "answer": "Oxygen",
+        "level": "easy"
+      },
+      {
+        "q": "The weak pull between water molecules is a…",
+        "choices": [
+          "Hydrogen bond",
+          "Nuclear bond",
+          "Magnet"
+        ],
+        "answer": "Hydrogen bond",
+        "level": "medium"
+      },
+      {
+        "q": "Water sticking to ITSELF is called…",
+        "choices": [
+          "Cohesion",
+          "Adhesion",
+          "Evaporation"
+        ],
+        "answer": "Cohesion",
+        "level": "medium"
+      },
+      {
+        "q": "Why does salt dissolve in water?",
+        "choices": [
+          "Water's charged ends pull the ions apart",
+          "Water is acidic",
+          "Salt is made of water"
+        ],
+        "answer": "Water's charged ends pull the ions apart",
+        "level": "medium"
+      },
+      {
+        "q": "Water's high specific heat means it…",
+        "choices": [
+          "Absorbs a lot of heat before its temperature rises",
+          "Boils at a low temperature",
+          "Can't hold heat"
+        ],
+        "answer": "Absorbs a lot of heat before its temperature rises",
+        "level": "hard"
+      },
+      {
+        "q": "Surface tension comes mainly from…",
+        "choices": [
+          "Cohesion via hydrogen bonds",
+          "Gravity",
+          "Dissolved oxygen"
+        ],
+        "answer": "Cohesion via hydrogen bonds",
+        "level": "hard"
+      },
+      {
+        "q": "Polarity exists because oxygen is…",
+        "choices": [
+          "More electronegative than hydrogen",
+          "Heavier than hydrogen",
+          "A metal"
+        ],
+        "answer": "More electronegative than hydrogen",
+        "level": "hard"
+      }
+    ]
+  },
+  "branches": [
+    {
+      "field": "neurology",
+      "title": "Neurology: The Water-Cushioned Brain",
+      "body": "That cushion is cerebrospinal fluid (CSF). Your brain makes about 500 mL of it a day, constantly refreshing it. Nerve signals run on dissolved ions like sodium and potassium, which only work because water dissolves them.",
+      "questions": [
+        {
+          "q": "The brain is mostly…",
+          "choices": [
+            "Water",
+            "Bone",
+            "Air"
+          ],
+          "answer": "Water",
+          "level": "easy"
+        },
+        {
+          "q": "The liquid around your brain acts like a…",
+          "choices": [
+            "Cushion",
+            "Battery",
+            "Light"
+          ],
+          "answer": "Cushion",
+          "level": "easy"
+        },
+        {
+          "q": "Is water important for your brain?",
+          "choices": [
+            "Yes",
+            "No",
+            "Only on weekends"
+          ],
+          "answer": "Yes",
+          "level": "easy"
+        },
+        {
+          "q": "The fluid around the brain is called…",
+          "choices": [
+            "Cerebrospinal fluid",
+            "Blood plasma only",
+            "Saliva"
+          ],
+          "answer": "Cerebrospinal fluid",
+          "level": "medium"
+        },
+        {
+          "q": "Nerve signals use dissolved…",
+          "choices": [
+            "Ions like sodium & potassium",
+            "Sugar crystals",
+            "Iron filings"
+          ],
+          "answer": "Ions like sodium & potassium",
+          "level": "medium"
+        },
+        {
+          "q": "About how much CSF does the brain make per day?",
+          "choices": [
+            "~500 mL",
+            "~5 mL",
+            "~50 L"
+          ],
+          "answer": "~500 mL",
+          "level": "medium"
+        },
+        {
+          "q": "Main producer of CSF:",
+          "choices": [
+            "Choroid plexus",
+            "Cerebellum",
+            "Pituitary"
+          ],
+          "answer": "Choroid plexus",
+          "level": "hard"
+        },
+        {
+          "q": "What keeps Na⁺/K⁺ gradients across neuron membranes?",
+          "choices": [
+            "The sodium-potassium pump",
+            "Gravity",
+            "Myelin alone"
+          ],
+          "answer": "The sodium-potassium pump",
+          "level": "hard"
+        },
+        {
+          "q": "The brain's sleep waste-clearing system is called…",
+          "choices": [
+            "Glymphatic system",
+            "Lymph node system",
+            "Cortisol loop"
+          ],
+          "answer": "Glymphatic system",
+          "level": "hard"
+        }
+      ]
+    },
+    {
+      "field": "food",
+      "title": "Food: You Eat Your Water Too",
+      "body": "Fruits and veggies are water-packed: cucumber ~95%, watermelon ~92%. Water is also how you digest food: it dissolves nutrients so they can cross into your blood.",
+      "questions": [
+        {
+          "q": "Which food is mostly water?",
+          "choices": [
+            "Watermelon",
+            "Crackers",
+            "Peanuts"
+          ],
+          "answer": "Watermelon",
+          "level": "easy"
+        },
+        {
+          "q": "Can food give you water?",
+          "choices": [
+            "Yes",
+            "No",
+            "Only ice"
+          ],
+          "answer": "Yes",
+          "level": "easy"
+        },
+        {
+          "q": "Cucumbers are about…",
+          "choices": [
+            "95% water",
+            "5% water",
+            "0% water"
+          ],
+          "answer": "95% water",
+          "level": "easy"
+        },
+        {
+          "q": "About how much of your water comes from food?",
+          "choices": [
+            "~20%",
+            "~90%",
+            "~1%"
+          ],
+          "answer": "~20%",
+          "level": "medium"
+        },
+        {
+          "q": "Water helps digestion by…",
+          "choices": [
+            "Dissolving nutrients",
+            "Making food heavier",
+            "Nothing"
+          ],
+          "answer": "Dissolving nutrients",
+          "level": "medium"
+        },
+        {
+          "q": "Which has the MOST water?",
+          "choices": [
+            "Cucumber",
+            "Bread",
+            "Cheese"
+          ],
+          "answer": "Cucumber",
+          "level": "medium"
+        },
+        {
+          "q": "'Hydrolysis' means…",
+          "choices": [
+            "Splitting molecules using water",
+            "Removing all water",
+            "Making water"
+          ],
+          "answer": "Splitting molecules using water",
+          "level": "hard"
+        },
+        {
+          "q": "Which vitamins dissolve in water?",
+          "choices": [
+            "Vitamin C and B vitamins",
+            "Vitamins A, D, E, K",
+            "None"
+          ],
+          "answer": "Vitamin C and B vitamins",
+          "level": "hard"
+        },
+        {
+          "q": "Why do you need water-soluble vitamins often?",
+          "choices": [
+            "The body stores little of them",
+            "They're toxic",
+            "They never leave"
+          ],
+          "answer": "The body stores little of them",
+          "level": "hard"
+        }
+      ]
+    },
+    {
+      "field": "body",
+      "title": "Body: Built-In Cooling & Filters",
+      "body": "Sweat cools you because water needs a lot of energy to evaporate (it has a high heat of vaporization). Your kidneys filter your blood all day, about 180 liters of fluid, but return almost all of it.",
+      "questions": [
+        {
+          "q": "The adult body is about…",
+          "choices": [
+            "60% water",
+            "10% water",
+            "100% water"
+          ],
+          "answer": "60% water",
+          "level": "easy"
+        },
+        {
+          "q": "Sweating helps you…",
+          "choices": [
+            "Cool down",
+            "Get taller",
+            "See better"
+          ],
+          "answer": "Cool down",
+          "level": "easy"
+        },
+        {
+          "q": "Which organs clean your blood?",
+          "choices": [
+            "Kidneys",
+            "Ears",
+            "Hair"
+          ],
+          "answer": "Kidneys",
+          "level": "easy"
+        },
+        {
+          "q": "Kidneys filter about how much fluid a day?",
+          "choices": [
+            "~180 L",
+            "~2 L",
+            "~1,000 L"
+          ],
+          "answer": "~180 L",
+          "level": "medium"
+        },
+        {
+          "q": "Of that, how much is put back into the body?",
+          "choices": [
+            "Almost all",
+            "Half",
+            "None"
+          ],
+          "answer": "Almost all",
+          "level": "medium"
+        },
+        {
+          "q": "Sweat cools you when it…",
+          "choices": [
+            "Evaporates",
+            "Freezes",
+            "Turns salty"
+          ],
+          "answer": "Evaporates",
+          "level": "medium"
+        },
+        {
+          "q": "Kidney filtering units' filter site:",
+          "choices": [
+            "Glomerulus",
+            "Alveolus",
+            "Villus"
+          ],
+          "answer": "Glomerulus",
+          "level": "hard"
+        },
+        {
+          "q": "Typical daily urine output:",
+          "choices": [
+            "~1–2 L",
+            "~20 L",
+            "~180 L"
+          ],
+          "answer": "~1–2 L",
+          "level": "hard"
+        },
+        {
+          "q": "Performance can drop after losing about ___ of body weight as water:",
+          "choices": [
+            "~2%",
+            "~50%",
+            "~0.001%"
+          ],
+          "answer": "~2%",
+          "level": "hard"
+        }
+      ]
+    },
+    {
+      "field": "mental health",
+      "title": "Mental Health: Thirst & Mood",
+      "body": "Studies find that mild dehydration (about 1–2% of body weight) is linked to worse mood, more fatigue, and harder concentration. A brain region called the hypothalamus watches your blood and triggers thirst.",
+      "questions": [
+        {
+          "q": "A little dehydration can make you feel…",
+          "choices": [
+            "Tired and cranky",
+            "Super strong",
+            "Nothing at all"
+          ],
+          "answer": "Tired and cranky",
+          "level": "easy"
+        },
+        {
+          "q": "An easy mood reset is…",
+          "choices": [
+            "Drinking water",
+            "Skipping meals",
+            "Staying up late"
+          ],
+          "answer": "Drinking water",
+          "level": "easy"
+        },
+        {
+          "q": "Thirst is a signal from your…",
+          "choices": [
+            "Brain",
+            "Elbow",
+            "Shoes"
+          ],
+          "answer": "Brain",
+          "level": "easy"
+        },
+        {
+          "q": "The brain area that triggers thirst:",
+          "choices": [
+            "Hypothalamus",
+            "Cerebellum",
+            "Retina"
+          ],
+          "answer": "Hypothalamus",
+          "level": "medium"
+        },
+        {
+          "q": "Mild dehydration is around ___ of body weight:",
+          "choices": [
+            "1–2%",
+            "20%",
+            "50%"
+          ],
+          "answer": "1–2%",
+          "level": "medium"
+        },
+        {
+          "q": "Mild dehydration is linked to…",
+          "choices": [
+            "Worse focus and more fatigue",
+            "Better memory",
+            "Taller height"
+          ],
+          "answer": "Worse focus and more fatigue",
+          "level": "medium"
+        },
+        {
+          "q": "The hypothalamus senses blood…",
+          "choices": [
+            "Osmolality (concentration)",
+            "Color",
+            "Temperature only"
+          ],
+          "answer": "Osmolality (concentration)",
+          "level": "hard"
+        },
+        {
+          "q": "The hormone that makes kidneys keep water:",
+          "choices": [
+            "Vasopressin (ADH)",
+            "Insulin",
+            "Melatonin"
+          ],
+          "answer": "Vasopressin (ADH)",
+          "level": "hard"
+        },
+        {
+          "q": "Is water a cure for depression?",
+          "choices": [
+            "No, it's a basic support, not treatment",
+            "Yes, always",
+            "Only cold water"
+          ],
+          "answer": "No, it's a basic support, not treatment",
+          "level": "hard"
+        }
+      ]
+    },
+    {
+      "field": "space",
+      "title": "Space: Every Drop Counts",
+      "body": "Without gravity, water's cohesion pulls it into floating spheres. The ISS recycles about 98% of its water, including urine and even moisture from breath and sweat.",
+      "questions": [
+        {
+          "q": "In space, loose water forms…",
+          "choices": [
+            "Floating balls",
+            "Flat puddles",
+            "Sand"
+          ],
+          "answer": "Floating balls",
+          "level": "easy"
+        },
+        {
+          "q": "Astronauts recycle…",
+          "choices": [
+            "Their pee and sweat into water",
+            "Nothing",
+            "Only rocks"
+          ],
+          "answer": "Their pee and sweat into water",
+          "level": "easy"
+        },
+        {
+          "q": "Water is important in space because…",
+          "choices": [
+            "It's heavy and hard to resupply",
+            "It's not needed",
+            "It's free everywhere"
+          ],
+          "answer": "It's heavy and hard to resupply",
+          "level": "easy"
+        },
+        {
+          "q": "Why does water make spheres in space?",
+          "choices": [
+            "Surface tension/cohesion",
+            "Magnetism",
+            "Cold"
+          ],
+          "answer": "Surface tension/cohesion",
+          "level": "medium"
+        },
+        {
+          "q": "How much water does the ISS recover?",
+          "choices": [
+            "~98%",
+            "~10%",
+            "~50%"
+          ],
+          "answer": "~98%",
+          "level": "medium"
+        },
+        {
+          "q": "Which root property makes floating water ball up?",
+          "choices": [
+            "Cohesion",
+            "Color",
+            "Smell"
+          ],
+          "answer": "Cohesion",
+          "level": "medium"
+        },
+        {
+          "q": "Splitting water gives…",
+          "choices": [
+            "Hydrogen and oxygen",
+            "Helium and carbon",
+            "Salt"
+          ],
+          "answer": "Hydrogen and oxygen",
+          "level": "hard"
+        },
+        {
+          "q": "The ISS system that reached 98% added a…",
+          "choices": [
+            "Brine Processor",
+            "Solar sail",
+            "Fusion reactor"
+          ],
+          "answer": "Brine Processor",
+          "level": "hard"
+        },
+        {
+          "q": "In microgravity, water clinging to walls shows…",
+          "choices": [
+            "Adhesion",
+            "Inertia only",
+            "Radioactivity"
+          ],
+          "answer": "Adhesion",
+          "level": "hard"
+        }
+      ]
+    }
+  ],
+  "summary": "Because water is polar and sticky: it climbs plants as one chain, and roots grow toward it; it cushions your brain and carries the ions every nerve signal uses; it dissolves your food so nutrients reach your blood; it stores heat, so sweat cools you, and kidneys recycle it all day; small shortages show up as fatigue and bad mood; in space it balls up, and the ISS recycles about 98% of it. One property, hydrogen bonding, explains plants, brains, food, bodies, moods and spacecraft."
+}

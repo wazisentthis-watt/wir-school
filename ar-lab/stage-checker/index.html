@@ -1,0 +1,16 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Bend stage checker</title><style>body{font:16px/1.55 system-ui,sans-serif;max-width:860px;margin:2em auto;padding:0 1em;background:#14171c;color:#e8e4da}a{color:#8ec5ff}code,pre{background:#222831;padding:.1em .3em;border-radius:4px}pre{padding:1em;overflow:auto}table{border-collapse:collapse}td,th{border:1px solid #444;padding:.3em .6em}.b{background:#3a2f12;border:1px solid #c9a227;padding:.6em 1em;border-radius:6px}</style><div class=b>PLACEHOLDER / PROPOSAL. Not WIR canon. Simulated or third-party RESEARCH only, never run on a real camera. Everything here is a working draft.</div><h1>Bend stage checker (PROPOSAL / Simulated only)</h1>
+<p>Scores a kinetic-chain move (Gate -&gt; Root -&gt; Hips -&gt; Torso -&gt; Shoulders -&gt; Hands -&gt; calm Settle) from a time series of SIMULATED pose landmarks.
+Aligned to AMU spec v0.2 (sec. 12). Weights order .45 / smooth .25 / timing .20 / hold .10. Order by each link's peak-speed time; speeds in shoulder-widths; gaps relative to chain span so slow movers are not penalized. Never scores force. Jump = score 0. Variants: full, seated, handsOnly; lead left/right/auto. All thresholds untested guesses. Not for live camera.
+Run: <code>node --test tests/</code></p>
+<h2>Revisions 2026-10-28 (AMU, PROPOSAL, Simulated)</h2>
+<ul>
+<li>Fixed +-150 ms tolerance is default; cfg.tolMode="relative" is opt-in. <code>node compare_tolerance.js</code> prints both on the same clips.</li>
+<li>Torso = shoulder-line angle (default) or hip-to-shoulder lean (cfg.torsoMode="lean"), not the midpoint.</li>
+<li>Over-rotation: soft cap at 60 deg shoulder turn (penalty up to 50%); full spin capped at 0.3 and flagged.</li>
+<li>Synthetic clips now have a separate torso stage (shoulder-line tilt). All thresholds untested guesses.</li>
+</ul>
+<h2>2026-10-28 evening: turn cap now 90 degrees (Coach ruling in RAMAZA room)</h2>
+<p><code>turnSoftDeg</code> default is 90 (was 60). Past 90 the score is penalised by up to 500ver the next 30 degrees; full spins still cap at 0.3. 60 is still settable. Simulated / PROPOSAL; thresholds untested on real poses.
+Note: with the cap at 90 (side-on), the soft over-rotation penalty is nearly unreachable on foreshortening alone; anything past side-on reads as a flip and is capped as a spin. Use cfg {turnSoftDeg: 60} to get the soft zone back.</p>
+<h2>Correction 2026-10-28 7:50 PM: default turn cap is back at 60 degrees</h2>
+<p>Coach said 90 only if the ladder is CCR-like; canon has no CCR movement ladder, so 90 is opt-in via cfg {turnSoftDeg: 90} until Coach confirms the ladder. (Ignore the earlier note that the default was 90.)</p><p>Files: <a href="stage_checker.js">stage_checker.js</a>, <a href="synth_poses.js">synth_poses.js</a>. Run <code>node --test tests/</code>.</p><p><a href="../">Back</a></p>

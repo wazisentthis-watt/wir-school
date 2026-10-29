@@ -1,0 +1,93 @@
+<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>Stage-order spec (AMU, PROPOSAL)</title><style>body{font:16px/1.55 system-ui,sans-serif;max-width:860px;margin:2em auto;padding:0 1em;background:#14171c;color:#e8e4da}a{color:#8ec5ff}code,pre{background:#222831;padding:.1em .3em;border-radius:4px}pre{padding:1em;overflow:auto}table{border-collapse:collapse}td,th{border:1px solid #444;padding:.3em .6em}.b{background:#3a2f12;border:1px solid #c9a227;padding:.6em 1em;border-radius:6px}</style><div class=b>PLACEHOLDER / PROPOSAL. Not WIR canon. Simulated or third-party RESEARCH only, never run on a real camera. Everything here is a working draft.</div><h1>Stage-Order Checker Spec v0.1</h1>
+<p>Author: AMU (perspective simulator, NOT canon authority). Status: PROPOSAL. Data label: Simulated. Never run on a live camera. Local only, nothing pushed (Publish HOLD + push hold).
+Neutral names only. No Avatar/Korra names, signs, moves, assets. Hover dropped (Metal S5 firewall). No bloodbending. No jumps. No harming.
+Research inputs (Oscar's 20 projects, Domawaye's 10 videos) are RESEARCH and not yet merged; section 9 lists what to fill from them.</p>
+<h2>1. Inputs</h2>
+<p>Per frame from pose tracker (33 landmarks if MediaPipe-style; any tracker with ankles, knees, hips, shoulders, elbows, wrists works): x,y,(z), visibility.
+Smooth with a short filter (e.g. 1-euro or 3-5 frame moving average). Drop frames with visibility &lt; 0.5 for the joint.</p>
+<h2>2. Body links (the chain)</h2>
+<p>L1 feet/ankles -&gt; L2 knees -&gt; L3 hips (midpoint of hip landmarks) -&gt; L4 trunk/spine (hip-to-shoulder-midpoint angle and height) -&gt; L5 shoulders -&gt; L6 elbows/wrists (hands).
+For each link compute speed s_i(t) (normalized by torso length so any body size/camera distance works) and find its peak time t_i = argmax speed within the move window.</p>
+<h2>3. Stage-order test</h2>
+<p>A move is a list of stages, each with: required links, a pose test, a timing window, and a hold requirement.
+Order score O = fraction of consecutive link pairs where t_(i+1) &gt; t_i + min_gap (min_gap ~ 40-80 ms, PROPOSAL, untested).
+Perfect chain: t1 &lt; t2 &lt; t3 &lt; t4 &lt; t5 &lt; t6. Arms-only wave: wrist peaks with no earlier hip peak -&gt; O near 0 -&gt; weak effect.</p>
+<h2>4. Score (0..1), all Simulated</h2>
+<ul>
+<li>O: order score (above), weight 0.45</li>
+<li>S: smoothness = 1 - normalized jerk of the hip and wrist paths, weight 0.25</li>
+<li>T: timing = how close each stage lands inside its window, weight 0.2</li>
+<li>H: hold steadiness = low sway during required hold, weight 0.1
+Effect size and calmness scale with the score. A low score still fires a small effect (never a hard fail), so slow or stiff players are not locked out.
+Weakest link = the pair with the largest order violation or timing miss; shown to the player ("your hips came late").</li>
+</ul>
+<h2>5. Stage templates for the proposed moves (neutral names)</h2>
+<ol>
+<li>Stomp slab: plant -&gt; load (knees+hips drop) -&gt; drive (foot slam, hips lead) -&gt; settle -&gt; hold ~0.5s. Effect: slab rises. Cooldown.</li>
+<li>Low sweep: back foot push -&gt; hip turn -&gt; trunk -&gt; trailing arm low. Effect: soft ground layer spreads along arm direction.</li>
+<li>Locked stance: feet plant wide -&gt; hips brace -&gt; spine/shoulders lock -&gt; hold (length = firmness). Effect: slab firms up.</li>
+<li>Flow wave: feet shift -&gt; hip circle -&gt; trunk -&gt; arm trails. Effect: water ribbon follows the hand; smoother circle = longer ribbon.</li>
+<li>Freeze hold: sharp stop in order hips -&gt; trunk -&gt; hand, then hold. Effect: ribbon turns to ice. (Holding still IS the pose.)</li>
+<li>Mist sweep: feet plant -&gt; hips drop -&gt; both arms wide and low. Effect: fog lifts; second hiding mechanic.</li>
+<li>Spin drift: feet pivot -&gt; hips -&gt; trunk -&gt; arms trail; slow whole-body turn. Effect: soft wind in spin direction.</li>
+<li>Heal hold: slow breath, even stance, long smooth arm pass. Only move that rewards going slower. Effect: soft glow mends a cracked rock.
+Start with the ones already prototyped (1, then 3, 8) because they are the easiest to read on camera.</li>
+</ol>
+<h2>6. Chaining</h2>
+<p>Each move declares an end pose and a start pose. If end pose of A is within tolerance of start pose of B within a 1.5-2 s calm gap, the link counts as chained. Two clean links = combo bonus; no penalty for taking longer. A short balance beat between moves is required (safety).
+Level ladder (Simulated, PROPOSAL): L1 right pose; L2 right order; L3 right timing + calm finish; L4 two-move chain; L5 hold a stance while another move builds. Whether tiers map to Coach's Boy / Man / Mansa idea is UNKNOWN - Coach's call, not invented here.</p>
+<h2>7. Safety and honesty</h2>
+<p>No jumps at any level; slow tempo accepted; clear-space check; rest prompt every 5 min; camera stays on device, no recording or uploads. App says plainly: simulated game score, not training data, not fitness/medical advice. Never rewards harming anything or anyone.</p>
+<h2>8. Test plan (all Simulated)</h2>
+<p>a) Synthetic pose sequences: ideal chain, arms-only, reversed order, slow, jittery, missing joints. Expect O: ideal ~1, arms-only ~0, reversed low.
+b) Threshold sweep for min_gap, window widths, weights. Treat all numbers here as starting guesses, not measured.
+c) Only after Coach says yes in the 1:1: try on a real camera and record what actually breaks (occlusion, low light, frame rate on phones).
+Known risk: UNKNOWN whether a phone camera at 30 fps can read hip-before-shoulder gaps of ~50 ms reliably. If not, use stage order at coarser resolution (which link moved first within ~100-150 ms).</p>
+<h2>9. To fill from research (open items)</h2>
+<ul>
+<li>Which existing projects solved the frame-rate / timing problem, and how (Oscar's 20)</li>
+<li>Which stance/form cues the arts videos name for each move (Domawaye's 10)</li>
+<li>Licenses: only permissive ones are build-safe; the rest is idea-only</li>
+<li>Any safety problems seen in similar games</li>
+</ul>
+<h2>10. Update after Domawaye's 10 videos (RESEARCH; links and notes come from her file, bending_arts_videos_2026-10-28.md; licenses UNKNOWN, idea-only)</h2>
+<p>Pattern across her items 1, 4, 5, 6, 7: weight shift first, then hips/waist, then arm. Changes proposed:
+- Add stage 0 "weight shift" before link L1 in every template (feet/weight moves before anything else).
+- Over-rotation penalty: score a hip turn that goes past a set angle (cost on the next move) so spinning wildly isn't rewarded (item 6).
+- Stance posture check for locked stance / horse-style holds: feet, knees, hips, shoulders stacked; knee stays behind toe; sink gradually (items 7, 8, 10).
+- Comfort-depth setting: player picks how deep a stance goes at start (item 7). Safety win; no one is forced low.
+- Circle-walk foot path and weight transfer as the score input for flow wave / spin drift (item 4); waist turns as one piece.
+- Wind-up before release and short checkable stages chained into long ones (items 2, 9).
+- Breath pacing as a soft timing guide for holds and heal hold (item 2).
+- Open: item 3 notes are low confidence (noisy captions); items 1, 3, 4, 8, 10 channel/title UNKNOWN. Item 9 is third-party IP reference only.</p>
+<h2>11. Update after Oscar's research file (RESEARCH; from his posted summary, bending-research-2026-10-28.md, not yet read line by line by AMU; licenses: only MIT/Apache items are build-safe, the rest idea-only)</h2>
+<ul>
+<li>Unit: measure in shoulder-widths (not torso length) and smooth landmarks; require position AND speed together; 2-second calibration at start (Sadball / IRLSurfer pattern).</li>
+<li>Stage gates: each stage gets a minimum hold, a maximum time, a cooldown, and hysteresis (enter threshold differs from exit threshold) so it doesn't flicker. Idea from Meta's Interaction SDK; copy the idea, not the code.</li>
+<li>Two scoring modes: (a) ordered chain (feet, waist, arms) for strikes/stomps; (b) "together" mode where hips and shoulders move as one for slow flow moves (flow wave, heal hold). Mode (b) scores sync and smoothness, not order.</li>
+<li>Level 1 = hold the shape only (Tan Tui ladder: hold, then link smoothly, then add speed). This replaces my earlier "L1 right pose" wording; the rest of the ladder stays PROPOSAL.</li>
+<li>Build order from Oscar: space check first, then locked stance, calm hold, stomp slab, two-arm sweep, hide-behind, stage-order chain, flow ribbon.</li>
+<li>Conflict to resolve: Oscar says no spins; my template 7 (spin drift) is a slow whole-body turn. Mark spin drift DEFERRED until Coach says; nothing pushes toward the camera; targets are objects only, never people.</li>
+<li>Hide-behind needs a person mask (segmenter) as well as pose; stage-order checker only needs pose.</li>
+<li>Source gaps: about a dozen projects were README-only; Bending Sandbox licence statements conflict; Domawaye's video items 3 and 10 are low confidence.</li>
+</ul>
+<h2>12. v0.2 corrections after reading Oscar's Part C line by line (these SUPERSEDE earlier numbers in sections 3, 5, 8, 10, 11)</h2>
+<ul>
+<li>Timing is too fine in section 3: a phone camera at 30 fps gives ~33 ms per frame, so a 40-80 ms min_gap is noise. Use the research's allowed gap of about 100-300 ms between stage peaks and a +-150 ms tolerance. Untested starting guesses.</li>
+<li>Stage table (replaces sec. 2/3 link list for scoring): 0 Gate (shoulder-width in frame, full body visible, space clear) -&gt; 1 Root (ankle/knee) -&gt; 2 Hips -&gt; 3 Torso -&gt; 4 Arms -&gt; 5 Settle (all velocities under a calm threshold, required to score). Score = order correct + timing in window + calm settle; never force.</li>
+<li>Weight shift (my earlier stage 0) now lives inside Root. Gate is the real stage 0.</li>
+<li>Levels follow the HOLD / LINK / SNAP teaching shape: Level 1 hold stages only (root, hips, settle); Level 2 LINK all stages slowly; Level 3 optional tighter timing. SNAP stays out of the early game.</li>
+<li>Spin drift: DROP as a full spin. Spin-away turns lose left/right at a flat webcam and landmarks swap. Allow only partial turns or a hand-circle proxy. Replaces the DEFERRED note in sec. 11.</li>
+<li>No strikes, kicks or punches as gameplay (C4), even though several arts videos teach them; we only take stance, breath, root, flow, timing. My template 2 low sweep must be a ground sweep with no fighting framing. Stomp = foot-speed spike onto the floor only, never a kick. Targets are objects only.</li>
+<li>Add: seated and hands-only variants (stages 3-5 only), left-handed/mirror option, a debug view showing which stage is firing, 20-second recorded pose clips to tune thresholds before using the live camera.</li>
+<li>Build order (Oscar's C3, adopted): 1 space gate + calm start, 2 locked stance, 3 calm hold/breath count, 4 stomp slab, 5 wide two-arm sweep, 6 hide-behind (person mask), 7 stage-order chain (build early on recorded poses), 8 flow ribbon + freeze. Heal hold = #3; mist = #5.</li>
+<li>Safety, privacy, labels unchanged: Simulated game score only, on-device camera, no uploads. Reuse code only from the 9 MIT/Apache items, keeping licences and checking bundled assets and models (Sadball's YOLO dependency unchecked). Everything PROPOSAL; nothing built or pushed until Coach says yes in the 1:1.</li>
+</ul>
+<h2>13. v0.3 sync with Phatom's checker (2026-10-28) — PROPOSAL / Simulated</h2>
+<ul>
+<li>Checker: 35/35 tests. Fixed ±150 ms default, speed-relative opt-in. Torso = shoulder-line angle (hip-to-shoulder lean optional). Over-rotation soft cap 60 degrees; a full spin is capped at 0.3 and flagged.</li>
+<li>Simulated scores: clean 0.999, hips-late 0.785, arms-only 0.023, jump 0, 75 degree turn 0.63. Hips-late order now 0.75 (earlier 0.622 came from the midpoint torso).</li>
+<li>OPEN: Domawaye's F4 uses a 90 degree yaw cap; the checker uses 60. Pick one number per move type before tests; both are guesses.</li>
+<li>OPEN: the separate torso stage in the simulated clips is an assumption. Real pose clips may not separate hips from torso at 30 fps (UNKNOWN).</li>
+<li>OPEN: hips-late still fires a small effect. Decide if a late hip should earn any effect at Level 1 (Coach/Phatom).</li>
+</ul><p><a href="./">Back</a></p>
