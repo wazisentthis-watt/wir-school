@@ -1,0 +1,1 @@
+{"name":"body-bend-final-prototype","private":true,"type":"module","description":"LOCAL-ONLY PROPOSAL prototype, Simulated. Not canon.","scripts":{"test":"node tests/all.test.js"}}

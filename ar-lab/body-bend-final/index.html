@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Body-Bend final (local) — PLACEHOLDER / PROPOSAL – not canon</title>
+<style>
+html,body{margin:0;height:100%;background:#0b0d12;color:#e8e4da;font:13px/1.35 system-ui,-apple-system,sans-serif;overflow:hidden;touch-action:none}
+#stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+canvas#view{max-width:100vw;max-height:100vh;background:#000}
+canvas#view.mirror{transform:scaleX(-1)}
+#badge{position:fixed;left:8px;top:calc(8px + env(safe-area-inset-top));padding:3px 8px;border-radius:10px;background:rgba(0,0,0,.55);font-size:11px;letter-spacing:.02em}
+#badge b{color:#ffcf7a} #badge small{display:block;opacity:.65;font-size:10px}
+#menu{position:fixed;left:8px;right:8px;top:calc(56px + env(safe-area-inset-top));display:flex;gap:4px;flex-wrap:wrap}
+#bHud{position:fixed;right:8px;top:calc(8px + env(safe-area-inset-top));background:rgba(0,0,0,.5);color:#e8e4da;border:1px solid rgba(255,255,255,.18);border-radius:10px;font-size:11px;padding:3px 8px}
+#menu button{background:rgba(0,0,0,.5);color:#e8e4da;border:1px solid rgba(255,255,255,.18);border-radius:10px;font-size:11px;padding:3px 8px}
+#menu button.on{border-color:#ffcf7a;color:#ffcf7a}
+#hint{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom));text-align:center;font-size:12px;opacity:.75;pointer-events:none;min-height:16px}
+#meter{position:fixed;left:10px;bottom:calc(16px + env(safe-area-inset-bottom));width:120px;font-size:9px;opacity:.7}
+#meter div{height:3px;background:rgba(255,255,255,.18);border-radius:2px;margin-top:2px;overflow:hidden} #meter i{display:block;height:100%;width:100%;background:#9fd6a0;transform-origin:left}
+.overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(8,10,14,.82);padding:18px;text-align:left}
+.overlay.show{display:flex} .card{max-width:420px;background:#161a22;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:16px 18px}
+.card h2{margin:0 0 6px;font-size:16px} .card ul{margin:6px 0 10px 18px;padding:0} .card li{margin:2px 0}
+.card button{background:#ffcf7a;color:#241a05;border:0;border-radius:10px;padding:8px 14px;font-size:14px;margin:4px 6px 0 0} .card button[disabled]{opacity:.35}
+#gateMsg{color:#ffb4a0;min-height:18px;font-size:12px} .priv{opacity:.8;font-size:12px}
+#rest{background:rgba(8,10,14,.55);text-align:center} #rest .card{text-align:center}
+#fmeter{position:fixed;left:10px;bottom:calc(46px + env(safe-area-inset-bottom));width:120px;font-size:9px;opacity:.7;display:none}
+#fmeter.show{display:block} #fmeter div{height:3px;background:rgba(255,255,255,.18);border-radius:2px;margin-top:2px;overflow:hidden} #fmeter i{display:block;height:100%;width:100%;transform-origin:left;transform:scaleX(0)}
+#fmeter #ffill{background:#8cc8ff} #fmeter #cfill{background:#ffd98a}
+#bHud{opacity:.85}
+body.collapsed .hudg{display:none!important}
+#keys{position:fixed;right:8px;top:calc(92px + env(safe-area-inset-top));max-width:46vw;font-size:9px;opacity:.5;text-align:right;display:none}
+</style></head>
+<body>
+<div id="stage"><canvas id="view" width="540" height="960"></canvas></div>
+<div id="badge"><b>PLACEHOLDER / PROPOSAL – not canon</b> · Simulated<small id="status" class="hudg">starting…</small></div>
+<div id="menu"><span class="hudg" style="display:contents"><button id="bCam">camera</button><button id="bSim">sim</button><button id="bPool">pool</button><button id="bFlow">flow: off</button><button id="bStr">string: off</button><button id="bClr">clear</button></span></div>
+<button id="bHud" aria-label="collapse or expand the HUD">hud ▾</button>
+<div id="meter" class="hudg">calm (Simulated)<div><i id="mfill"></i></div></div>
+<div id="fmeter" class="hudg"><span id="ftxt">flow (Simulated)</span><div><i id="ffill"></i></div><span id="ctxt">charge (Simulated)</span><div><i id="cfill"></i></div></div>
+<div id="hint" class="hudg"></div>
+<div id="keys" class="hudg">sim keys: ←→↑↓ move · Space stomp · Shift+Space wide-low stomp · W walk · J jump · P pool · R clear<br>flow layer (sim): L layer · G string · F auto-sway · H hold palms · C clap · T palm tilt · X stiff · K skeleton</div>
+
+<div id="gate" class="overlay show"><div class="card">
+  <h2>Clear your space first</h2>
+  <ul><li>About 2 m of clear floor around you; no furniture, pets, people or cables.</li><li>Flat, non-slip floor; shoes on or firm footing.</li><li>Whole body in view, head to feet.</li><li>Stomp gently. You do not need force, and jumping is never rewarded.</li></ul>
+  <div class="priv">Privacy: camera video is processed on this device only. Nothing is recorded or uploaded.</div>
+  <div class="priv">PLACEHOLDER / PROPOSAL, all Simulated. Not yet tested with a real camera or an iPhone, so expect rough spots. Stomp, step, shield and boat are practice moves only; nothing is aimed at anyone.</div>
+  <div id="gateMsg"></div>
+  <button id="bStart" disabled>My space is clear — start</button><button id="bGateSim" style="background:#2a3140;color:#e8e4da">Try simulated body</button><button id="bGateCam" style="background:#2a3140;color:#e8e4da">Use camera</button>
+</div></div>
+<div id="rest" class="overlay"><div class="card"><h2>Rest a moment</h2><div>Breathe, drink some water, shake out your legs.<br><small id="restLeft"></small></div></div></div>
+<script type="module" src="app.js"></script>
+</body></html>
