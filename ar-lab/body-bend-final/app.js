@@ -16,7 +16,8 @@ const mk=n=>{ const c=document.createElement('canvas'); return c; };
 const src=mk(), sx=src.getContext('2d'), pc=mk(), pctx=pc.getContext('2d'), mc=mk(), mctx=mc.getContext('2d');
 const S={mode:'sim',started:false,okSince:null,pts:null,prev:null,flow:DEFAULTS.flowLayer,str:DEFAULTS.string,hud:DEFAULTS.hud,skel:false,fsim:new FlowSim(),fst:null,fe:null,handsRes:null,hands:null,hn:0,fq:0,mp:null,fs:null,auto:false,hold:false,clapT:-1,tilt:.85,stiff:false,tog:0,drive:0,video:null,landmarker:null,maskOK:false,maskFresh:0,maskFails:0,
   walk:false,seq:null,sim:{cx:.5,floor:.84,stance:1,bend:0},lastT:0,hand:null,rest:null,debug:new URLSearchParams(location.search).has('debug')};
-const rec=new StompRecognizer(), quality=new MotionQuality(), world=new World(), rest=new RestTimer(DEFAULTS.restEveryMs,DEFAULTS.restMs), feng=new FlowEngine({seed:11});
+// camera-friendly thresholds (real phones are noisier than the sim): softer stomp, shorter hold
+const rec=new StompRecognizer({impactAnkleVel:1.4,impactLift:.12,impactHipVel:.2,impactHipDrop:.015,minStance:.45,landedVel:1.4,calmAnkle:1.2,calmHip:1.2,holdMs:150,setTimeoutMs:1200}), quality=new MotionQuality(), world=new World(), rest=new RestTimer(DEFAULTS.restEveryMs,DEFAULTS.restMs), feng=new FlowEngine({seed:11});
 const q=new URLSearchParams(location.search); if(q.get('rest')) rest.everyMs=+q.get('rest')*1000; // test hook
 let W=540,H=960,aspect=W/H; function size(w,h){ W=w;H=h; for(const c of [view,src,pc,mc]){ if(c!==mc){c.width=w;c.height=h;} } aspect=w/h; world.aspect=aspect; }
 size(540,960);
