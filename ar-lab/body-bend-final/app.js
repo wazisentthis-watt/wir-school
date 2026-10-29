@@ -2,7 +2,7 @@ const AUTO_START_SEC=3; // hands-free: starts by itself after the camera sees a 
 /* app.js — camera/sim glue (final merged build). PLACEHOLDER / PROPOSAL – not canon. Everything is Simulated.
    Network: ONLY the MediaPipe library + models (pose; hands only if you turn the flow layer on) are loaded from a CDN when you press "camera". No uploads, no recording, no analytics.
    If the CDN/camera is unavailable the page works offline in "sim" mode (keyboard-driven fake body). */
-import {StompRecognizer,MotionQuality,RestTimer,World,spaceCheck,measure,framesPerMetre} from './body.js';
+import {StompRecognizer,MotionQuality,RestTimer,World,spaceCheck,measure,framesPerMetre} from './body.js?v=4';
 import {drawPool,drawRipple,drawRock,drawBoat,drawFlow,drawPerson,drawSimScene,horizonY} from './render.js';
 import {Engine as FlowEngine,STRINGS,Grade} from './flow.js';
 import {FlowSim} from './simflow.js';
@@ -68,7 +68,6 @@ function update(pts,now,dt){
   if(!S.started){ if(sc.ok){ S.okSince??=now; } else S.okSince=null;
     const left=S.okSince!=null?Math.max(0,AUTO_START_SEC-(now-S.okSince)):null;
     $('hint').textContent=$('gateMsg').textContent=sc.ok?('Space looks clear. Hold still, starting in '+Math.ceil(left)+'…'):('Step back until your whole body fits: '+sc.reasons.join(' · '));
-    $('bStart').disabled=!(S.okSince!=null&&now-S.okSince>=1.5);
     if(left===0) beginPlay(); return; }
   const rs=rest.update(now*1000); rec.paused=rs==='rest'; $('rest').classList.toggle('show',rs==='rest'); if(rs==='rest') $('restLeft').textContent=Math.ceil(rest.restLeftMs(now*1000)/1000)+' s';
   // pushers: wrists with velocity (frame-widths/s)
