@@ -2,7 +2,7 @@ const AUTO_START_SEC=3; // hands-free: starts by itself after the camera sees a 
 /* app.js — camera/sim glue (final merged build). PLACEHOLDER / PROPOSAL – not canon. Everything is Simulated.
    Network: ONLY the MediaPipe library + models (pose; hands only if you turn the flow layer on) are loaded from a CDN when you press "camera". No uploads, no recording, no analytics.
    If the CDN/camera is unavailable the page works offline in "sim" mode (keyboard-driven fake body). */
-import {ElementFX,Smoother,ELEMENTS} from './elements.js?v=7';
+import {ElementFX,Smoother,ELEMENTS} from './elements.js?v=8';
 import {StompRecognizer,MotionQuality,RestTimer,World,spaceCheck,measure,framesPerMetre} from './body.js?v=4';
 import {drawPool,drawRipple,drawRock,drawBoat,drawFlow,drawPerson,drawSimScene,horizonY} from './render.js';
 import {Engine as FlowEngine,STRINGS,Grade} from './flow.js';
@@ -65,7 +65,7 @@ function camStep(now){ const v=S.video; if(!v||!v.videoWidth) return null; if(v.
 function frame(ts){ const now=ts/1000, dt=Math.min(.1,now-(S.lastT||now)); S.lastT=now; requestAnimationFrame(frame);
   let pts=null; if(S.mode==='sim'){ pts=simPose(now); if(S.flow) pts=simFlow(pts,now,dt); drawSimScene(sx,W,H,pts,now); } else pts=camStep(now);
   if(S.mode==='cam') pts=smooth.step(pts);
-  S.pts=pts; fxe.update(pts,W,H,dt,false); update(pts,now,dt); compose(now); hud(now); }
+  S.pts=pts; { const h=fxe.update(pts,W,H,dt); if(S.started&&h) $('hint').textContent=h; } update(pts,now,dt); compose(now); hud(now); }
 function update(pts,now,dt){
   if(!pts){ if(!S.started&&S.mode==='cam') $('hint').textContent='Camera on. Back up until your whole body is in view.'; if(S.flow&&S.started) S.fst=feng.update({t:now,pts:null}); $('hint').textContent=S.started?'':''; return; }
   const sc=spaceCheck(pts,aspect);
@@ -78,7 +78,7 @@ function update(pts,now,dt){
   const push=[]; if(S.prev&&dt>0) for(const i of [15,16]) push.push({x:pts[i].x,y:pts[i].y,vx:(pts[i].x-S.prev[i].x)/dt});
   S.prev=pts.map(p=>({...p}));
   const evs=rs==='rest'?[]:rec.feed(pts,now,aspect); quality.push(pts,now,aspect);
-  for(const e of evs){ if(e.type==='stomp'){ const it=world.spawn(e,now); window.labEvent?.('body-bend:stomp:'+it.kind); window.__lastEvent={type:it.kind,t:now}; Grade.report(it.kind==='shield'?'shield':'stomp'); }
+  for(const e of evs){ if(e.type==='stomp'){ const it=world.spawn(e,now); fxe.onStomp(it.x??.5,it.baseY??.9); window.labEvent?.('body-bend:stomp:'+it.kind); window.__lastEvent={type:it.kind,t:now}; Grade.report(it.kind==='shield'?'shield':'stomp'); }
     else if(e.type==='jump-ignored') flash('jump ignored — stomp gently'); }
   world.step(dt,now,push,aspect);
   if(S.flow&&rs!=='rest') flowStep(pts,now,dt); }
@@ -90,7 +90,7 @@ function compose(now){ ctx.drawImage(src,0,0);
   for(const it of items){ drawRipple(ctx,it,world.rippleAmount(it,now),W,H); if(it.kind==='boat') drawBoat(ctx,it,world,now,W,H); else drawRock(ctx,it,world,now,W,H);
     // HIDE-BEHIND: if the player's feet are nearer the camera than the rock base, re-draw the player's body mask over the rock.
     if(S.pts&&world.playerInFront(it,feetY(S.pts))){ if(!cutReady){ buildCutout(); cutReady=true; } ctx.drawImage(pc,0,0); } }
-  fxe.draw(ctx);
+  fxe.draw(ctx,W,H);
   if(S.flow&&S.fst) drawFlow(ctx,S.fst,W,S.mode==='cam',{string:S.str>=0});
   if(S.skel&&S.pts){ ctx.save(); ctx.strokeStyle='rgba(255,210,127,.5)'; ctx.lineWidth=2; for(const [a,b] of [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]]){ ctx.beginPath(); ctx.moveTo(S.pts[a].x*W,S.pts[a].y*H); ctx.lineTo(S.pts[b].x*W,S.pts[b].y*H); ctx.stroke(); } ctx.restore(); } }
 /* player cutout = camera pixels where the person is. Real segmentation mask when available, else a rough pose-capsule silhouette. */
