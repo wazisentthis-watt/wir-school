@@ -8,3 +8,5 @@
 - Sparring rival (rival_sparring_hero.glb): Quaternius Universal Base Characters [Standard] Superhero_Male + Universal Animation Library clips + Metal's kicks retargeted: CC0 1.0
 - Yuka game AI library (assets/lib/yuka.module.js, minified): MIT, © 2023 Yuka authors — rival steering + state machine
 - Reference only (not shipped): Sparking! ZERO mods "Vigilance First Person Camera" (lock-on keeps the opponent in view, speed FOV kick) and "Aura Spark" (charge sparks idea)
+- Street crews (crew_female.glb + rival body reused): Quaternius Universal Base Characters [Standard] Superhero_Female/Male + UAL clips: CC0 1.0; outfits painted by an original shader
+- Reference only (not shipped): "Spider-Man Swinging Simulator" (Unity) swing tuning ideas (line pulled to 80% of shot length, FOV kick) and SwingTest v0.10 move list; no Spider-Man assets, names or fonts used
