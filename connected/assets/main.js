@@ -150,6 +150,7 @@ function makeMetal(){const root=new THREE.Group();const o=metalGLTF.scene;root.a
   ms.forEach(mt=>{if(!mt.emissive)return;if(/Seam_Violet/i.test(mt.name)){mt.emissive=new THREE.Color(VIOLET);mt.emissiveIntensity=0;mt.color.set(0x3a2a55);seamMats.push(mt);}else if(!/Eye/i.test(mt.name)){mt.emissiveIntensity=0;}});});
  const mixer=new THREE.AnimationMixer(o);mixers.push(mixer);const acts={};for(const c of metalGLTF.animations)acts[c.name]=mixer.clipAction(c);
  for(const [k,v] of Object.entries(PMAP))if(acts[v])acts[k]=acts[v];
+ for(const [k,v] of Object.entries(P6MAP))if(!acts[k]&&acts[v])acts[k]=acts[v];
  const ch={o:root,model:o,mixer,acts,cur:null,mats:{},footY:0};play(ch,'Idle');mixer.update(0.01);root.updateMatrixWorld(true);
  const bb=new THREE.Box3().setFromObject(o,true);ch.footY=-bb.min.y;o.position.y=ch.footY; // feet at y=0 of the root
  const h=bb.max.y-bb.min.y;if(h>0.5){o.scale.setScalar(1.78/h);o.position.y=ch.footY*1.78/h;ch.footY=o.position.y;} // 1.78 m PLACEHOLDER height
@@ -158,12 +159,17 @@ function makeMetal(){const root=new THREE.Group();const o=metalGLTF.scene;root.a
  setMask(0,ch);return ch;}
 
 // ---------- Metal S1–S4 forms (rigged by Metal's Bot, PROPOSAL; compressed for web) ----------
-const FORM_FILES=['S1','S2','S3','S4'].map(s=>'assets/models/metal/forms/metal_'+s+'_PROPOSAL.glb');const formGLTF=[];
-const FORM_LABEL=['S1 · black spiky crown (PLACEHOLDER mesh)','S2 · violet seams','S3 · braided mane · bandaged right hand · Merkaba on back','S4 · the Lion · bandaged right hand · Merkaba carryover PROPOSAL'];
+const FORM_FILES=['S1','S2','S3','S4'].map(s=>'assets/models/metal/forms/metal_'+s+'_PROPOSAL.glb');FORM_FILES[0]='assets/models/metal/metal_phase6_rig.glb'; /* S1 = Phase 6 game rig (metal_placeholder.glb from metal_inda_rifft phase 6) */const formGLTF=[];
+const FORM_LABEL=['S1 · Phase 6 game rig, black spiky crown (PLACEHOLDER mesh)','S2 · violet seams','S3 · braided mane · bandaged right hand · Merkaba on back','S4 · the Lion · bandaged right hand · Merkaba carryover PROPOSAL'];
+// Phase 6 rig clip names (33 clips: stand walk run cruise push carve ollie air land grind manual slide bail wallride swing flight punch_l/r kick_l/r block charge blast transform …)
+const P6MAP={Idle:'stand',Standing:'stand',Walking:'walk',Running:'run',Jump:'air',Air:'air',Punch:'punch_l',Cross:'punch_r',Kick:'kick_r',Block:'block',ThumbsUp:'transform',Dance:'stand',No:'stand',Charge:'charge',Blast:'blast',Swing:'swing',Grind:'grind',Carve:'carve',Sitting:'stand',Skate:'cruise',BoardIdle:'idle',Push:'push',Ollie:'ollie',Land:'land',Manual:'manual',Bail:'bail',Flight:'flight',Wallride:'wallride',Slide:'slide',Slam:'slam'};
+const traceMats=[];
 const FMAP={Idle:'idle',Standing:'idle',Walking:'cruise',Running:'skate_push',Skate:'cruise',Jump:'ollie',Punch:'punch',Cross:'punch',Kick:'slam',Block:'idle',ThumbsUp:'idle',Dance:'idle',No:'idle',Charge:'flight_stance',Blast:'punch',Swing:'swing',Grind:'grind',Carve:'carve',Sitting:'idle'};
 function buildFormModel(gltf,i){const o=gltf.scene;o.traverse(m=>{if(!m.isMesh)return;m.castShadow=true;m.frustumCulled=false;
   const ms=Array.isArray(m.material)?m.material:[m.material];ms.forEach(mt=>{if(/Bandage/i.test(mt.name||m.name)){mt.emissiveIntensity=.35;mt.userData.bandage=true;bandMats.push(mt);}});});
  const mixer=new THREE.AnimationMixer(o);const acts={};for(const c of gltf.animations)acts[c.name]=mixer.clipAction(c);for(const [k,v] of Object.entries(FMAP))if(acts[v])acts[k]=acts[v];
+ if(i===0){for(const [k,v] of Object.entries(P6MAP))if(acts[v])acts[k]=acts[v];
+  o.traverse(m=>{if(!m.isMesh)return;const mt=m.material;if(mt.name==='seam'){mt.emissive=new THREE.Color(VIOLET);mt.emissiveIntensity=0;seamMats.push(mt);}if(mt.name==='trace')traceMats.push(mt);});} // canon: violet only on active seams; the trace flashes through the denim on load/land
  return {model:o,mixer,acts};}
 const bandMats=[];
 async function setForm(i){if(!P||i<0||i>3)return;let g=formGLTF[i];if(!g){try{g=formGLTF[i]=await loadG(FORM_FILES[i]);}catch(e){toast('Form load failed');return;}}
@@ -172,14 +178,15 @@ async function setForm(i){if(!P||i<0||i>3)return;let g=formGLTF[i];if(!g){try{g=
  P.o.add(f.model);P.model=f.model;P.mixer=f.mixer;P.acts=f.acts;P.cur=null;mixers.push(f.mixer);f.model.scale.setScalar(1);f.model.position.set(0,0,0);
  play(P,'Idle');f.mixer.update(.01);P.o.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(f.model,true);const h=bb.max.y-bb.min.y;const sc=h>.3?1.78/h:1;
  f.model.scale.setScalar(sc);P.o.updateMatrixWorld(true);const b2=new THREE.Box3().setFromObject(f.model,true);f.model.position.y=-(b2.min.y-P.o.position.y);P.footY=f.model.position.y;
- P.feet=[];f.model.traverse(b=>{if(b.isBone&&/^(DEF-?(toe|foot)|Foot)\.?_?[LR]$/i.test(b.name))P.feet.push(b);});P.o.updateMatrixWorld(true);
+ P.feet=[];f.model.traverse(b=>{if(b.isBone&&(/^(DEF-?(toe|foot)|Foot)\.?_?[LR]$/i.test(b.name)||/^(Left|Right)Foot$/.test(b.name)))P.feet.push(b);});P.o.updateMatrixWorld(true);
  P.soleGap=P.feet.length?Math.min(...P.feet.map(b=>b.getWorldPosition(new THREE.Vector3()).y))-(P.o.position.y):0;
- P.footL=f.model.getObjectByName('FootL')||f.model.getObjectByName('Foot.L');P.handBone=f.model.getObjectByName('HandR')||f.model.getObjectByName('Hand.R')||f.model.getObjectByName('LowerArmR');
+ P.footL=f.model.getObjectByName('FootL')||f.model.getObjectByName('Foot.L')||f.model.getObjectByName('LeftFoot');P.handBone=f.model.getObjectByName('HandR')||f.model.getObjectByName('Hand.R')||f.model.getObjectByName('LowerArmR')||f.model.getObjectByName('RightHand');
+ P.p6=i===0;P.rotWalk=P.p6?Math.PI:0;P.rotBoard=P.p6?Math.PI/2:-1.35;P.legs=P.p6?{hips:f.model.getObjectByName('Hips'),chest:f.model.getObjectByName('Chest'),L:['LeftUpperLeg','LeftLowerLeg','LeftFoot'].map(n=>f.model.getObjectByName(n)),R:['RightUpperLeg','RightLowerLeg','RightFoot'].map(n=>f.model.getObjectByName(n))}:null;
  st.metalForm=i+1;st.form=i+1;st.season='S'+(i+1);window.__badge&&window.__badge('S'+(i+1)+' · '+FORM_LABEL[i]+' · PROPOSAL');window.__realForms=true;const fb=document.getElementById('formBtn');if(fb)fb.textContent='FORM S'+(i+1);
  toast('Form '+FORM_LABEL[i]+' — PROPOSAL');dispatchEvent(new Event('wir-form'));}
 window.__setForm=setForm;
 // keep soles exactly on the surface (deck top when skating) regardless of pose blend
-const _fv=new THREE.Vector3();function seatFeet(dt){if(!P.feet.length)return;P.o.updateMatrixWorld(true);let mb=1e9;for(const b of P.feet)mb=Math.min(mb,b.getWorldPosition(_fv).y);
+const _fv=new THREE.Vector3();function seatFeet(dt){if(!P.feet.length)return;P.o.updateMatrixWorld(true);let mb=1e9;const ft=(st.board&&P.p6&&P.footL)?[P.footL]:P.feet;for(const b of ft)mb=Math.min(mb,b.getWorldPosition(_fv).y);
  const surf=P.o.position.y+(st.board?DECK_TOP:0);const err=(surf+P.soleGap)-mb;if(onGround||st.board)P.model.position.y+=THREE.MathUtils.clamp(err,-.5,.5)*Math.min(1,dt*20);}
 function setMask(i,ch=P){maskI=i;ch.model.traverse(m=>{const n=m.name||'';const mm=n.match(/Mask_(HeavyCrown|KITO)/i);if(mm)m.visible=MASKS[maskI].toLowerCase()===mm[1].toLowerCase();});}
 // player = Metal [S1]: gunmetal, violet only on active moves; left leg covered (PROPOSAL: robot proxy until 3D Metal model lands)
@@ -353,9 +360,107 @@ function toggle(id,on){const e=$(id);e.style.display=(on??e.style.display!=='blo
 function renderProfile(){const p=profile;$('profBody').innerHTML=`<b>Achievements</b>: ${p.achievements.join(' · ')||'—'}<br><b>Discoveries</b>: ${p.discoveries.join(' · ')||'—'}<br><b>Decisions</b>: ${p.decisions.join(' · ')||'—'}<br><b>Clean aborts</b>: ${p.cleanAborts||0}<br><br><b>Meters (separate, never cross-refill)</b>: Gallium ${(st.gal*100|0)}% · e⁻ charge ${(st.charge*100|0)}% · Root ${(st.root*100|0)}% · Team valence ${(st.team*100|0)}%<br><small>${p.log.slice(-12).reverse().join('<br>')}</small>`;}
 $('mapc').addEventListener('pointerdown',()=>{zoom=(zoom+1)%5;drawMap();});
 
+// ---------- METAL SKATE CORE ----------
+// Port of the approved v7 feel (metal_inda_rifft scripts/player/metal.gd ground(): carve toward the stick, pull back =
+// powerslide brake, pump/carve-pump, manual from pump, v7 friction + drag, v7 ollie). PROPOSAL on top: the push is a real
+// STROKE — the LEFT prosthetic stays locked on the nose and loads (front knee bends), the RIGHT biological leg reaches,
+// plants on the toe side, drives back past the tail, lifts and returns. Speed is added only while that foot is driving.
+// Stroke cadence 0.62 s is tuned so hold-to-push still lands on the v7 parity curve (~5.8 m/s at 1 s, ~8.2 m/s at 2 s).
+const MSK={CRUISE:8.5,TOP:16,PUSH:4.1,STROKE:.62,DRIVE:[.18,.52],ROLL:.35,DRAG:.1,BRAKE:13,STEER:3.4,OLLIE:5.875,POP:.12,COMP:1.125,CARVE_PUMP:1.6,WALL_BAIL:7.5};
+const sk={h:0,s:0,stroke:-1,pw:0,comp:0,manual:null,slide:false,landT:9,airT:0,carve:0,bailT:0,pushes:0,flash:0,rail:false};
+function angDiff(a,b){let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;}
+function plA(n,fb){play(P,P.acts[n]?n:fb);}
+function skateGround(dt,wish,il){
+ let s=Math.hypot(vel.x,vel.z);if(s>.1)sk.h=Math.atan2(vel.x,vel.z);
+ const pump=!!(keys.ShiftLeft||keys.ShiftRight);
+ sk.slide=false;sk.carve=0;
+ if(il>.2&&!sk.manual){
+  const ad=Math.atan2(wish.x,wish.z);
+  if(s<.55)sk.h=ad;
+  else{const diff=angDiff(sk.h,ad);
+   if(Math.abs(diff)>2.45){s=Math.max(0,s-MSK.BRAKE*dt);sk.slide=s>1;}                 // pull back = powerslide brake
+   else{const rate=MSK.STEER*(1-Math.min(s/25,.5))*dt;const turn=THREE.MathUtils.clamp(diff,-rate,rate);
+    sk.h+=turn;s*=1-Math.abs(turn)*.05;sk.carve=turn/dt;
+    if(pump&&s>2&&s<MSK.CRUISE)s=Math.min(MSK.CRUISE,s+MSK.CARVE_PUMP*Math.abs(turn));}}   // S-carves keep speed alive
+ }
+ const hx=Math.sin(sk.h),hz=Math.cos(sk.h),fwdIn=wish.x*hx+wish.z*hz;
+ const canPush=!sk.slide&&!pump&&!sk.manual&&!sk.rail;
+ if(sk.stroke<0&&canPush&&il>.2&&(fwdIn>.3||s<.55)&&s<MSK.CRUISE*.97){sk.stroke=0;sk.pushes++;}
+ if(sk.stroke>=0){
+  if(!canPush){sk.stroke=-1;}
+  else{const a=sk.stroke,b=a+dt/MSK.STROKE,[D0,D1]=MSK.DRIVE;const ov=Math.max(0,Math.min(b,D1)-Math.max(a,D0))/(D1-D0);
+   if(ov>0&&s<MSK.CRUISE)s=Math.min(MSK.CRUISE,s+MSK.PUSH*(1-.45*s/MSK.CRUISE)*ov);
+   sk.stroke=b>=1?-1:b;}
+ }
+ if(pump){sk.comp=Math.min(1,sk.comp+dt/.35);
+  if(!sk.manual&&s>2.25&&(st.comboPend>0||sk.landT<.5))sk.manual={t:0,bal:(Math.random()-.5)*.3,v:0};}
+ else{if(sk.manual)endManual();sk.comp=0;}
+ if(sk.manual){const m=sk.manual;m.t+=dt;const fb=il>.2?fwdIn*il:0;
+  m.v+=(m.bal*2.1+(Math.random()-.5)*2.2)*dt-fb*3.4*dt;m.bal+=m.v*dt;
+  if(Math.abs(m.bal)>1){sk.manual=null;skBail('MANUAL BAIL');return;}}
+ const dec=(MSK.ROLL+MSK.DRAG*s)*dt*(sk.manual?.6:1);s=Math.min(Math.max(0,s-dec),MSK.TOP);
+ sk.s=s;vel.x=Math.sin(sk.h)*s;vel.z=Math.cos(sk.h)*s;sk.landT+=dt;
+}
+function endManual(){const t=sk.manual.t;sk.manual=null;if(t>.35){st.comboPend++;toast('Manual '+t.toFixed(1)+' s');}}
+function skOllie(){const s=Math.hypot(vel.x,vel.z);vel.y=MSK.OLLIE+s*MSK.POP+sk.comp*MSK.COMP;if(sk.manual)endManual();
+ sk.comp=0;sk.stroke=-1;sk.airT=0;onGround=false;st.comboPend++;play(P,P.acts.Ollie?'Ollie':'Jump',true);}
+function skBail(why){bail();toast(why);sk.stroke=-1;sk.manual=null;vel.x*=.2;vel.z*=.2;sk.bailT=.9;if(P.acts.Bail){play(P,'Bail',true);actT=.6;}}
+function skateAnim(gnd){
+ if(sk.bailT>0)return;
+ if(!gnd){plA('Air','Jump');return;}
+ if(st.grinding){plA('Grind','Skate');return;}
+ if(sk.manual){plA('Manual','Skate');return;}
+ if(sk.slide){plA('Slide','Skate');return;}
+ const s=Math.hypot(vel.x,vel.z);
+ if(s<.35&&sk.stroke<0){plA('BoardIdle','Skate');return;}
+ if(Math.abs(sk.carve)>1.1&&sk.stroke<0){plA('Carve','Skate');return;}
+ plA('Skate','Idle');
+}
+// --- stroke pose on the Phase 6 rig: two-bone IK on top of the cruise clip (world-space delta rotations, any rest pose)
+const _iA=new THREE.Vector3(),_iB=new THREE.Vector3(),_iC=new THREE.Vector3(),_iT=new THREE.Vector3(),_iK=new THREE.Vector3(),_iU=new THREE.Vector3(),_iV=new THREE.Vector3(),_iP=new THREE.Vector3();
+const _q1=new THREE.Quaternion(),_q2=new THREE.Quaternion(),_q3=new THREE.Quaternion(),_qf=new THREE.Quaternion();
+function turnBone(bone,from,to){_q1.setFromUnitVectors(from.normalize(),to.normalize());bone.getWorldQuaternion(_q2);_q2.premultiply(_q1);
+ bone.parent.getWorldQuaternion(_q3);bone.quaternion.copy(_q3.invert().multiply(_q2));bone.updateMatrixWorld(true);}
+function legIK(L,target,pole){const [up,lo,ft]=L;if(!up||!lo||!ft)return;
+ ft.getWorldQuaternion(_qf);up.getWorldPosition(_iA);lo.getWorldPosition(_iB);ft.getWorldPosition(_iC);
+ const l1=_iA.distanceTo(_iB),l2=_iB.distanceTo(_iC);_iT.copy(target);
+ const dir=_iU.subVectors(_iT,_iA);const d=THREE.MathUtils.clamp(dir.length(),.02,l1+l2-.002);dir.normalize();
+ const a=(l1*l1-l2*l2+d*d)/(2*d),h=Math.sqrt(Math.max(0,l1*l1-a*a));
+ _iP.copy(pole).addScaledVector(dir,-pole.dot(dir)).normalize();
+ _iK.copy(_iA).addScaledVector(dir,a).addScaledVector(_iP,h);
+ turnBone(up,_iV.subVectors(_iB,_iA),_iU.copy(_iK).sub(_iA));
+ lo.getWorldPosition(_iB);ft.getWorldPosition(_iC);
+ turnBone(lo,_iV.subVectors(_iC,_iB),_iU.copy(_iA.copy(_iT)).sub(_iB));
+ ft.parent.getWorldQuaternion(_q3);ft.quaternion.copy(_q3.invert().multiply(_qf));ft.updateMatrixWorld(true);}  // foot keeps its flat-on-deck angle
+// stroke path for the RIGHT ankle in the rider frame (x = heel(+)/toe(-) side, y up from the ground, z = nose(+)/tail(-))
+const STROKE_KEYS=[[0,0,1,-.18],[.09,-.16,1,-.04],[.18,-.27,0,.12],[.52,-.25,0,-.56],[.7,-.15,.55,-.46],[1,0,1,-.18]]; // y: 0 = sole on ground, 1 = sole on deck (+ lift)
+const _sp=new THREE.Vector3(),_pole=new THREE.Vector3();
+function strokePoint(u,out){let i=0;while(i<STROKE_KEYS.length-2&&u>STROKE_KEYS[i+1][0])i++;const A=STROKE_KEYS[i],B=STROKE_KEYS[i+1];
+ let t=(u-A[0])/(B[0]-A[0]);t=t*t*(3-2*t);const lift=(i===0||i===4)?Math.sin(t*Math.PI)*.1:0;
+ return out.set(A[1]+(B[1]-A[1])*t,(A[2]+(B[2]-A[2])*t)*DECK_TOP+lift,A[3]+(B[3]-A[3])*t);}
+function p6Pose(dt){
+ for(const m of traceMats)m.emissiveIntensity=sk.flash*1.6;
+ sk.flash=Math.max(sk.flash*Math.exp(-5*dt),st.board&&sk.comp>.3?.8:0);
+ if(!P.p6||!P.legs||!st.board||st.wall||!onGround||st.flying||st.swing){sk.pw=0;return;}
+ const active=sk.stroke>=0;sk.pw+=((active?1:0)-sk.pw)*Math.min(1,dt*14);
+ if(sk.pw<.01)return;
+ const u=active?sk.stroke:1,load=Math.sin(Math.PI*THREE.MathUtils.clamp((u-.08)/.55,0,1))*sk.pw;
+ const g=Math.max(.04,P.soleGap||.08);
+ P.model.position.y-=.12*load;P.o.updateMatrixWorld(true);                        // THOOM: the prosthetic knee loads
+ const ch=P.legs.chest;if(ch){ch.getWorldQuaternion(_q2);_q1.setFromAxisAngle(_up0,.32*load);_q2.premultiply(_q1);_q1.setFromAxisAngle(_iV.set(0,0,1).transformDirection(P.o.matrixWorld),.2*load);_q2.premultiply(_q1);ch.parent.getWorldQuaternion(_q3);ch.quaternion.copy(_q3.invert().multiply(_q2));ch.updateMatrixWorld(true);}
+ // LEFT (front, prosthetic) foot stays planted on the nose
+ legIK(P.legs.L,_iT.set(.02,DECK_TOP+g,.19).applyMatrix4(P.o.matrixWorld).clone(),_pole.set(-1,0,.2).transformDirection(P.o.matrixWorld));
+ // RIGHT (back, biological) foot strokes
+ const R=P.legs.R;if(!R[2])return;R[2].getWorldPosition(_iC);
+ strokePoint(u,_sp);_sp.y+=g;_sp.applyMatrix4(P.o.matrixWorld);_iC.lerp(_sp,sk.pw);
+ legIK(R,_iC.clone(),_pole.set(-1,.15,-.1).transformDirection(P.o.matrixWorld));
+}
+const _up0=new THREE.Vector3(0,1,0);
+
 // ---------- main loop ----------
 const clock=new THREE.Clock();let camPos=new THREE.Vector3();
 function update(dt){
+ st.grinding=false;
  const pad=pollPad();let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
  const il=Math.min(1,Math.hypot(ix,iz));
  if(tap('KeyM')){const on=toggle('map');if(on){zoom=0;drawMap();}}
@@ -368,7 +473,7 @@ function update(dt){
  // camera-relative movement
  const fwd=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw)),right=new THREE.Vector3(-fwd.z,0,fwd.x);
  const wish=new THREE.Vector3().addScaledVector(right,ix).addScaledVector(fwd,-iz);if(wish.lengthSq()>1)wish.normalize();
- if(tap('KeyB')&&st.wall&&st.board){st.wall=null;onGround=false;st.board=false;board.visible=false;toast('Bail (B) — board released');}
+ if(st.wall&&st.board&&tap('KeyB')){st.wall=null;onGround=false;st.board=false;board.visible=false;toast('Bail (B) — board released');}
  if(tap('KeyB')&&onGround&&!st.swing){st.board=!st.board;board.visible=st.board;toast(st.board?'Board down — four wheels':'Board up');if(st.board)plog('discoveries','Skating on the four-wheel board');}
  // grapple [S1]: tap to attach nearest anchor in front; tendril costs Gallium only while out, refunds on release
  if(tap('KeyQ')){if(st.swing){st.gal=Math.min(1,st.gal+st.swing.spent*.5);st.swing=null;tether.visible=false;toast('Release');st.comboPend++;}
@@ -392,19 +497,28 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   if(tap('Space')){st.swing=null;tether.visible=false;vel.y+=6;st.comboPend++;}
   setViolet(1);st.ori=Math.min(1,st.ori+dt*.2);
  } else {
-  const acc=st.board?(onGround?SK.acc:2):(onGround?18:4);const hv=new THREE.Vector3(vel.x,0,vel.z);const target=wish.clone().multiplyScalar(maxS*il);
-  if(st.board&&onGround&&il<.05)hv.multiplyScalar(1-dt*SK.coast); else hv.lerp(target,Math.min(1,acc*dt/Math.max(1,maxS)*2));
+  let hv;
+  if(st.board&&onGround){ // METAL SKATE CORE (v7 feel port): heading-based board, stroke pushes, carve, powerslide, pump, manual
+   if(sk.bailT>0){sk.bailT-=dt;vel.x*=Math.exp(-3*dt);vel.z*=Math.exp(-3*dt);sk.stroke=-1;}else skateGround(dt,wish,il);
+   vel.y-=SK.grav*dt;st.ori=Math.min(1,st.ori+dt*.3);hv=new THREE.Vector3(vel.x,0,vel.z);
+   if(tap('Space')&&sk.bailT<=0)skOllie();
+  } else {
+  const acc=st.board?(onGround?SK.acc:2):(onGround?18:4);hv=new THREE.Vector3(vel.x,0,vel.z);const target=wish.clone().multiplyScalar((st.board?SK.cruise:maxS)*il);
+  hv.lerp(target,Math.min(1,acc*dt/Math.max(1,maxS)*2));
   vel.x=hv.x;vel.z=hv.z;vel.y-=(st.board?SK.grav:24)*dt;st.ori=Math.min(1,st.ori+dt*.3);
   if(onGround&&tap('Space')){vel.y=st.board?SK.ollie:6.2;onGround=false;if(st.board)st.comboPend++;play(P,'Jump',true);}
+  }
+  if(!onGround)sk.airT+=dt;
   // kickers launch airs [S1]
   if(st.board&&onGround){for(const r of ramps)if(r.p.distanceTo(new THREE.Vector3(pp.x,0,pp.z))<r.r&&hv.length()>6){vel.y=r.kick;onGround=false;st.comboPend+=2;toast('Air!');plog('discoveries','Skatepark kicker air');}
-   for(const r of rails){const ab=r.b.clone().sub(r.a);const t=THREE.MathUtils.clamp(pp.clone().sub(r.a).dot(ab)/ab.lengthSq(),0,1);const cp=r.a.clone().addScaledVector(ab,t);if(new THREE.Vector2(cp.x-pp.x,cp.z-pp.z).length()<.6&&vel.y<=0&&pp.y<1.3){pp.y=cp.y;vel.y=0;st.comboPend+=dt*3;setViolet(.7);}}}
+   for(const r of rails){const ab=r.b.clone().sub(r.a);const t=THREE.MathUtils.clamp(pp.clone().sub(r.a).dot(ab)/ab.lengthSq(),0,1);const cp=r.a.clone().addScaledVector(ab,t);if(new THREE.Vector2(cp.x-pp.x,cp.z-pp.z).length()<.6&&vel.y<=0&&pp.y<1.3){pp.y=cp.y;vel.y=0;st.comboPend+=dt*3;setViolet(.7);st.grinding=true;}}}
  }
  // Gallium brace (S1: 1/3 bar) — Shift+Space while flying/swinging cancels momentum
  if(!st.flying&&!st.swing)pp.addScaledVector(vel,dt);else if(st.flying)pp.addScaledVector(vel,dt);
  const preHit=collide(pp);if(preHit&&lastHit&&st.board&&!st.flying&&!st.swing&&lastHit.into>=WR.minInto&&lastHit.b.max.y>3){const sp=lastHit.hv.length();if(st.gal>=WR.rampCost&&sp>=WR.rampMinSpeed){lastHit.ramp=true;startWall(lastHit);}else if(sp>=WR.minSpeed)startWall(lastHit);}
+ if(preHit&&lastHit&&st.board&&onGround&&!st.wall&&!st.flying&&!st.swing&&lastHit.into>MSK.WALL_BAIL)skBail('SLAMMED A WALL');
  const gY=floorAt(pp);const wasAir=!onGround;
- if(!st.wall&&pp.y<=gY&&!st.swing){if(wasAir&&!st.flying){if(vel.y<-17&&!st.board){toast('Hard landing');}if(st.board){if(Math.abs(vel.y)>18)bail();else bank();}}pp.y=gY;if(vel.y<0)vel.y=0;onGround=true;if(st.flying)st.flying=false;}
+ if(!st.wall&&pp.y<=gY&&!st.swing){if(wasAir&&!st.flying){if(vel.y<-17&&!st.board){toast('Hard landing');}if(st.board){if(Math.abs(vel.y)>18)skBail('HARD LANDING');else{bank();sk.landT=0;sk.flash=1;if(P.acts.Land){play(P,'Land',true);actT=.16;}}}}pp.y=gY;if(vel.y<0)vel.y=0;onGround=true;if(st.flying)st.flying=false;}
  else if(!st.wall&&pp.y>gY+.05&&!st.swing&&!st.flying){if(!st.board||pp.y>gY+1.15)onGround=false;}
  }
  pp.x=THREE.MathUtils.clamp(pp.x,-200,200);pp.z=THREE.MathUtils.clamp(pp.z,-200,200);
@@ -412,7 +526,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  if(st.wall){const w=st.wall;const f=new THREE.Vector3().copy(w.t).multiplyScalar(w.side).setY(w.up);if(f.lengthSq()<.01)f.set(0,1,0);f.normalize();const x=new THREE.Vector3().crossVectors(w.n,f).normalize();f.crossVectors(x,w.n);_wm.makeBasis(x,w.n,f);_wq.setFromRotationMatrix(_wm);P.o.quaternion.slerp(_wq,1);}
  // animation select
  actT-=dt;if(actT<=0&&(P.cur.loop!==THREE.LoopOnce||!P.cur.isRunning())){
-  if(st.flying||st.swing)play(P,'Jump');else if(st.board)play(P,onGround?'Skate':'Jump');else if(!onGround)play(P,'Jump');else if(hs>4.5)play(P,'Running');else if(hs>.4)play(P,'Walking');else play(P,blocking?'Standing':'Idle');}
+  if(st.flying)plA('Flight','Jump');else if(st.swing)plA('Swing','Jump');else if(st.board&&st.wall)plA('Wallride','Skate');else if(st.board)skateAnim(onGround);else if(!onGround)plA('Air','Jump');else if(hs>4.5)play(P,'Running');else if(hs>.4)play(P,'Walking');else play(P,blocking?'Standing':'Idle');}
  if(st.board){if(st.boardFree>0){st.boardFree-=dt;}else{ // BOARD LOCK: board stays attached under the LEFT (prosthetic) foot while riding; only bail (B) or kick-off (Space) separates. Mechanism (Gallium film / magnetic) = OPEN
   if(st.wall)board.quaternion.copy(P.o.quaternion);else board.rotation.set(0,yaw,0);
   const up=_bu.set(0,1,0).applyQuaternion(board.quaternion);const fl=P.footL;
@@ -466,22 +580,24 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  $('needs').textContent=`Hunger ${(st.needs.hunger*100|0)} · Energy ${(st.needs.energy*100|0)} · Social ${(st.needs.social*100|0)}`;$('score').textContent=`Pickup: ${st.score[0]} – ${st.score[1]}`;
  if(toastT>0){toastT-=dt;if(toastT<=0)$('toast').style.opacity=0;}
  // camera
+ if(st.board&&onGround&&!st.wall&&!drag&&Math.hypot(vel.x,vel.z)>2.5)camYaw+=angDiff(camYaw,sk.h+Math.PI)*Math.min(1,dt*2.2); // PROPOSAL: chase cam on the board
  const dist=st.flying?9:st.swing?4.6:st.board?7:5.5;/* PROPOSAL: camera pulls in during Gallium swing */const tgt=pp.clone().add(new THREE.Vector3(0,1.6,0));
  const want=tgt.clone().add(new THREE.Vector3(Math.sin(camYaw)*Math.cos(camPitch)*dist,Math.sin(camPitch)*dist+.5,Math.cos(camYaw)*Math.cos(camPitch)*dist));
  if(!drag&&hs>2&&!isTouch===false){}if(st.wall){want.copy(tgt).addScaledVector(st.wall.n,dist*1.1).add(new THREE.Vector3(0,-1.2,0));} camPos.lerp(want,1-Math.pow(.001,dt));camera.position.copy(camPos);const upW=st.wall?new THREE.Vector3(0,1,0).lerp(st.wall.n,.45).normalize():new THREE.Vector3(0,1,0);camera.up.lerp(upW,Math.min(1,dt*4)).normalize();camera.lookAt(tgt);
  tickRamps(dt);signs.forEach(s=>s.lookAt(camera.position));if(plutoRing)plutoRing.rotation.y+=dt;
  for(const m of mixers)m.update(dt);
- P.model.rotation.y+=((st.board&&!st.flying?-1.35:0)-P.model.rotation.y)*Math.min(1,dt*10); // sideways skate stance on the deck
+ P.model.rotation.y+=((st.board&&!st.flying?(P.rotBoard??-1.35):(P.rotWalk??0))-P.model.rotation.y)*Math.min(1,dt*10); // sideways skate stance on the deck
  if(st.board&&st.wall&&P.footL&&!(st.boardFree>0)){P.o.updateMatrixWorld(true);P.footL.getWorldPosition(_bf);_bu.set(0,1,0).applyQuaternion(board.quaternion);const h=_bf.sub(board.position).dot(_bu);P.model.position.y+=THREE.MathUtils.clamp(DECK_TOP+Math.max(0,P.soleGap)-h,-2,2);P.o.updateMatrixWorld(true);st.boardGap=P.footL.getWorldPosition(_bf).distanceTo(board.position);} else if(onGround||st.board)seatFeet(dt);else P.model.position.y+=(P.footY+(st.board?DECK_TOP:0)-P.model.position.y)*Math.min(1,dt*8);
+ p6Pose(dt);sk.rail=st.grinding;
 }
-let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());try{update(dt);window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<3){console.error(e);window.__errors.push(String(e));}}if(LITE)renderer.render(scene,camera);else composer.render();}
+let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());if(window.__testHold){if(LITE)renderer.render(scene,camera);else composer.render();return;}try{update(dt);window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<3){console.error(e);window.__errors.push(String(e));}}if(LITE)renderer.render(scene,camera);else composer.render();}
 
 (async()=>{const msg=t=>$('loadmsg').textContent=t;
- try{await buildWorld(msg);msg('Characters (Quaternius CC0)…');robotGLTF=await loadG('assets/models/RobotExpressive.glb');msg('3D Metal…');metalGLTF=await loadG('assets/models/metal/metal_rigged_PLACEHOLDER.glb');boardGLTF=await loadG('assets/models/metal/metal_skateboard_4wheel_PLACEHOLDER.glb');
+ try{await buildWorld(msg);msg('Characters (Quaternius CC0)…');robotGLTF=await loadG('assets/models/RobotExpressive.glb');msg('3D Metal…');metalGLTF=await loadG('assets/models/metal/metal_phase6_rig.glb');boardGLTF=await loadG('assets/models/metal/metal_skateboard_4wheel_PLACEHOLDER.glb');
   P=makeMetal();scene.add(P.o);P.o.position.copy(SPOTS.home.c).add(new THREE.Vector3(0,groundY,8));camPos.copy(P.o.position).add(new THREE.Vector3(0,4,8));
   board=new THREE.Group();board.add(boardGLTF.scene);boardGLTF.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;if(/Wheel/i.test(m.material.name)){m.material.color=new THREE.Color(0xC9A979);if(m.material.emissive)m.material.emissiveIntensity=0;m.material.map=null;m.material.needsUpdate=true;}}});board.visible=false;board.scale.setScalar(BOARD_S);scene.add(board,tether,merkaba);galLimb=makeGalliumLimb(scene);P.handBone=P.o.getObjectByName('DEF-handR')||P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearmR');/* three.js strips '.' from node names */
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
   window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
-  window.__game.setForm=setForm;loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
+  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.MSK=MSK;window.__game.ground=()=>onGround;loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
