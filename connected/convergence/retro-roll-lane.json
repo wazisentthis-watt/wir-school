@@ -1,0 +1,57 @@
+{
+  "schema": "wir.metal.convergence.lane.v1",
+  "status": "PROPOSAL_PUBLISH_HOLD",
+  "lane_id": "retro-roll-2d",
+  "title": "RIFFT RIDE-RZ: RETRO ROLL",
+  "purpose": "2D top-down arcade skating / RIFFT traversal mode inside the canonical Metal game",
+  "repository": "wazisentthis-watt/wir-school",
+  "handoff_branch": "converge/retro-roll-metal-lane",
+  "baseline": {
+    "branch": "connected-swing-crowd",
+    "sha": "3548143572dd93559ac06d676f406d70eb354e06",
+    "upstream_pr": 3
+  },
+  "depends_on": [
+    "canonical Metal identity/forms",
+    "canonical board state",
+    "canonical Gallium rules",
+    "shared input/controller conventions",
+    "shared save/progression identity"
+  ],
+  "contributes": [
+    "2D top-down skate mode",
+    "Shango/CCR movement grammar",
+    "shadow-offset jump readability",
+    "independent board trick animation",
+    "branching route/recovery-route logic",
+    "rescue scoring",
+    "RIFFT breakthrough routing",
+    "mode-specific chemistry/board interactions"
+  ],
+  "first_vertical_slice": {
+    "rider": "Metal",
+    "world": "Morrow route",
+    "requirements": [
+      "controller and touch",
+      "push",
+      "carve",
+      "powerslide",
+      "ollie",
+      "kickflip",
+      "grind",
+      "wall interaction",
+      "high/mid/low routes",
+      "one rescue event",
+      "one RIFFT breakthrough",
+      "one Gallium interaction",
+      "replay/result scoring"
+    ]
+  },
+  "anti_drift": {
+    "do_not_reimplement_existing_canonical_systems": true,
+    "new_work_requires_feature_branch_or_pr": true,
+    "register_baseline_sha_in_handoff": true,
+    "publish_hold": true
+  },
+  "integration_policy": "Port as a mode. Share canonical data/systems where compatible; keep 2D rendering, tuning, route logic, and top-down presentation mode-specific."
+}
