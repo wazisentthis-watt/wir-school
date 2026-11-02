@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import {STORY_ENEMIES} from './story_enemies.js';
 import {createEncounter,stepEncounter} from './morrow_encounters.js';
+import {createDirector,tickDirector,finishEncounter,witness,createImpactState,impactStructure,stepImpact} from './city_combat_director.js';
 import {BodyMachine} from './body_machine.js';
 import {PhysicsTelemetry} from './physics_telemetry.js';
 import {analyzePhysics} from './physics_analysis.js';
@@ -779,9 +780,25 @@ function updateMorrow(dt){if(!morrow.slottaMesh)return;
  sm.visible=!morrow.slotta.captured&&!morrow.slotta.escaped;
  rm.visible=morrow.reframer.active;cm.visible=rm.visible&&morrow.reframer.construct>.05;
  cm.scale.y=Math.max(.08,morrow.reframer.construct);cm.material.emissive.setHex(morrow.reframer.windup>.55&&morrow.reframer.windup<.85?0xa34c24:0x000000);
- morrowClock+=dt;if(morrowClock>.15){morrowClock=0;morrow.panel.textContent='MORROW / PROTOTYPE · SLOTTA '+(morrow.slotta.captured?'CAUGHT':morrow.slotta.escaped?'ESCAPED':distance.toFixed(1)+'m')+' · R tether · T anchor · G timed construct break · V brace | ReFramer '+(morrow.reframer.active?'ACTIVE':'incoming')+' · '+Math.round(morrow.reframer.construct*100)+'% structure';}
+ morrowClock+=dt;if(morrowClock>.15){morrowClock=0;morrow.panel.textContent=(morrow.panel.dataset.director||'MORROW')+' | MORROW / PROTOTYPE · SLOTTA '+(morrow.slotta.captured?'CAUGHT':morrow.slotta.escaped?'ESCAPED':distance.toFixed(1)+'m')+' · R tether · T anchor · G timed construct break · V brace | ReFramer '+(morrow.reframer.active?'ACTIVE':'incoming')+' · '+Math.round(morrow.reframer.construct*100)+'% structure';}
+}
+// Morrow City encounter pacing and structural impact test harness (PROPOSAL).
+const cityDirector=createDirector('balanced');const structureImpact=createImpactState();let directorHudClock=0;
+function tickCitySystems(dt){if(!P)return;const p=P.o.position;
+ const event=tickDirector(cityDirector,dt,{x:p.x,z:p.z,speed:Math.hypot(vel.x,vel.z)},pos=>Math.hypot(pos.x-p.x,pos.z-p.z)>18);
+ if(event)toast('MORROW DISPATCH: '+event.type.toUpperCase()+' · '+Math.round(Math.hypot(event.pos.x-p.x,event.pos.z-p.z))+'m away');
+ if(cityDirector.active&&Math.hypot(cityDirector.active.pos.x-p.x,cityDirector.active.pos.z-p.z)<8&&tap('KeyN')){witness(cityDirector,{rescues:1});finishEncounter(cityDirector,'resolved');toast('Incident resolved · public trust improved');}
+ if(tap('KeyJ')&&structureImpact.mode==='stable'){
+  const speed=Math.max(9,Math.hypot(vel.x,vel.z));const hit=impactStructure(structureImpact,{mass:170,speed,material:'ordinary',thickness:.5});
+  if(hit.breached){vel.multiplyScalar(.1);toast('STRUCTURE BREACH · Metal embedded · press K to pull free');}else toast('Impact absorbed · staggered');
+ }
+ const pull=keys.KeyK?'pull':keys.KeyV?'brace':'wait';const oldMode=structureImpact.mode;
+ stepImpact(structureImpact,dt,pull,st.gal);if(oldMode==='embedded'&&structureImpact.mode==='recovering')toast('Metal pulled free · recovery');
+ if(structureImpact.mode==='embedded'||structureImpact.mode==='recovering'){vel.multiplyScalar(Math.exp(-10*dt));}
+ directorHudClock+=dt;if(directorHudClock>.3){directorHudClock=0;if(morrow.panel){const detail=cityDirector.active?cityDirector.active.type+' '+Math.round(Math.hypot(cityDirector.active.pos.x-p.x,cityDirector.active.pos.z-p.z))+'m':'quiet';morrow.panel.dataset.director='MORROW '+detail+' · HEAT '+Math.round(cityDirector.heat*100)+'% · IMPACT '+structureImpact.mode;}}
 }
 function update(dt){
+ tickCitySystems(dt);
  updateMorrow(dt);
  st.grinding=false;
  bodyMachine.step(dt,0);
@@ -933,4 +950,4 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
   window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
-  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.bodyMachine=bodyMachine;window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
+  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.bodyMachine=bodyMachine;window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
