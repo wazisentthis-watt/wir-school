@@ -781,8 +781,13 @@ function updateMorrow(dt){if(!morrow.slottaMesh)return;
 function update(dt){
  updateMorrow(dt);
  st.grinding=false;
+ bodyMachine.step(dt,0);
+ bodyMachine.position.x=P.o.position.x;bodyMachine.position.z=P.o.position.z;
+ bodyMachine.position.y=Math.max(0,P.o.position.y-floorAt(P.o.position));
  if(FG.inFight&&!st.board&&pressed.KeyB){pressed.KeyB=false;FG.wantDodge=true;}
  const pad=pollPad();let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
+ if(bodyMachine.mode==='fallen'&&(pressed.Space||pressed.KeyE)){bodyMachine.recover();pressed.Space=false;pressed.KeyE=false;}
+ if(bodyMachine.mode==='fallen'||bodyMachine.mode==='recovering'){ix=0;iz=0;vel.x*=Math.exp(-8*dt);vel.z*=Math.exp(-8*dt);}
  const il=Math.min(1,Math.hypot(ix,iz));
  if(tap('KeyM')){const on=toggle('map');if(on){zoom=0;drawMap();}}
  if(tap('KeyP')){if(toggle('prof'))renderProfile();}
@@ -833,9 +838,9 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  // Gallium brace (S1: 1/3 bar) — Shift+Space while flying/swinging cancels momentum
  if(!st.flying&&!st.swing)pp.addScaledVector(vel,dt);else if(st.flying)pp.addScaledVector(vel,dt);
  const preHit=collide(pp);if(preHit&&lastHit&&st.swing&&st.board&&lastHit.b.max.y>3&&lastHit.into>3){releaseSwing('wall');startWall(lastHit);}if(preHit&&lastHit&&!st.board&&!onGround&&!st.flying&&!st.swing&&!st.wall)tryClimb(lastHit,wish);if(preHit&&lastHit&&st.board&&!st.flying&&!st.swing&&lastHit.into>=WR.minInto&&lastHit.b.max.y>3){const sp=lastHit.hv.length();if(st.gal>=WR.rampCost&&sp>=WR.rampMinSpeed){lastHit.ramp=true;startWall(lastHit);}else if(sp>=WR.minSpeed)startWall(lastHit);}
- if(preHit&&lastHit&&st.board&&onGround&&!st.wall&&!st.flying&&!st.swing&&lastHit.into>MSK.WALL_BAIL)skBail('SLAMMED A WALL');
+ if(preHit&&lastHit&&st.board&&onGround&&!st.wall&&!st.flying&&!st.swing&&lastHit.into>MSK.WALL_BAIL){skBail('SLAMMED A WALL');bodyMachine.impact=lastHit.into;bodyMachine.fall(vel.x,vel.z);}
  const gY=floorAt(pp);const wasAir=!onGround;
- if(!st.wall&&pp.y<=gY&&!st.swing){if(wasAir&&!st.flying){if(!st.board)footLand(vel.y);if(st.board){if(Math.abs(vel.y)>(SWS.air>0?28:18)){skBail('HARD LANDING');bodyMachine.fall(vel.x,vel.z);}else{bank();sk.landT=0;sk.flash=1;if(P.acts.Land){play(P,'Land',true);actT=.16;}}}}pp.y=gY;if(vel.y<0)vel.y=0;onGround=true;if(st.flying)st.flying=false;}
+ if(!st.wall&&pp.y<=gY&&!st.swing){if(wasAir&&!st.flying){if(!st.board){bodyMachine.impact=Math.max(0,-vel.y);footLand(vel.y);}if(st.board){if(Math.abs(vel.y)>(SWS.air>0?28:18)){skBail('HARD LANDING');bodyMachine.impact=Math.max(0,-vel.y);bodyMachine.fall(vel.x,vel.z);}else{bank();sk.landT=0;sk.flash=1;if(P.acts.Land){play(P,'Land',true);actT=.16;}}}}pp.y=gY;if(vel.y<0)vel.y=0;onGround=true;if(st.flying)st.flying=false;}
  else if(!st.wall&&pp.y>gY+.05&&!st.swing&&!st.flying){if(!st.board||pp.y>gY+1.15)onGround=false;}
  }
  pp.x=THREE.MathUtils.clamp(pp.x,-200,200);pp.z=THREE.MathUtils.clamp(pp.z,-200,200);
@@ -881,7 +886,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  // traffic
  for(const c of cars){const u=c.userData;u.t+=u.dir*u.spd*dt;if(u.t>220)u.t=-220;if(u.t<-220)u.t=220;
   if(u.axis){c.position.set(u.lane,0.05,u.t);c.rotation.y=u.dir>0?0:Math.PI;}else{c.position.set(u.t,0.05,u.lane);c.rotation.y=u.dir>0?Math.PI/2:-Math.PI/2;}
-  if(c.position.distanceTo(pp)<2.4&&pp.y<1.5){vel.add(pp.clone().sub(c.position).setY(0).normalize().multiplyScalar(8));vel.y=5;onGround=false;bail();bodyMachine.fall(vel.x,vel.z);toast('Clipped by traffic!');}}
+  if(c.position.distanceTo(pp)<2.4&&pp.y<1.5){vel.add(pp.clone().sub(c.position).setY(0).normalize().multiplyScalar(8));vel.y=5;onGround=false;bail();bodyMachine.fall(vel.x,vel.z);bodyMachine.impact=Math.hypot(vel.x,vel.z);toast('Clipped by traffic!');}}
  // day/night + weather
  tod=(tod+dt*24/600)%24; // 10-minute day (PROPOSAL)
  const sunA=(tod-6)/12*Math.PI;const day=Math.max(0,Math.sin(sunA));sun.position.set(pp.x+Math.cos(sunA)*80,Math.max(8,Math.sin(sunA)*100),pp.z+30);sun.target.position.copy(pp);
