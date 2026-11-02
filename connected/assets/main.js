@@ -608,7 +608,7 @@ function startStrike(k){
  let id=null;
  if(k==='Numpad4')id=((FG.lastS==='cross'||(FG.lastS==='jab'&&FG.chain>=2))&&FG.lastT<.55)?'hook':'jab';
  else if(k==='Numpad6')id='cross';else if(k==='Numpad1')id='kickL';else if(k==='Numpad3')id='kickR';else if(k==='Numpad9')id='dash';
- else if(k==='Numpad7'){if(st.charge<.2){toast('Need charge — hold 5');return;}st.charge-=.2;id='blast';}
+ else if(k==='Numpad7'){const pulse=!!(keys.ShiftLeft||keys.ShiftRight);const cost=pulse?.4:.2;if(st.charge<cost){toast('Need '+Math.round(cost*100)+'% charge — hold 5');return;}if(pulse&&!onGround){toast('Gallium Pulse needs grounded contact');return;}st.charge-=cost;id='blast';if(pulse)FG.pulseQueued=true;}
  if(!id)return;const s=STRK[id];
  FG.chain=FG.lastT<.55?FG.chain+1:1;if(id==='hook')FG.chain=0;
  let amt=0;if(id!=='blast'&&st.charge>.25){amt=st.charge;st.charge=0;}
@@ -618,11 +618,21 @@ function startStrike(k){
 function tickStrike(dt){const a=FG.act,s=a.s;a.t+=dt;const pp=P.o.position,f=_fv3.set(Math.sin(yaw),0,Math.cos(yaw));
  if(a.t<s.t0&&s.step)pp.addScaledVector(f,s.step/s.t0*dt);
  if(s.lunge&&a.t<s.t1)pp.addScaledVector(f,s.lunge*(1+a.amt)*dt);
- if(a.id==='blast'&&!a.fired&&a.t>=s.t0){a.fired=true;fireBlast();}
+ if(a.id==='blast'&&!a.fired&&a.t>=s.t0){a.fired=true;if(FG.pulseQueued){FG.pulseQueued=false;firePulse();}else fireBlast();}
  if(a.id!=='blast'&&a.t>=s.t0&&a.t<=s.t1+.02)for(const foe of activeFoes()){if(a.hits.has(foe))continue;const v=toFoe(foe),d=v.length();
   if(d<s.r+.35&&Math.abs(angDiff(yaw,Math.atan2(v.x,v.z)))<1.3){a.hits.add(foe);hitFoe(foe,s,a.amt,v.clone().normalize());}}
  if(FG.buf&&a.t>=s.t1){const b=FG.buf;FG.buf=null;FG.lastS=a.id;FG.lastT=0;FG.act=null;startStrike(b);return;}
  if(a.t>=s.end){if(a.id!=='blast'&&a.hits.size===0&&FG.inFight){const target=FG.target;if(target){const distance=toFoe(target).length();toast(distance>s.r+.35?'OUT OF RANGE · move closer':'MISSED · face your opponent');}}FG.lastS=a.id;FG.lastT=0;FG.act=null;}}
+// PROPOSAL combat variant: grounded Gallium Pulse (Shift + 7).
+// Uses the same nonlethal stance system, with radial falloff and a visible recovery cost.
+function firePulse(){if(!onGround){toast('Pulse aborted: no ground contact');return;}
+ const origin=P.o.position.clone();const radius=4.2;let hits=0;
+ for(const foe of activeFoes()){const delta=foe.ch.o.position.clone().sub(origin).setY(0),d=delta.length();
+  if(d>radius||d<.01)continue;const falloff=Math.max(.25,1-d/radius);
+  hitFoe(foe,{...STRK.blast,dmg:STRK.blast.dmg*falloff,kb:STRK.blast.kb*falloff},0,delta.normalize());hits++;}
+ burst(origin.clone().add(new THREE.Vector3(0,.35,0)),38,5);FG.stun=Math.max(FG.stun,.18);FG.shake=Math.max(FG.shake,.2);
+ toast(hits?'GALLIUM PULSE · '+hits+' contact'+(hits===1?'':'s'):'GALLIUM PULSE · no contact');
+}
 // blast: a slug of Galaxy Gallium (gunmetal), not a beam
 const blasts=[];function fireBlast(){const m=new THREE.Mesh(new THREE.SphereGeometry(.2,14,10),new THREE.MeshStandardMaterial({color:0x9aa1ad,metalness:1,roughness:.18,emissive:0xd8deff,emissiveIntensity:.35}));
  const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));m.position.copy(P.o.position).add(new THREE.Vector3(0,1.35,0)).addScaledVector(f,.7);scene.add(m);blasts.push({m,v:f.multiplyScalar(22),t:0});}
