@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import {STORY_ENEMIES} from './story_enemies.js';
 import {createEncounter,stepEncounter} from './morrow_encounters.js';
 import {BodyMachine} from './body_machine.js';
+import {PhysicsTelemetry} from './physics_telemetry.js';
 import {makeGalliumLimb,galliumLiquidMat,GU} from './gallium_limb.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RGBELoader} from 'three/addons/loaders/RGBELoader.js';
@@ -753,6 +754,7 @@ function boardOnBack(){if(!board)return;if(!P.p6){board.visible=false;return;}co
 
 // ---------- main loop ----------
 const clock=new THREE.Clock();let camPos=new THREE.Vector3();
+const physicsTelemetry=new PhysicsTelemetry();let physicsTime=0;
 // Morrow prototype encounter: visual pursuit and timed ReFramer counter.
 // PUBLISH HOLD: training encounter only; no story canon or police behavior implied.
 const morrow=createEncounter();let morrowClock=0,morrowStatus='';
@@ -917,6 +919,8 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  P.model.rotation.y+=((st.board&&!st.flying?(P.rotBoard??-1.35):(P.rotWalk??0))-P.model.rotation.y)*Math.min(1,dt*10); // sideways skate stance on the deck
  if(st.board&&(st.wall||swingTilted())&&P.footL&&!(st.boardFree>0)){P.o.updateMatrixWorld(true);P.footL.getWorldPosition(_bf);_bu.set(0,1,0).applyQuaternion(board.quaternion);const h=_bf.sub(board.position).dot(_bu);P.model.position.y+=THREE.MathUtils.clamp(DECK_TOP+Math.max(0,P.soleGap)-h,-2,2);P.o.updateMatrixWorld(true);st.boardGap=P.footL.getWorldPosition(_bf).distanceTo(board.position);} else if(onGround||st.board)seatFeet(dt);else P.model.position.y+=(P.footY+(st.board?DECK_TOP:0)-P.model.position.y)*Math.min(1,dt*8);
  p6Pose(dt);sk.rail=st.grinding;
+ physicsTime+=dt;
+ physicsTelemetry.sample({time:physicsTime,dt,position:P.o.position,velocity:vel,grounded:onGround,board:st.board,wall:st.wall,swing:st.swing,flying:st.flying,body:bodyMachine});
 }
 let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());if(window.__testHold){if(LITE)renderer.render(scene,camera);else composer.render();return;}try{update(fgTime(dt));window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<3){console.error(e);window.__errors.push(String(e));}}if(LITE)renderer.render(scene,camera);else composer.render();}
 
@@ -928,4 +932,4 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
   window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
-  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.bodyMachine=bodyMachine;window.__game.MSK=MSK;window.__game.ground=()=>onGround;loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
+  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.bodyMachine=bodyMachine;window.__game.physicsTelemetry=physicsTelemetry;window.__game.MSK=MSK;window.__game.ground=()=>onGround;loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
