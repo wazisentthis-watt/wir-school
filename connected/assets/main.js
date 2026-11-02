@@ -6,6 +6,7 @@ import {STORY_ENEMIES} from './story_enemies.js';
 import {createEncounter,stepEncounter} from './morrow_encounters.js';
 import {BodyMachine} from './body_machine.js';
 import {PhysicsTelemetry} from './physics_telemetry.js';
+import {analyzePhysics} from './physics_analysis.js';
 import {makeGalliumLimb,galliumLiquidMat,GU} from './gallium_limb.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RGBELoader} from 'three/addons/loaders/RGBELoader.js';
@@ -932,4 +933,4 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
   window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
-  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.bodyMachine=bodyMachine;window.__game.physicsTelemetry=physicsTelemetry;window.__game.MSK=MSK;window.__game.ground=()=>onGround;loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
+  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.bodyMachine=bodyMachine;window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
