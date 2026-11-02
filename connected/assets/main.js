@@ -3,6 +3,7 @@
 // Anything not stated in those sources is labelled PROPOSAL. Code is original; libs MIT, assets CC0.
 import * as THREE from 'three';
 import {STORY_ENEMIES} from './story_enemies.js';
+import {createEncounter,stepEncounter} from './morrow_encounters.js';
 import {BodyMachine} from './body_machine.js';
 import {makeGalliumLimb,galliumLiquidMat,GU} from './gallium_limb.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
@@ -762,7 +763,33 @@ function boardOnBack(){if(!board)return;if(!P.p6){board.visible=false;return;}co
 
 // ---------- main loop ----------
 const clock=new THREE.Clock();let camPos=new THREE.Vector3();
+// Morrow prototype encounter: visual pursuit and timed ReFramer counter.
+// PUBLISH HOLD: training encounter only; no story canon or police behavior implied.
+const morrow=createEncounter();let morrowClock=0,morrowStatus='';
+const morrowMeshes=[];
+function initMorrow(){
+ const home=SPOTS.home.c;const mk=(color,x,z,h=1.7)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(.85,h,.85),new THREE.MeshStandardMaterial({color,metalness:.55,roughness:.38}));o.position.set(home.x+x,groundY+h/2,home.z+z);scene.add(o);morrowMeshes.push(o);return o;};
+ morrow.slottaMesh=mk(0xd65d36,10,3);morrow.reframerMesh=mk(0x546b81,17,3,3.1);morrow.constructMesh=mk(0x858a99,14,3,2.4);
+ morrow.reframerMesh.visible=false;morrow.constructMesh.visible=false;
+ const panel=document.createElement('div');panel.id='morrowMission';panel.style.cssText='position:fixed;left:12px;bottom:92px;z-index:12;max-width:300px;padding:10px 12px;background:#10141de6;color:#f1f2ff;border:1px solid #a978f0;border-radius:10px;font:12px system-ui;pointer-events:none';document.body.append(panel);morrow.panel=panel;
+}
+function updateMorrow(dt){if(!morrow.slottaMesh)return;
+ const p=P.o.position,sm=morrow.slottaMesh,rm=morrow.reframerMesh,cm=morrow.constructMesh;
+ const distance=p.distanceTo(sm.position);let action='wait';
+ if(tap('KeyR')){if(distance<8&&st.gal>=.12){action='tether';st.gal-=.12;}else toast('Wrangle: get within 8m and keep Gallium reserve');}
+ else if(tap('KeyT')){if(distance<7&&st.gal>=.08){action='anchor';st.gal-=.08;}else toast('Anchor: move closer and reserve Gallium');}
+ else if(tap('KeyG')){if(rm.visible&&p.distanceTo(cm.position)<11&&st.gal>=.18){action='disrupt';st.gal-=.18;}else toast('Get near ReFramer construct with Gallium');}
+ else if(tap('KeyV'))action='brace';
+ const old=morrow.events.length;stepEncounter(morrow,action,dt);
+ if(morrow.events.length!==old&&action!=='wait')toast(morrow.events[morrow.events.length-1]);
+ if(!morrow.slotta.captured&&!morrow.slotta.escaped){const away=sm.position.clone().sub(p).setY(0);if(away.lengthSq()<100&&away.lengthSq()>.01)sm.position.addScaledVector(away.normalize(),dt*2.6);}
+ sm.visible=!morrow.slotta.captured&&!morrow.slotta.escaped;
+ rm.visible=morrow.reframer.active;cm.visible=rm.visible&&morrow.reframer.construct>.05;
+ cm.scale.y=Math.max(.08,morrow.reframer.construct);cm.material.emissive.setHex(morrow.reframer.windup>.55&&morrow.reframer.windup<.85?0xa34c24:0x000000);
+ morrowClock+=dt;if(morrowClock>.15){morrowClock=0;morrow.panel.textContent='MORROW / PROTOTYPE · SLOTTA '+(morrow.slotta.captured?'CAUGHT':morrow.slotta.escaped?'ESCAPED':distance.toFixed(1)+'m')+' · R tether · T anchor · G timed construct break · V brace | ReFramer '+(morrow.reframer.active?'ACTIVE':'incoming')+' · '+Math.round(morrow.reframer.construct*100)+'% structure';}
+}
 function update(dt){
+ updateMorrow(dt);
  st.grinding=false;
  // Keep body state time-based, independent of the existing movement solver.
  bodyMachine.step(dt,0);
@@ -909,7 +936,7 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
 
 (async()=>{const msg=t=>$('loadmsg').textContent=t;
  try{await buildWorld(msg);msg('Characters (Quaternius CC0)…');robotGLTF=await loadG('assets/models/RobotExpressive.glb');msg('Sparring rival…');rivalGLTF=await loadG('assets/models/rival_sparring_hero.glb').catch(()=>null);crewFemGLTF=await loadG('assets/models/crew_female.glb').catch(()=>null);msg('3D Metal…');metalGLTF=await loadG('assets/models/metal/metal_phase6_fight.glb');boardGLTF=await loadG('assets/models/metal/metal_skateboard_4wheel_PLACEHOLDER.glb');
-  P=makeMetal();scene.add(P.o);P.o.position.copy(SPOTS.home.c).add(new THREE.Vector3(0,groundY,8));camPos.copy(P.o.position).add(new THREE.Vector3(0,4,8));
+  P=makeMetal();scene.add(P.o);initMorrow();P.o.position.copy(SPOTS.home.c).add(new THREE.Vector3(0,groundY,8));camPos.copy(P.o.position).add(new THREE.Vector3(0,4,8));
   board=new THREE.Group();board.add(boardGLTF.scene);boardGLTF.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;if(/Wheel/i.test(m.material.name)){m.material.color=new THREE.Color(0xC9A979);if(m.material.emissive)m.material.emissiveIntensity=0;m.material.map=null;m.material.needsUpdate=true;}}});board.visible=false;board.scale.setScalar(BOARD_S);scene.add(board,tether,merkaba);galLimb=makeGalliumLimb(scene);P.handBone=P.o.getObjectByName('DEF-handR')||P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearmR');/* three.js strips '.' from node names */
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
