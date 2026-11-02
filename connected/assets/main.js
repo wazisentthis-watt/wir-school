@@ -609,7 +609,7 @@ function tickStrike(dt){const a=FG.act,s=a.s;a.t+=dt;const pp=P.o.position,f=_fv
  if(a.id!=='blast'&&a.t>=s.t0&&a.t<=s.t1+.02)for(const foe of activeFoes()){if(a.hits.has(foe))continue;const v=toFoe(foe),d=v.length();
   if(d<s.r+.35&&Math.abs(angDiff(yaw,Math.atan2(v.x,v.z)))<1.3){a.hits.add(foe);hitFoe(foe,s,a.amt,v.clone().normalize());}}
  if(FG.buf&&a.t>=s.t1){const b=FG.buf;FG.buf=null;FG.lastS=a.id;FG.lastT=0;FG.act=null;startStrike(b);return;}
- if(a.t>=s.end){FG.lastS=a.id;FG.lastT=0;FG.act=null;}}
+ if(a.t>=s.end){if(a.id!=='blast'&&a.hits.size===0&&FG.inFight){const target=FG.target;if(target){const distance=toFoe(target).length();toast(distance>s.r+.35?'OUT OF RANGE · move closer':'MISSED · face your opponent');}}FG.lastS=a.id;FG.lastT=0;FG.act=null;}}
 // blast: a slug of Galaxy Gallium (gunmetal), not a beam
 const blasts=[];function fireBlast(){const m=new THREE.Mesh(new THREE.SphereGeometry(.2,14,10),new THREE.MeshStandardMaterial({color:0x9aa1ad,metalness:1,roughness:.18,emissive:0xd8deff,emissiveIntensity:.35}));
  const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));m.position.copy(P.o.position).add(new THREE.Vector3(0,1.35,0)).addScaledVector(f,.7);scene.add(m);blasts.push({m,v:f.multiplyScalar(22),t:0});}
