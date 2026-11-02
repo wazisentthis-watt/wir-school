@@ -2,6 +2,7 @@
 // Sources: [S1] Metal InDa RIFFT, [S3] Valence Life, [S4] Retro Bowl, [S5] Stay On Page, attunement packet.
 // Anything not stated in those sources is labelled PROPOSAL. Code is original; libs MIT, assets CC0.
 import * as THREE from 'three';
+import {STORY_ENEMIES} from './story_enemies.js';
 import {BodyMachine} from './body_machine.js';
 import {makeGalliumLimb,galliumLiquidMat,GU} from './gallium_limb.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
@@ -495,20 +496,32 @@ const FOES=[];const CREWS=[
  {name:'Skatepark crew',spot:'skate',off:[15,-15],level:1,fits:[{top:0x1f6f78,bot:0xb9a77f},{top:0x2a2d33,bot:0xb9a77f,f:1},{top:0x1f6f78,bot:0x3a4250}]},
  {name:'Pickup crew',spot:'field',off:[-16,16],level:2,fits:[{top:0xc8382e,bot:0xe9e4da,sleeve:1},{top:0xe9e4da,bot:0xc8382e,sleeve:1,f:1}]},
  {name:'Commons crew',spot:'home',off:[-15,-15],level:2,fits:[{top:0x111216,bot:0xd2a53c},{top:0xd2a53c,bot:0x111216,f:1},{top:0x3b2a52,bot:0x111216}]}];
+const STORY_FIGHTS=[];
 function initFoes(){if(FOES.length||!rival)return;rivalSt.kind='rival';rivalSt.label='Sparring rival';FOES.push({ch:rival,R:rivalSt});
  if(!rivalGLTF)return;for(const c of CREWS){const sp=SPOTS[c.spot];if(!sp||!sp.c)continue;c.home=sp.c.clone().add(new THREE.Vector3(c.off[0],groundY,c.off[1]));c.state='idle';c.members=[];
   c.fits.forEach((fit,i)=>{const g=fit.f&&crewFemGLTF?crewFemGLTF:rivalGLTF;const ch=makeFighter(g,{...fit,h:fit.f?1.72:1.82});
    const a=i/c.fits.length*Math.PI*2;ch.o.position.copy(c.home).add(new THREE.Vector3(Math.cos(a)*1.6,0,Math.sin(a)*1.6));ch.o.rotation.y=Math.atan2(c.home.x-ch.o.position.x,c.home.z-ch.o.position.z);scene.add(ch.o);
-   const R={kind:'crew',crew:c,label:c.name,active:false,stance:1,level:c.level,out:false,slot:a,kb:new THREE.Vector3()};const foe={ch,R};c.members.push(foe);FOES.push(foe);});}}
+   const R={kind:'crew',crew:c,label:c.name,active:false,stance:1,level:c.level,out:false,slot:a,kb:new THREE.Vector3()};const foe={ch,R};c.members.push(foe);FOES.push(foe);});}
+ // Story opponents are optional, nonlethal prototype encounters near existing arenas.
+ // No new lore is asserted by their locations or outfits.
+ const sites=['fight','skate','dojo','forge','field','home','pluto'];
+ STORY_ENEMIES.forEach((entry,i)=>{const sp=SPOTS[sites[i]];if(!sp?.c)return;
+  const home=sp.c.clone().add(new THREE.Vector3(11,groundY,10));
+  const ch=rivalGLTF?makeFighter(rivalGLTF,{top:[0x373b46,0x283c49,0x596275,0x414154,0x232933,0x4e403b,0x272238][i],bot:0x171923,h:entry.style==='heavy'||entry.style==='boss'?2.05:1.82}):makeChar(0x666688);
+  ch.o.position.copy(home);scene.add(ch.o);
+  const c={name:entry.name,home,state:'idle',level:i+1,members:[],story:true,entry};
+  const R={kind:'crew',crew:c,label:entry.name,style:entry.style,active:false,stance:1,level:Math.min(5,i+1),out:false,slot:0,kb:new THREE.Vector3()};
+  const foe={ch,R};c.members.push(foe);FOES.push(foe);STORY_FIGHTS.push(c);
+ });}
 function activeFoes(){return FOES.filter(f=>f.R.active&&!f.R.out);}
-function crewPrompt(pp){if(FG.inFight)return null;for(const c of CREWS){if(!c.home||c.state!=='idle')continue;if(pp.distanceTo(c.home)<6.5)return {text:'E — '+c.name+' wants a street spar (nonlethal)',go:()=>startCrew(c)};}return null;}
+function crewPrompt(pp){if(FG.inFight)return null;for(const c of [...STORY_FIGHTS,...CREWS]){if(!c.home||c.state!=='idle')continue;if(pp.distanceTo(c.home)<6.5)return {text:'E — '+c.name+(c.story?' · story encounter (PROPOSAL)':' wants a street spar (nonlethal)'),go:()=>startCrew(c)};}return null;}
 function startCrew(c){c.state='fight';for(const f of c.members){Object.assign(f.R,{active:true,stance:.55,max:.55,out:false,sm:null,act:null,queue:[],guard:false});}$('foe').style.display='block';
  toast(c.name+' — street spar! Break every stance');plog('decisions','Accepted a street spar ('+c.name+')');}
 function endCrew(c,win){c.state='cool';c.cool=win?30:8;for(const f of c.members){const R=f.R;R.active=false;R.act=null;R.queue=[];R.guard=false;R.sm=null;if(f.ch.body)f.ch.body.emissiveIntensity=0;if(R.out){R.getup=1.3;playT(f.ch,'GetUp',1.3);}else play(f.ch,win?'No':'Dance');}
  if(!activeFoes().length)$('foe').style.display='none';FG.act=null;FG.stun=0;st.hp=1;
  if(win){FG.crewWins++;st.gal=Math.min(1,st.gal+.2);toast(c.name+' tapped out — street respect · Gallium +');plog('achievements','Won a street spar ('+c.name+')');c.level=Math.min(5,c.level+1);}
  else toast(c.name+' got you — run it back later');}
-function crewTick(dt){for(const c of CREWS){if(!c.home)continue;
+function crewTick(dt){for(const c of [...CREWS,...STORY_FIGHTS]){if(!c.home)continue;
  if(c.state==='cool'){c.cool-=dt;if(c.cool<=0){c.state='idle';for(const f of c.members){f.R.out=false;f.R.stance=1;}}}
  if(c.state==='fight'){if(c.members.every(f=>f.R.out)){endCrew(c,true);continue;}if(P.o.position.distanceTo(c.home)>28){toast('You left — '+c.name+' calls it');endCrew(c,false);continue;}}
  if(c.state!=='fight')for(const f of c.members){if(f.R.getup>0){f.R.getup-=dt;continue;}const o=f.ch.o,want=_fv2.copy(c.home).add(new THREE.Vector3(Math.cos(f.R.slot)*1.6,0,Math.sin(f.R.slot)*1.6));const v=want.sub(o.position).setY(0);const d=v.length();
@@ -650,7 +663,7 @@ const AI={
    if(FG.act&&FG.act.t<FG.act.s.t0+.04&&R.d<2.9&&R.reactedTo!==FG.act){R.reactedTo=FG.act;if(Math.random()<Math.min(.7,.18+.1*lvl(R))){R.sm.changeTo(Math.random()<.55?'guard':'evade');return;}}
    if(R.d>R.ring+1.4){R.sm.changeTo('approach');return;}
    if(R.stT>R.dur){if(attackers()<maxAttackers()&&Math.random()<.45+.08*lvl(R))R.sm.changeTo('attack');else R.sm.changeTo('circle');}}},
- attack:{on(R){R.state='attack';const L=lvl(R);const pool=[['jab'],['jab','cross'],['kickR'],['cross','kickL']];if(L>=2)pool.push(['jab','jab','hook']);if(L>=3)pool.push(['dash']);
+ attack:{on(R){R.state='attack';const L=lvl(R);const pool=R.style==='heavy'||R.style==='boss'?[['kickR'],['dash'],['cross','kickL']]:R.style==='evasive'?[['jab','cross'],['dash'],['kickL']]:R.style==='counter'?[['cross','jab'],['hook'],['kickR']]:[['jab'],['jab','cross'],['kickR'],['cross','kickL']];if(L>=2)pool.push(['jab','jab','hook']);if(L>=3)pool.push(['dash']);
    R.queue=pool[Math.floor(Math.random()*pool.length)].slice();foeStrike(R,R.queue.shift(),Math.max(.08,.3-.04*L));},
   run(R){const m=P.o.position;goTo(R,m.x-R.dir.x*1.4,m.z-R.dir.z*1.4,.9);
    if(!R.act){if(R.queue.length&&R.d<3.1)foeStrike(R,R.queue.shift(),.06);else R.sm.changeTo(Math.random()<.3?'retreat':'circle');}},off(R){R.state='';}},
