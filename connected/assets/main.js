@@ -246,7 +246,7 @@ let controllerLegend=null,controllerSeen=false;
 function showControllerLegend(){
  if(!controllerLegend){controllerLegend=document.createElement('div');controllerLegend.id='controllerLegend';
  controllerLegend.style.cssText='position:fixed;right:12px;top:62px;z-index:20;max-width:240px;background:#10131fee;color:#f4f1ff;border:1px solid #9876e8;border-radius:12px;padding:12px;font:12px/1.6 system-ui;box-shadow:0 4px 20px #0008';
- controllerLegend.innerHTML='<b>🎮 METAL · CONTROLLER</b><br>Left stick: move · Right stick: camera<br>A: jump / recover · B: dodge / combat<br>X: left combat action · Y: right combat action<br>LB: alternate action · RB: structure swing<br>LT: Gallium hand / aim · RT: RIFFT Step<br><b>LT + right stick:</b> move suspended car<br><b>LT + LB:</b> throw held car<br>D-pad: actions · Menu: profile<br><small>H: hide/show this guide · Keyboard U/I: car grab/throw</small>';
+ controllerLegend.innerHTML='<b>🎮 METAL · CONTROLLER</b><br>Left stick: move · Right stick: camera<br>A: jump / recover · B: dodge / combat<br>X: left combat action · Y: right combat action<br>LB: alternate action · RB: structure swing<br>LB: Gallium grab / right stick move · LT: charge · RT: RIFFT Step<br><b>LB + right stick:</b> move suspended car<br><b>LB + RT:</b> throw held car<br>D-pad: actions · Menu: profile<br><small>H: hide/show this guide · Keyboard U/I: car grab/throw</small>';
  document.body.append(controllerLegend);}
  controllerLegend.style.display=controllerLegend.style.display==='none'?'block':'none';
 }
@@ -778,15 +778,16 @@ const physicsTelemetry=new PhysicsTelemetry();let physicsTime=0;
 // PUBLISH HOLD: training encounter only; no story canon or police behavior implied.
 
 const crownCharge=createCharge();let chargeLeftPrev=false,chargeRightPrev=false,chargeChordPrev=false;
-const crownOrbits=[];let crownPanel=null,crownStructureBase=null;
-function initCrownVisual(){if(crownOrbits.length)return;const mat=new THREE.MeshStandardMaterial({color:0xcbb5ff,emissive:0x873cff,emissiveIntensity:2,metalness:.75});for(let i=0;i<18;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.09+(i%3)*.035,6,6),mat);scene.add(m);crownOrbits.push(m);}crownPanel=document.createElement('div');crownPanel.style.cssText='position:fixed;left:50%;bottom:18%;transform:translateX(-50%);z-index:19;pointer-events:none;text-align:center;background:#120e20d9;color:#e7d9ff;border:1px solid #8f64d0;border-radius:8px;padding:7px 12px;font:12px/1.5 system-ui;display:none';document.body.append(crownPanel);}
+const crownOrbits=[];const crownStreams=[];let crownPanel=null,crownStructureBase=null;
+function initCrownVisual(){if(crownOrbits.length)return;const mat=new THREE.MeshStandardMaterial({color:0xcbb5ff,emissive:0x873cff,emissiveIntensity:2,metalness:.75});for(let i=0;i<18;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.09+(i%3)*.035,6,6),mat);scene.add(m);crownOrbits.push(m);}for(let i=0;i<24;i++){const p=new THREE.Mesh(new THREE.SphereGeometry(.055,5,5),new THREE.MeshStandardMaterial({color:0xc2c7df,emissive:0x8145cf,emissiveIntensity:1.4,metalness:1}));scene.add(p);crownStreams.push(p);}crownPanel=document.createElement('div');crownPanel.style.cssText='position:fixed;left:50%;bottom:18%;transform:translateX(-50%);z-index:19;pointer-events:none;text-align:center;background:#120e20d9;color:#e7d9ff;border:1px solid #8f64d0;border-radius:8px;padding:7px 12px;font:12px/1.5 system-ui;display:none';document.body.append(crownPanel);}
 function crownMetalSupply(){if(!P)return 0;let total=0;for(const b of colliders){const x=(b.min.x+b.max.x)*.5,z=(b.min.z+b.max.z)*.5;if(Math.hypot(x-P.o.position.x,z-P.o.position.z)<48)total+=.12;}for(const car of cars){if(car.position.distanceTo(P.o.position)<25)total+=.22;}return Math.min(4,total);}
-function updateCrownCharge(dt,gp){initCrownVisual();const lt=!!(gp?.buttons?.[6]?.pressed||gp?.buttons?.[6]?.value>.35),rt=!!(gp?.buttons?.[7]?.pressed||gp?.buttons?.[7]?.value>.35),chord=lt&&rt;const left=!!gp?.buttons?.[4]?.pressed,right=!!gp?.buttons?.[5]?.pressed;const events=stepCharge(crownCharge,dt,{charging:chord,left:chord&&left&&!chargeLeftPrev,right:chord&&right&&!chargeRightPrev,metalNearby:crownMetalSupply()});chargeLeftPrev=left;chargeRightPrev=right;chargeChordPrev=chord;
- if(chord&&crownCharge.time<.07)toast('KODA · MERKABAH CHARGE · TAP L1 / R1 TO BALANCE');
+function updateCrownCharge(dt,gp){initCrownVisual();const lt=!!(gp?.buttons?.[6]?.pressed||gp?.buttons?.[6]?.value>.35),chord=lt;const left=false,right=false;const events=stepCharge(crownCharge,dt,{charging:chord,left:chord&&left&&!chargeLeftPrev,right:chord&&right&&!chargeRightPrev,metalNearby:crownMetalSupply()});chargeLeftPrev=left;chargeRightPrev=right;chargeChordPrev=chord;
+ if(chord&&crownCharge.time<.07)toast('KODA · CHARGING · DRAWING NEARBY METAL');
  for(const e of events)if(e==='STRUCTURES RESTORED'||e==='CROWN OVERLOAD · FIVE STAR RESPONSE')toast('KODA · '+e);
  const show=crownCharge.active||crownCharge.metal>.03;
- crownPanel.style.display=show?'block':'none';if(show){const c=crownCharge;const instruction=c.emergency?'KODA: STRUCTURES FAILING · METAL RETURNING':c.unstable?'KODA: CROWN UNSTABLE · REINFORCEMENTS INBOUND':c.balance<-.35?'KODA: TAP R1 · RESTORE BALANCE':c.balance>.35?'KODA: TAP L1 · RESTORE BALANCE':'KODA: L1 / R1 TO BALANCE';crownPanel.textContent=instruction+' | METAL '+c.metal.toFixed(1)+' | BALANCE '+c.balance.toFixed(2)+' | STRESS '+Math.round(c.stress*100)+'%';}
+ crownPanel.style.display=show?'block':'none';if(show){const c=crownCharge;const instruction=c.emergency?'KODA: STRUCTURES FAILING · METAL RETURNING':c.unstable?'KODA: CROWN UNSTABLE · REINFORCEMENTS INBOUND':c.balance<-.35?'KODA: STRUCTURAL LOAD HIGH':c.balance>.35?'KODA: CROWN LOAD HIGH':'KODA: METAL FLOW STABILIZING';crownPanel.textContent=instruction+' | METAL '+c.metal.toFixed(1)+' | BALANCE '+c.balance.toFixed(2)+' | STRESS '+Math.round(c.stress*100)+'%';}
  for(let i=0;i<crownOrbits.length;i++){const m=crownOrbits[i];m.visible=show;if(!show)continue;const t=crownCharge.time*(2+crownCharge.stage)+i*2.399963;const rad=1.1+(i%4)*.22+crownCharge.metal*.12;const theta=i*Math.PI/9;m.position.set(P.o.position.x+Math.cos(t)*rad*Math.cos(theta),P.o.position.y+1.5+Math.sin(t)*rad,P.o.position.z+Math.cos(t)*rad*Math.sin(theta));m.scale.setScalar(.7+crownCharge.metal*.15);}
+ for(let i=0;i<crownStreams.length;i++){const m=crownStreams[i];m.visible=show&&crownCharge.active;if(!m.visible)continue;const a=i*2.399963,rad=8+(i%5)*3;const source=new THREE.Vector3(P.o.position.x+Math.cos(a)*rad,P.o.position.y+1+(i%4)*2,P.o.position.z+Math.sin(a)*rad);const t=(crownCharge.time*(.7+crownCharge.stage*.3)+i*.137)%1;m.position.lerpVectors(source,P.o.position.clone().add(new THREE.Vector3(0,1.3,0)),t);m.scale.setScalar(.6+t*2);} 
  if(P?.o){P.o.traverse(o=>{if(o.isMesh&&o.material&&o.material.emissive&&o.userData.crownTint){o.material.emissiveIntensity=show?Math.min(1,crownCharge.metal*.2):0;}});}
  if(crownCharge.emergency&&crownCharge.metal===0){crownCharge.unstable=false;}
 }
@@ -922,12 +923,12 @@ function update(dt){
  // Xbox-style chord: hold LT + LB to grapple a nearby vehicle, LT + RT to sling it.
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
  const lt=!!(gpWorld?.buttons[6]?.pressed||gpWorld?.buttons[6]?.value>.35||gpWorld?.axes?.[4]>.35),lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!(gpWorld?.buttons[7]?.pressed||gpWorld?.buttons[7]?.value>.35);
- updateCrownCharge(dt,gpWorld);worldGripActive=lt&&!rt;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
+ updateCrownCharge(dt,gpWorld);worldGripActive=lb;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
  if(rt&&!lt){riftPressTime+=dt;if(riftPressTime>=.16&&!combatBlastLatch){riffStep();combatBlastLatch=true;}}else{riftPressTime=0;combatBlastLatch=false;}if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
- if(rb&&!lt&&!worldSwingLatch){if(slottaSnare>0)toast('Circuit Serpents: swing disabled');else{pressed.KeyQ=true;keys.KeyQ=true;}}if(!rb||lt||slottaSnare>0)keys.KeyQ=false;worldSwingLatch=rb&&!lt&&slottaSnare<=0;
- if((lt&&!rt&&!heldCar&&worldGripRetry<=0)||tap('KeyU')){if(slottaSnare>0)toast('Circuit Serpents disrupting Galaxy Gallium');else galliumGrabWorld();worldGripRetry=.4;}else worldGripRetry=Math.max(0,worldGripRetry-dt);
- if((lt&&lb&&!worldThrowLatch)||tap('KeyI')){slingCar();clearGripVisual();gripTarget=null;}
- if(!lt){worldGripWarned=false;worldGripRetry=0;if(structureGrip)clearGripVisual();}worldGrabLatch=lt;worldThrowLatch=lt&&lb;
+ if(rb&&!worldSwingLatch){if(slottaSnare>0)toast('Circuit Serpents: swing disabled');else{pressed.KeyQ=true;keys.KeyQ=true;}}if(!rb||slottaSnare>0)keys.KeyQ=false;worldSwingLatch=rb&&slottaSnare<=0;
+ if((lb&&!heldCar&&worldGripRetry<=0)||tap('KeyU')){if(slottaSnare>0)toast('Circuit Serpents disrupting Galaxy Gallium');else galliumGrabWorld();worldGripRetry=.4;}else worldGripRetry=Math.max(0,worldGripRetry-dt);
+ if((lb&&rt&&!worldThrowLatch)||tap('KeyI')){slingCar();clearGripVisual();gripTarget=null;}
+ if(!lb){worldGripWarned=false;worldGripRetry=0;if(structureGrip)clearGripVisual();}worldGrabLatch=lb;worldThrowLatch=lb&&rt;
  let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
  if(bodyMachine.mode==='fallen'&&(pressed.Space||pressed.KeyE)){bodyMachine.velocity.x=0;bodyMachine.velocity.z=0;bodyMachine.recover();pressed.Space=false;pressed.KeyE=false;}
  if(bodyMachine.mode==='fallen'||bodyMachine.mode==='recovering'){ix=0;iz=0;vel.x*=Math.exp(-8*dt);vel.z*=Math.exp(-8*dt);}
