@@ -5,6 +5,7 @@ export class BodyMachine {
   this.gravity=gravity;this.groundY=groundY;this.mass=mass;
   this.position={x:0,y:groundY,z:0};this.velocity={x:0,y:0,z:0};
   this.mode='grounded';this.balance=1;this.impact=0;this.recovery=0;
+  this.bodyLean=0;this.fallDirection={x:0,z:1};this.fallTime=0;
   this.bodyLean=0;this.fallDirection={x:0,z:1};this.fallTime=0;this.downTime=0;
  }
  impulse(x,y,z){
@@ -18,6 +19,10 @@ export class BodyMachine {
   if(this.mode==='fallen'||this.mode==='recovering'||this.mode==='falling')return false;
   const length=Math.hypot(x,z);
   this.fallDirection=length>1e-5?{x:x/length,z:z/length}:{x:0,z:1};
+  this.mode='falling';this.fallTime=0;this.recovery=0;this.balance=0;
+  return true;
+ }
+ step(dt,groundY=this.groundY){
   this.mode='falling';this.fallTime=0;this.downTime=0;this.recovery=0;this.balance=0;
   return true;
  }
