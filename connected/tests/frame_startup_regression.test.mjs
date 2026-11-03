@@ -24,3 +24,11 @@ test('one gamepad poll, movement vector, physics step and Morrow update per fram
  assert.equal(count(/bodyMachine\.step\(dt,0,true\);/g),1,'impact/balance machine should advance once');
  assert.equal(count(/bodyMachine\.step\(dt,0\);/g),0,'no second movement proxy step');
 });
+
+test('only one mission boot exists and recovery-aware loading stays authoritative',()=>{
+ assert.equal((source.match(/\\(async\\(\\)=>\\{const msg=/g)||[]).length,1,
+  'Legacy orphaned startup can cause Unexpected end of input in Chromium');
+ assert.doesNotMatch(source,/robotGLTF=await loadG\\('assets\\/models\\/RobotExpressive\\.glb'\\)/,
+  'Obsolete direct loader bypasses mission fallback and boot status');
+ assert.match(source,/robotGLTF=await missionAsset\\('assets\\/models\\/RobotExpressive\\.glb'/);
+});
