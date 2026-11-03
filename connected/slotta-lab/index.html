@@ -41,6 +41,7 @@ label{display:block;font-size:13px}.stage{position:relative;min-height:320px}
 import * as THREE from 'three';
 import {createSlottaBossAsset,animateSlottaBossAsset,createSlottaMinionAsset,animateSlottaMinionAsset} from '../assets/slotta_visuals.js';
 import {SLOTTA_ACTIONS,createSlottaAnimator,startSlottaAction,tickSlottaAnimator,slottaAnimationSnapshot} from '../assets/slotta_animation_machine.js';
+import {createSlottaMinionMotion,minionChoreographyStep} from '../assets/slotta_choreography.js';
 const stage=document.getElementById('stage'),renderer=new THREE.WebGLRenderer({antialias:!('ontouchstart' in window),alpha:false,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(stage.clientWidth,stage.clientHeight);renderer.setClearColor(0x0d1320);
 renderer.toneMapping=THREE.ACESFilmicToneMapping;stage.prepend(renderer.domElement);
@@ -51,6 +52,11 @@ const back=new THREE.PointLight(0x9b5cff,16,11);back.position.set(-2,3,-2);scene
 const ground=new THREE.Mesh(new THREE.CircleGeometry(3.4,48),new THREE.MeshStandardMaterial({color:0x222238,roughness:.8,metalness:.3}));ground.rotation.x=-Math.PI/2;ground.position.y=-.015;scene.add(ground);
 const camera=new THREE.PerspectiveCamera(46,1,.05,100);let yaw=.38,pitch=.23,dist=5.6,dragging=false,px=0,py=0;
 const model={boss:createSlottaBossAsset(),serpent:createSlottaMinionAsset('serpent'),clone:createSlottaMinionAsset('clone')};for(const m of Object.values(model)){scene.add(m);m.visible=false;}
+const targetDummy=new THREE.Mesh(new THREE.CapsuleGeometry(.34,1.05,4,10),
+ new THREE.MeshBasicMaterial({color:0xf4c678,transparent:true,opacity:.32,depthWrite:false}));
+targetDummy.position.set(0,1.0,0);targetDummy.visible=false;scene.add(targetDummy);
+const minionMotion={serpent:createSlottaMinionMotion('serpent',0),clone:createSlottaMinionMotion('clone',1)};
+function resetMinion(kind){minionMotion[kind]=createSlottaMinionMotion(kind,kind==='serpent'?0:1);model[kind].position.set(-2.7,0,kind==='serpent'?-1.15:1.15);}
 const $=id=>document.getElementById(id);
 const animator=createSlottaAnimator(),clip=$('clip'),timeline=$('timeline'),stateInfo=$('stateInfo');
 let speed=1,paused=false,repeat=false,selectedState='idle',showSockets=false,showHitbox=false;
@@ -71,7 +77,7 @@ const hitVisual=new THREE.Mesh(new THREE.CapsuleGeometry(.65,1.1,4,10),
  new THREE.MeshBasicMaterial({color:0xfaff9e,wireframe:true,transparent:true,opacity:.35,depthWrite:false}));
 hitVisual.position.y=1.2;hitVisual.visible=false;scene.add(hitVisual);
 clip.addEventListener('change',()=>{setAction(clip.value);select('boss');paused=true;$('pause').textContent='Resume';});
-$('play').addEventListener('click',()=>{select('boss');setAction(clip.value);paused=false;$('pause').textContent='Pause';});
+$('play').addEventListener('click',()=>{if(kind==='boss')setAction(clip.value);else resetMinion(kind);paused=false;$('pause').textContent='Pause';});
 $('pause').addEventListener('click',()=>{paused=!paused;$('pause').textContent=paused?'Resume':'Pause';});
 $('slow').addEventListener('click',()=>{speed=speed===1?.5:speed===.5?.25:1;$('slow').textContent='Speed '+speed+'×';});
 $('repeat').addEventListener('click',()=>{repeat=!repeat;$('repeat').textContent=repeat?'Repeat on':'Repeat off';});
@@ -83,7 +89,12 @@ timeline.addEventListener('input',()=>{
 $('sockets').addEventListener('change',e=>{showSockets=e.target.checked;});
 $('hitbox').addEventListener('change',e=>{showHitbox=e.target.checked;});
 document.querySelectorAll('button[data-camera]').forEach(b=>b.addEventListener('click',()=>{yaw=Number(b.dataset.camera);pitch=.15;dist=5.6;}));
-let kind='boss',clock=0;function select(next){kind=next;Object.entries(model).forEach(([key,val])=>val.visible=key===kind);document.querySelectorAll('button[data-kind]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.kind===kind)));}
+let kind='boss',clock=0;function select(next){
+ kind=next;Object.entries(model).forEach(([key,val])=>val.visible=key===kind);
+ targetDummy.visible=kind!=='boss';
+ if(kind!=='boss')resetMinion(kind);
+ document.querySelectorAll('button[data-kind]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.kind===kind)));
+}
 document.querySelectorAll('button[data-kind]').forEach(b=>b.addEventListener('click',()=>select(b.dataset.kind)));select('boss');
 const el=renderer.domElement;el.addEventListener('pointerdown',e=>{dragging=true;px=e.clientX;py=e.clientY;el.setPointerCapture(e.pointerId);});
 el.addEventListener('pointerup',()=>{dragging=false});el.addEventListener('pointermove',e=>{if(!dragging)return;yaw+=(e.clientX-px)*.009;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-py)*.006,-.5,1.1);px=e.clientX;py=e.clientY;});
@@ -100,7 +111,18 @@ let last=performance.now();function frame(now){requestAnimationFrame(frame);cons
   if(snap.state===selectedState&&Number.isFinite(duration))timeline.value=Math.round(snap.progress*1000);
   else if(snap.state==='idle'&&selectedState!=='idle')timeline.value='1000';
   stateInfo.textContent='STATE: '+snap.state+' | progress '+Math.round(snap.progress*100)+'% | '+(paused?'PAUSED':'PLAYING')+' | speed '+speed+'×';
- }else{animateSlottaMinionAsset(model[kind],clock*3.2);stateInfo.textContent='MINION PREVIEW: '+kind;}
+ }else{
+  const motion=minionMotion[kind],root=model[kind];
+  if(!paused){
+   const move=minionChoreographyStep(motion,dt*speed,root.position,{x:0,z:0});
+   root.position.set(move.x,move.elevation,move.z);root.rotation.y=move.yaw;
+   if(move.telegraph)addEffect({type:'telegraph'});
+   if(move.impact){addEffect({type:'cast'});resetMinion(kind);}
+  }
+  animateSlottaMinionAsset(root,clock*3.2,motion.stage,motion.side);
+  stateInfo.textContent='MINION: '+kind.toUpperCase()+' | '+motion.stage.toUpperCase()+
+    ' | '+(paused?'PAUSED':'PLAYING')+' | speed '+speed+'×';
+}
  scene.updateMatrixWorld(true);
  socketSpheres.forEach(({m,socket})=>{m.visible=showSockets&&kind==='boss';if(m.visible)socket.getWorldPosition(m.position);});
  hitVisual.visible=showHitbox&&kind==='boss';
