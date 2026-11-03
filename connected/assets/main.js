@@ -1207,16 +1207,8 @@ function tickCitySystems(dt){if(!P)return;const p=P.o.position;
 }
 let worldGripWarned=false,worldGripRetry=0,worldSwingLatch=false,worldGrabLatch=false,worldThrowLatch=false,worldGripActive=false,gripAxisX=0,gripAxisY=0;
 function update(dt){
- updateMorrow(dt);
  st.grinding=false;
- // Keep body state time-based, independent of the existing movement solver.
- bodyMachine.step(dt,0);
- // Keep proxy impact state anchored to the actual player, never integrate a second root.
- bodyMachine.position.x=P.o.position.x;bodyMachine.position.z=P.o.position.z;
- bodyMachine.position.y=Math.max(0,P.o.position.y-floorAt(P.o.position));
- if(FG.inFight&&!st.board&&pressed.KeyB){pressed.KeyB=false;FG.wantDodge=true;}
- const pad=pollPad();let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
- if(bodyMachine.mode==='fallen'&&(pressed.Space||pressed.KeyE)){bodyMachine.recover();pressed.Space=false;pressed.KeyE=false;}
+ // Single external-root physics step. The actual movement solver owns Metal's position.
  bodyMachine.step(dt,0,true);
  bodyMachine.position.x=P.o.position.x;bodyMachine.position.z=P.o.position.z;
  bodyMachine.position.y=Math.max(0,P.o.position.y-floorAt(P.o.position));
