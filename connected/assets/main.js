@@ -1059,7 +1059,19 @@ function updateSlottaBoss(dt){
    slottaPendingGame=null;
   }
  }
- slottaCombat.hitCooldown=Math.max(0,slottaCombat.hitCooldown-dt);slottaCombat.impactWindow=Math.max(0,slottaCombat.impactWindow-dt);if(slottaCombat.defeated)return;tickSlotta(slottaConsole,dt);slottaSnare=Math.max(0,slottaSnare-dt);slottaPhase=Math.max(0,slottaPhase-dt);slottaArmor=Math.max(0,slottaArmor-dt);slottaArena=Math.max(0,slottaArena-dt);slottaGravity=Math.max(0,slottaGravity-dt);if(slottaGravity>0&&P.o.position.distanceTo(morrow.slottaMesh.position)<18){vel.x*=Math.max(.2,1-dt*2);vel.z*=Math.max(.2,1-dt*2);}morrow.slottaMesh.traverse(o=>{if(o.isMesh&&o.material){o.material.transparent=slottaPhase>0;o.material.opacity=slottaPhase>0?.35:1;}});
+ slottaCombat.hitCooldown=Math.max(0,slottaCombat.hitCooldown-dt);
+ slottaCombat.impactWindow=Math.max(0,slottaCombat.impactWindow-dt);
+ if(slottaCombat.defeated||morrow.slotta.captured||morrow.slotta.escaped){
+  // A resolved encounter must not leave frozen procedural minions or orphaned effects.
+  slottaPendingGame=null;slottaDash=null;
+  for(const m of slottaMinions.splice(0)){
+   scene.remove(m.root);m.root.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});
+  }
+  for(const fx of slottaEffects.splice(0)){
+   scene.remove(fx.mesh);fx.mesh.geometry.dispose();fx.mesh.material.dispose();
+  }
+  return;
+ }tickSlotta(slottaConsole,dt);slottaSnare=Math.max(0,slottaSnare-dt);slottaPhase=Math.max(0,slottaPhase-dt);slottaArmor=Math.max(0,slottaArmor-dt);slottaArena=Math.max(0,slottaArena-dt);slottaGravity=Math.max(0,slottaGravity-dt);if(slottaGravity>0&&P.o.position.distanceTo(morrow.slottaMesh.position)<18){vel.x*=Math.max(.2,1-dt*2);vel.z*=Math.max(.2,1-dt*2);}morrow.slottaMesh.traverse(o=>{if(o.isMesh&&o.material){o.material.transparent=slottaPhase>0;o.material.opacity=slottaPhase>0?.35:1;}});
  const boss=morrow.slottaMesh,range=boss.position.distanceTo(P.o.position);
  updateSlottaDash(dt,boss);
  if(range<24&&!slottaAnnounced){slottaAnnounced=true;startSlottaAction(slottaAnimator,'intro');toast('BOSS: SLOTTA · PHATOM ENGINE · 3 ACTIVE / 5 STORED');}
