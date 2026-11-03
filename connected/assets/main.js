@@ -9,6 +9,7 @@ import {STORY_ENEMIES} from './story_enemies.js';
 import {createEncounter,stepEncounter} from './morrow_encounters.js';
 import {createSlottaLoadout,tickSlotta,activateSlot,swapSlot,SLOTTA_GAMES} from './slotta_slots.js';
 import {createSlottaAnimator,startSlottaAction,canStartSlottaAction,tickSlottaAnimator,slottaAnimationSnapshot,slottaAnimationForGame,SLOTTA_ACTIONS} from './slotta_animation_machine.js';
+import {createSlottaMinionMotion,minionChoreographyStep,slottaDashSweep,slottaDashTarget} from './slotta_choreography.js';
 import {createSlottaBossAsset,animateSlottaBossAsset,createSlottaMinionAsset,animateSlottaMinionAsset} from './slotta_visuals.js';
 import {createDirector,tickDirector,finishEncounter,witness,createImpactState,impactStructure,stepImpact} from './city_combat_director.js';
 import {BodyMachine} from './body_machine.js';
@@ -942,15 +943,30 @@ function factionActor(label,color,x,z,kind){
   attackCooldown:1.2+Math.random()*1.5,body:createCombatBody({x,y:groundY,z})});
  return root;
 }
-function updateFactionActors(dt){if(!P)return;for(const a of factionActors){if(a.kind==='slotta'&&(slottaCombat.defeated||morrow.slotta.captured||morrow.slotta.escaped)){a.root.visible=false;continue;}if(a===heldActor){a.attackCooldown=1;if(a.kind==='slotta')animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));continue;}a.attackCooldown=Math.max(0,(a.attackCooldown||0)-dt);const hostile=a.kind==='framebreaker'||a.kind==='reframer'||a.kind==='slotta';const delta=P.o.position.clone().sub(a.root.position).setY(0);const range=delta.length();const aiMoveAllowed=a.kind!=='slotta'||(SLOTTA_ACTIONS[slottaAnimator.state].loop&&!slottaDash);if(hostile&&aiMoveAllowed&&a.root.visible&&range<17&&a.body.state==='standing'){if(range>3&&range>0.01){a.home.addScaledVector(delta.normalize(),dt*(a.kind==='reframer'?1.8:2.5));}else if(a.attackCooldown<=0){const dir=delta.lengthSq()>.01?delta.normalize():new THREE.Vector3(0,0,1);vel.addScaledVector(dir,5);vel.y=Math.max(vel.y,1.8);a.attackCooldown=a.kind==='reframer'?2.8:1.8;toast(a.kind==='reframer'?'REFRAMER · kinetic strike':'FRAMEBREAKER · counterattack');}}a.phase+=dt*(a.kind==='reframer'?1.4:.7);if(a.kind==='slotta'){const locomotion=range<17?'walking':'idle';if(SLOTTA_ACTIONS[slottaAnimator.state].loop)startSlottaAction(slottaAnimator,locomotion);animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));}if(a.body.state!=='standing'){stepCombatBody(a.body,dt,groundY);a.root.position.set(a.body.position.x,a.body.position.y,a.body.position.z);a.root.rotation.z=Math.min(1.1,Math.hypot(a.body.velocity.x,a.body.velocity.z)*.07);if(a.body.state==='standing'){a.home.copy(a.root.position);a.root.rotation.z=0;}}else{a.root.position.x=a.home.x+Math.sin(a.phase)*2;a.root.position.z=a.home.z+Math.cos(a.phase)*2;a.root.rotation.y+=dt*.3;a.body.position.x=a.root.position.x;a.body.position.z=a.root.position.z;}}}
+function updateFactionActors(dt){if(!P)return;for(const a of factionActors){if(a.kind==='slotta'&&(slottaCombat.defeated||morrow.slotta.captured||morrow.slotta.escaped)){a.root.visible=false;continue;}if(a===heldActor){a.attackCooldown=1;if(a.kind==='slotta')animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));continue;}a.attackCooldown=Math.max(0,(a.attackCooldown||0)-dt);const hostile=a.kind==='framebreaker'||a.kind==='reframer'||a.kind==='slotta';const delta=P.o.position.clone().sub(a.root.position).setY(0);const range=delta.length();const aiMoveAllowed=a.kind!=='slotta'||(SLOTTA_ACTIONS[slottaAnimator.state].loop&&!slottaDash);if(hostile&&aiMoveAllowed&&a.root.visible&&range<17&&a.body.state==='standing'){if(range>3&&range>0.01){a.home.addScaledVector(delta.normalize(),dt*(a.kind==='reframer'?1.8:2.5));}else if(a.attackCooldown<=0){const dir=delta.lengthSq()>.01?delta.normalize():new THREE.Vector3(0,0,1);vel.addScaledVector(dir,5);vel.y=Math.max(vel.y,1.8);a.attackCooldown=a.kind==='reframer'?2.8:1.8;toast(a.kind==='reframer'?'REFRAMER · kinetic strike':'FRAMEBREAKER · counterattack');}}a.phase+=dt*(a.kind==='reframer'?1.4:.7);if(a.kind==='slotta'){const locomotion=range<17?'walking':'idle';if(SLOTTA_ACTIONS[slottaAnimator.state].loop)startSlottaAction(slottaAnimator,locomotion);animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));}if(a.body.state!=='standing'){stepCombatBody(a.body,dt,groundY);a.root.position.set(a.body.position.x,a.body.position.y,a.body.position.z);a.root.rotation.z=Math.min(1.1,Math.hypot(a.body.velocity.x,a.body.velocity.z)*.07);if(a.body.state==='standing'){a.home.copy(a.root.position);a.root.rotation.z=0;}}else{const slottaLocked=a.kind==='slotta'&&(!SLOTTA_ACTIONS[slottaAnimator.state].loop||slottaDash);a.root.position.x=a.home.x+(slottaLocked?0:Math.sin(a.phase)*2);a.root.position.z=a.home.z+(slottaLocked?0:Math.cos(a.phase)*2);a.root.rotation.y+=dt*.3;a.body.position.x=a.root.position.x;a.body.position.z=a.root.position.z;}}}
 
 // SLOTTA's backpack console: autonomous first-boss combat encounter.
-const slottaConsole=createSlottaLoadout(),slottaMinions=[];const slottaAnimator=createSlottaAnimator();let slottaPendingGame=null,slottaSelectedSlot=0,slottaDash=null,slottaDashGhostClock=0;let slottaAttackClock=2,slottaSnare=0,slottaAnnounced=false,slottaTurn=0,slottaSwapClock=0;const slottaEffects=[];
+const slottaConsole=createSlottaLoadout(),slottaMinions=[];let slottaSummonSerial=0;const slottaAnimator=createSlottaAnimator();let slottaPendingGame=null,slottaSelectedSlot=0,slottaDash=null,slottaDashGhostClock=0;let slottaAttackClock=2,slottaSnare=0,slottaAnnounced=false,slottaTurn=0,slottaSwapClock=0;const slottaEffects=[];
 function spawnSlottaMinion(kind,origin){
+ // Summons are budgeted for mobile and flank on opposite sides of the player.
+ const limit=kind==='serpent'?8:6;
+ if(slottaMinions.filter(m=>m.kind===kind).length>=limit)return false;
+ const index=slottaSummonSerial++,side=index%2===0?-1:1;
  const root=createSlottaMinionAsset(kind);
- root.position.copy(origin).add(new THREE.Vector3((Math.random()-.5)*2,0,(Math.random()-.5)*2));
+ root.position.copy(origin).add(new THREE.Vector3(side*(1.0+.17*(index%3)),0,-.65));
  scene.add(root);
- slottaMinions.push({root,kind,life:kind==='serpent'?11:18,hit:false,phase:Math.random()*6.28});
+ slottaMinions.push({root,kind,life:kind==='serpent'?11:18,hit:false,phase:index*.65,
+  motion:createSlottaMinionMotion(kind,index)});
+ return true;
+}
+// Box3 footprint check; keeps the same world colliders but avoids point-only tunnelling.
+function slottaBlockedAt(x,z,radius=.42){
+ for(const c of colliders){
+  if(!c?.min||!c?.max)continue;
+  if(c.max.y<=groundY+.35||c.min.y>=groundY+2.25)continue;
+  if(x+radius>c.min.x&&x-radius<c.max.x&&z+radius>c.min.z&&z-radius<c.max.z)return true;
+ }
+ return false;
 }
 function slottaEffect(kind,pos,radius=3,life=1.1){
  const colors={pulse:0x7b75ff,shield:0x47d3e5,jam:0xd448ed,strike:0xff8a49,
@@ -968,28 +984,25 @@ function slottaAfterimage(pos){
 }
 function updateSlottaDash(dt,boss){
  if(!slottaDash||!boss)return;
- const step=Math.min(slottaDash.remaining,Math.min(dt,.05)*25);
  const actor=factionActors.find(a=>a.root===boss);
  if(!actor){slottaDash=null;return;}
- // Keep the dash fast but collision-aware; no teleport or Metal movement.
- const count=Math.max(1,Math.ceil(step/.45)),part=step/count;
- for(let i=0;i<count;i++){
-  const next=boss.position.clone().addScaledVector(slottaDash.direction,part);
-  const probe=next.clone().setY(groundY+1.1);
-  if(colliders.some(c=>c.containsPoint(probe))){slottaDash=null;break;}
-  boss.position.copy(next);actor.home.copy(next);
-  actor.body.position.x=next.x;actor.body.position.z=next.z;
-  if(!slottaDash)break;
-  slottaDash.remaining-=part;
- }
- if(!slottaDash)return;
+ const distance=Math.min(slottaDash.remaining,Math.max(0,Math.min(dt,.05))*25);
+ const move=slottaDashSweep({x:boss.position.x,z:boss.position.z},
+  {x:slottaDash.direction.x,z:slottaDash.direction.z},distance,
+  (x,z)=>slottaBlockedAt(x,z,.52));
+ boss.position.x=move.x;boss.position.z=move.z;
+ actor.home.copy(boss.position);actor.body.position.x=move.x;actor.body.position.z=move.z;
+ slottaDash.remaining=Math.max(0,slottaDash.remaining-move.travelled);
  slottaDashGhostClock-=dt;
- if(slottaDashGhostClock<=0){slottaAfterimage(boss.position);slottaDashGhostClock=.085;}
+ if(move.travelled>.001&&slottaDashGhostClock<=0){
+  slottaAfterimage(boss.position);slottaDashGhostClock=.085;
+ }
  if(!slottaDash.hit&&boss.position.distanceTo(P.o.position)<1.7){
   const d=slottaDash.direction;vel.x+=d.x*6;vel.z+=d.z*6;vel.y=Math.max(vel.y,1.1);
   slottaDash.hit=true;slottaEffect('dash',boss.position,1.5,.5);
  }
- if(slottaDash.remaining<=0)slottaDash=null;
+ if(move.blocked){slottaEffect('dash',boss.position,1.1,.4);}
+ if(move.blocked||slottaDash.remaining<=.001)slottaDash=null;
 }
 let slottaPhase=0,slottaArmor=0,slottaArena=0,slottaGravity=0;
 function slottaUseGame(game,boss,range){
@@ -1003,7 +1016,8 @@ function slottaUseGame(game,boss,range){
   for(let i=0;i<2;i++)spawnSlottaMinion('clone',boss.position);break;
  case 'phantom-racer':
   if(toward.lengthSq()>.001){
-   slottaDash={direction:toward.clone(),remaining:8.5,hit:false};
+   const path=slottaDashTarget(boss.position,P.o.position,{min:4,max:8.5});
+   slottaDash={direction:new THREE.Vector3(path.x,0,path.z),remaining:path.length,hit:false};
    slottaDashGhostClock=0;
    slottaEffect('dash',boss.position,2,.6);
   }break;
@@ -1047,6 +1061,7 @@ function updateSlottaBoss(dt){
     if(game){idx=k;slottaTurn=(k+1)%3;break;}
    }
    if(game&&startSlottaAction(slottaAnimator,'select')){
+    const actor=factionActors.find(a=>a.root===boss);if(actor)actor.home.copy(boss.position);
     slottaPendingGame=game;slottaSelectedSlot=idx;
     const visual=boss.userData.slottaRig;if(visual)visual.selectedSlot=idx;
     slottaEffect('select',boss.position,1.7,.65);
@@ -1063,12 +1078,25 @@ function updateSlottaBoss(dt){
    }
   }
  }
- for(let i=slottaMinions.length-1;i>=0;i--){const m=slottaMinions[i];m.life-=dt;m.phase+=dt*7;
-  const delta=P.o.position.clone().sub(m.root.position).setY(0),distance=delta.length();
-  if(distance>.15){m.root.position.addScaledVector(delta.normalize(),Math.min(distance,dt*(m.kind==='serpent'?5:3.2)));}
-  m.root.rotation.y+=dt*3;m.root.position.y=groundY+Math.sin(m.phase)*.14;animateSlottaMinionAsset(m.root,m.phase);
-  if(distance<1.5&&!m.hit){m.hit=true;if(m.kind==='serpent'){slottaSnare=Math.max(slottaSnare,4);toast('CIRCUIT SERPENT · Gallium jammed for 4s');}else{vel.x*=.45;vel.z*=.45;toast('CYBORG CLONE · impact');}}
-  if(m.life<=0||m.hit){scene.remove(m.root);m.root.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});slottaMinions.splice(i,1);}
+ for(let i=slottaMinions.length-1;i>=0;i--){
+  const m=slottaMinions[i];m.life-=dt;m.phase+=dt*(m.kind==='serpent'?8:5);
+  const move=minionChoreographyStep(m.motion,dt,m.root.position,P.o.position,
+   (x,z)=>slottaBlockedAt(x,z,m.kind==='serpent'?.25:.38));
+  m.root.position.set(move.x,groundY+move.elevation+Math.sin(m.phase)*.07,move.z);
+  m.root.rotation.y=move.yaw;
+  animateSlottaMinionAsset(m.root,m.phase,move.stage,m.motion.side);
+  if(move.telegraph)slottaEffect(m.kind==='serpent'?'serpent':'clone',m.root.position,
+   m.kind==='serpent'?1.3:1.65,.36);
+  if(move.impact&&!m.hit){
+   m.hit=true;
+   if(m.kind==='serpent'){slottaSnare=Math.max(slottaSnare,4);toast('CIRCUIT SERPENT · Gallium jammed for 4s');}
+   else{vel.x*=.45;vel.z*=.45;toast('CYBORG CLONE · impact');}
+   slottaEffect(m.kind==='serpent'?'serpent':'clone',m.root.position,1.2,.35);
+  }
+  if(m.life<=0||m.hit){
+   scene.remove(m.root);m.root.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});
+   slottaMinions.splice(i,1);
+  }
  }
 }
 function initMorrow(){
