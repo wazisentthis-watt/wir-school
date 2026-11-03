@@ -909,7 +909,7 @@ function update(dt){
  const lt=!!(gpWorld?.buttons[6]?.pressed||gpWorld?.buttons[6]?.value>.35||gpWorld?.axes?.[4]>.35),lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!(gpWorld?.buttons[7]?.pressed||gpWorld?.buttons[7]?.value>.35);
  updateCrownCharge(dt,gpWorld);worldGripActive=lt&&!rt;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
  if(rt&&!lt){riftPressTime+=dt;if(riftPressTime>=.16&&!combatBlastLatch){riffStep();combatBlastLatch=true;}}else{riftPressTime=0;combatBlastLatch=false;}if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
- if(rb&&!lt&&!worldSwingLatch){if(slottaSnare>0)toast('Circuit Serpents: swing disabled');else{pressed.KeyQ=true;keys.KeyQ=true;}}if((!rb||lt)&&worldSwingLatch)keys.KeyQ=false;worldSwingLatch=rb&&!lt;
+ if(rb&&!lt&&!worldSwingLatch){if(slottaSnare>0)toast('Circuit Serpents: swing disabled');else{pressed.KeyQ=true;keys.KeyQ=true;}}if(!rb||lt||slottaSnare>0)keys.KeyQ=false;worldSwingLatch=rb&&!lt&&slottaSnare<=0;
  if((lt&&!rt&&!heldCar&&worldGripRetry<=0)||tap('KeyU')){if(slottaSnare>0)toast('Circuit Serpents disrupting Galaxy Gallium');else galliumGrabWorld();worldGripRetry=.4;}else worldGripRetry=Math.max(0,worldGripRetry-dt);
  if((lt&&lb&&!worldThrowLatch)||tap('KeyI')){slingCar();clearGripVisual();gripTarget=null;}
  if(!lt){worldGripWarned=false;worldGripRetry=0;}worldGrabLatch=lt;worldThrowLatch=lt&&lb;
