@@ -51,8 +51,8 @@ const back=new THREE.PointLight(0x9b5cff,16,11);back.position.set(-2,3,-2);scene
 const ground=new THREE.Mesh(new THREE.CircleGeometry(3.4,48),new THREE.MeshStandardMaterial({color:0x222238,roughness:.8,metalness:.3}));ground.rotation.x=-Math.PI/2;ground.position.y=-.015;scene.add(ground);
 const camera=new THREE.PerspectiveCamera(46,1,.05,100);let yaw=.38,pitch=.23,dist=5.6,dragging=false,px=0,py=0;
 const model={boss:createSlottaBossAsset(),serpent:createSlottaMinionAsset('serpent'),clone:createSlottaMinionAsset('clone')};for(const m of Object.values(model)){scene.add(m);m.visible=false;}
-const animator=createSlottaAnimator(),clip=$('clip'),timeline=$('timeline'),stateInfo=$('stateInfo');
 const $=id=>document.getElementById(id);
+const animator=createSlottaAnimator(),clip=$('clip'),timeline=$('timeline'),stateInfo=$('stateInfo');
 let speed=1,paused=false,repeat=false,selectedState='idle',showSockets=false,showHitbox=false;
 for(const state of Object.keys(SLOTTA_ACTIONS)){const o=document.createElement('option');o.value=state;o.textContent=state.replace(/[A-Z]/g,s=>' '+s).replace(/^./,x=>x.toUpperCase());clip.append(o);}
 function setAction(state){selectedState=state;startSlottaAction(animator,state,{force:true});clip.value=state;timeline.value='0';}
