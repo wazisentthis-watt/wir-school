@@ -1262,7 +1262,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  if(st.wall){const w=st.wall;const f=new THREE.Vector3().copy(w.t).multiplyScalar(w.side).setY(w.up);if(f.lengthSq()<.01)f.set(0,1,0);f.normalize();const x=new THREE.Vector3().crossVectors(w.n,f).normalize();f.crossVectors(x,w.n);_wm.makeBasis(x,w.n,f);_wq.setFromRotationMatrix(_wm);P.o.quaternion.slerp(_wq,1);}
  swingOrient(dt);
  // animation select
- actT-=dt;if(actT<=0&&(P.cur.loop!==THREE.LoopOnce||!P.cur.isRunning())){
+ actT-=dt;if(actT<=0&&(!P.cur||P.cur.loop!==THREE.LoopOnce||!P.cur.isRunning())){
   if(st.flying)plA('Flight','Jump');else if(st.swing)plA('Swing','Jump');else if(st.board&&st.wall)plA('Wallride','Skate');else if(st.board)skateAnim(onGround);else footAnim(hs);}
  if(st.board){if(st.boardFree>0){st.boardFree-=dt;}else{ // BOARD LOCK: board stays attached under the LEFT (prosthetic) foot while riding; only bail (B) or kick-off (Space) separates. Mechanism (Gallium film / magnetic) = OPEN
   if(st.wall||swingTilted())board.quaternion.copy(P.o.quaternion);else board.rotation.set(0,yaw,0);
