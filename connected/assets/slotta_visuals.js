@@ -112,34 +112,73 @@ export function animateSlottaBossAsset(root,dt,mode='idle'){
  rig.pack.rotation.z=Math.sin(t*1.6)*.024;
  applySlottaPose(rig,typeof mode==='string'?{state,progress:0}:mode);
 }
+// Minions have independent combat poses. No external rig or imported textures required.
 export function createSlottaMinionAsset(kind){
  const m=materials(),root=new THREE.Group();root.name=kind==='serpent'?'Circuit Serpent':'Cyborg Clone';
- const parts=[];
+ const rig={kind,parts:[],arms:[],legs:[],head:null,torso:null,clock:0};
  if(kind==='serpent'){
-  for(let i=0;i<8;i++){
-   const part=sphere(root,'serpent_link_'+i,i===7?.17:.13,i%3===0?m.cyan:m.purple);
-   part.scale.set(.94,.77,1.14);parts.push(part);
+  // Nine articulated segments make a long, readable arcade serpent silhouette.
+  for(let i=0;i<9;i++){
+   const r=Math.max(.075,.235-i*.019);
+   const body=sphere(root,'serpent_link_'+i,r,i%3===0?m.cyan:m.purple);
+   body.scale.set(1,.83,1.13);rig.parts.push(body);
   }
-  sphere(root,'serpent_eye_L',.045,m.orange,-.065,.09,.14);
-  sphere(root,'serpent_eye_R',.045,m.orange,.065,.09,.14);
+  const head=rig.parts[0];rig.head=head;head.scale.set(1.13,.95,1.32);
+  sphere(head,'serpent_eye_L',.043,m.orange,-.105,.09,.12);
+  sphere(head,'serpent_eye_R',.043,m.orange,.105,.09,.12);
+  const fangL=add(head,'serpent_fang_L',new THREE.ConeGeometry(.034,.14,5),m.silver,-.11,-.12,.17);
+  const fangR=add(head,'serpent_fang_R',new THREE.ConeGeometry(.034,.14,5),m.silver,.11,-.12,.17);
+  fangL.rotation.x=fangR.rotation.x=Math.PI;
+  rig.tongue=box(head,'serpent_circuit_tongue',.025,.018,.18,m.orange,0,-.06,.26);
  }else{
-  box(root,'clone_torso',.55,.7,.3,m.armor,0,1.16,0);
-  sphere(root,'clone_head',.21,m.silver,0,1.72,0);
-  box(root,'clone_visor',.33,.07,.04,m.cyan,0,1.72,.21);
+  rig.torso=new THREE.Group();rig.torso.name='clone_chest_joint';root.add(rig.torso);
+  box(rig.torso,'clone_torso',.56,.72,.33,m.armor,0,1.16,0);
+  box(rig.torso,'clone_core',.18,.17,.055,m.orange,0,1.20,.19);
+  const head=new THREE.Group();head.name='clone_head_joint';head.position.set(0,1.71,0);rig.torso.add(head);rig.head=head;
+  sphere(head,'clone_skull',.22,m.silver);
+  box(head,'clone_visor',.35,.074,.06,m.cyan,0,.03,.205);
   for(const side of [-1,1]){
-   box(root,'clone_arm_'+side,.16,.57,.18,m.gun,side*.39,1.13,0);
-   box(root,'clone_leg_'+side,.22,.72,.25,m.gun,side*.17,.43,0);
+   const arm=new THREE.Group();arm.name='clone_arm_joint_'+side;
+   arm.position.set(side*.39,1.41,0);rig.torso.add(arm);
+   box(arm,'clone_upper_arm_'+side,.185,.52,.19,m.gun,0,-.24,0);
+   box(arm,'clone_gauntlet_'+side,.20,.17,.21,m.purple,0,-.54,.035);
+   rig.arms.push(arm);
+   const leg=new THREE.Group();leg.name='clone_leg_joint_'+side;
+   leg.position.set(side*.18,.83,0);root.add(leg);
+   box(leg,'clone_pants_'+side,.23,.67,.25,m.gun,0,-.34,0);
+   box(leg,'clone_boot_'+side,.24,.20,.39,m.armor,0,-.73,.07);
+   rig.legs.push(leg);
   }
  }
- root.userData.slottaMinionRig={kind,parts};
+ root.userData.slottaMinionRig=rig;
  return root;
 }
-export function animateSlottaMinionAsset(root,phase){
+export function animateSlottaMinionAsset(root,phase,stage='approach',side=1){
  const rig=root?.userData?.slottaMinionRig;if(!rig)return;
+ const t=Number.isFinite(phase)?phase:0,flank=stage==='orbit',lunge=stage==='lunge';
  if(rig.kind==='serpent'){
-  rig.parts.forEach((p,i)=>{const a=i/Math.max(1,rig.parts.length-1);
-   p.position.set(Math.sin(phase*1.6-a*7)*.22,.2+a*.85,Math.cos(phase*1.3-a*7)*.2);
-   p.scale.setScalar(.82+Math.sin(phase*2+a*5)*.06);
+  const stiffness=lunge?.29:flank?.23:.17,headZ=lunge?.15:.44;
+  rig.parts.forEach((p,i)=>{
+   const a=i/Math.max(1,rig.parts.length-1);
+   p.position.set(Math.sin(t*1.36-i*.81)*stiffness*(.4+a),
+    .29+Math.sin(t*1.55-i*.52)*.11+(lunge?Math.sin(a*Math.PI)*.19:0),
+    headZ-i*.18);
+   p.rotation.y=Math.cos(t*1.36-i*.72)*.30;
+   const taper=i===0?1:Math.max(.42,1-a*.65);
+   p.scale.set((i===0?1.13:1)*taper,(i===0?.95:.83)*taper,(i===0?1.32:1.13)*taper);
   });
- }else{root.rotation.z=Math.sin(phase*.7)*.05;}
+  rig.tongue.scale.z=lunge?1.9:flank?1.3:.8;
+  root.rotation.z=flank?Math.sin(t*1.1)*.10:0;
+ }else{
+  const run=lunge?1.8:flank?1.1:.85;
+  rig.arms[0].rotation.x=Math.sin(t*1.4)*.68*run;
+  rig.arms[1].rotation.x=-Math.sin(t*1.4)*.68*run;
+  rig.arms[0].rotation.z=flank?-.34:0;rig.arms[1].rotation.z=flank?.34:0;
+  rig.legs[0].rotation.x=Math.sin(t*1.4)*.65*run;
+  rig.legs[1].rotation.x=-Math.sin(t*1.4)*.65*run;
+  rig.torso.rotation.x=lunge?.33:stage==='recover'?-.15:0;
+  rig.head.rotation.y=flank?side*.32:Math.sin(t*.29)*.11;
+  root.rotation.z=flank?side*.09:0;
+  root.scale.setScalar(stage==='spawn'?Math.max(.45,Math.min(1,.45+t*.14)):1);
+ }
 }
