@@ -25,7 +25,7 @@ test('runtime QA hooks require an explicit query parameter and hold the backgrou
 });
 test('QA mode protects Metal save and persistent profile writes',()=>{
  const main=read('../assets/main.js');
- assert.match(main,/if\(!SLOTTA_BROWSER_QA\)localStorage\.setItem\(PKEY/);
+ assert.match(main,/if\(!SLOTTA_BROWSER_QA\)\{try\{safeStorage\.setItem\(PKEY/);
  assert.match(main,/if\(SLOTTA_BROWSER_QA\|\|!P\|\|!metalStoryReady\)return false/);
 });
 test('tests call actual live world combat functions, then restore isolated actor state',()=>{
