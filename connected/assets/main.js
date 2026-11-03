@@ -246,7 +246,7 @@ let controllerLegend=null,controllerSeen=false;
 function showControllerLegend(){
  if(!controllerLegend){controllerLegend=document.createElement('div');controllerLegend.id='controllerLegend';
  controllerLegend.style.cssText='position:fixed;right:12px;top:62px;z-index:20;max-width:240px;background:#10131fee;color:#f4f1ff;border:1px solid #9876e8;border-radius:12px;padding:12px;font:12px/1.6 system-ui;box-shadow:0 4px 20px #0008';
- controllerLegend.innerHTML='<b>🎮 METAL · CONTROLLER</b><br>Left stick: move · Right stick: camera<br>A: jump / recover · B: dodge / combat<br>X: left combat action · Y: right combat action<br>LB: alternate action · RB: structure swing<br>LB: Gallium grab / right stick move · LT: charge · RT: RIFFT Step<br><b>LB + right stick:</b> move suspended car<br><b>LB + RT:</b> throw held car<br>D-pad: actions · Menu: profile<br><small>H: hide/show this guide · Keyboard U/I: car grab/throw</small>';
+ controllerLegend.innerHTML='<b>🎮 METAL · CONTROLLER</b><br>Left stick: move · Right stick: camera<br>A: jump / recover · B: dodge / combat<br>X: left combat action · Y: right combat action<br>LB: Gallium grab · RB: Gallium swing<br>LT: valence charge · RT: RIFFT Step<br><b>LB + right stick:</b> move suspended car<br><b>LB + RT:</b> throw held car<br>D-pad: actions · Menu: profile<br><small>H: hide/show this guide · Keyboard U/I: car grab/throw</small>';
  document.body.append(controllerLegend);}
  controllerLegend.style.display=controllerLegend.style.display==='none'?'block':'none';
 }
@@ -822,7 +822,7 @@ function galliumGrabWorld(){if(!P)return;
  // Every registered solid building collider is an eligible Gallium anchor, not just cars.
  for(const b of colliders){if(!b.min||!b.max)continue;const box=new THREE.Box3(b.min,b.max);const hit=ray.intersectBox(box,new THREE.Vector3());if(hit){const along=hit.distanceTo(origin);if(along>0)choices.push({object:null,point:hit.clone(),along,score:0,type:'structure'});}}
  choices.sort((a,b)=>a.score-b.score||a.along-b.along);
- const chosen=choices.find(c=>c.type!=='structure'&&c.score<3&&c.along<28)||choices.find(c=>c.type==='structure')||choices[0];
+ const chosen=choices.find(c=>c.type!=='structure'&&c.score<3&&c.along<28)||choices.find(c=>c.type==='structure'&&c.along<45)||null;
  if(!chosen){const far=origin.clone().addScaledVector(direction,42);leaveGalliumTrail(origin,far);toast('GALAXY GALLIUM · FREEFORM ANCHOR');return;}
  if(chosen.type==='structure'){const marker={position:chosen.point.clone()};showGalliumHand(marker);const size=new THREE.Vector3(1,1,1);const box=colliders.find(b=>b.min&&b.max&&new THREE.Box3(b.min,b.max).containsPoint(chosen.point.clone().addScaledVector(direction,.08)));if(box)size.subVectors(box.max,box.min);size.clamp(new THREE.Vector3(.5,.5,.5),new THREE.Vector3(12,18,12));const mesh=new THREE.Mesh(new THREE.BoxGeometry(size.x,size.y,size.z),new THREE.MeshStandardMaterial({color:0x7664a0,transparent:true,opacity:.27,metalness:.8,emissive:0x6326aa,emissiveIntensity:.2,depthWrite:false}));mesh.position.copy(box?new THREE.Vector3().addVectors(box.min,box.max).multiplyScalar(.5):chosen.point);scene.add(mesh);structureGrip={mesh,marker,point:chosen.point.clone(),base:mesh.position.clone(),offset:new THREE.Vector3()};toast('KODA · STRUCTURE GRIPPED · RIGHT STICK TO BEND');return;}
  showGalliumHand(chosen.object);leaveGalliumTrail(origin,chosen.point);
@@ -936,11 +936,11 @@ function update(dt){
  const pad=pollPad();
  if(pad&&!controllerSeen){controllerSeen=true;/* guide available on H, not forced over gameplay */}
  tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);updateMetalBlasts(dt);updateGalliumPhysics(dt);updateSlottaBoss(dt);
- // Xbox-style chord: hold LT + LB to grapple a nearby vehicle, LT + RT to sling it.
+ // Controller contract: LB grabs, RB swings, LT charges, RT RIFFT Steps; LB+RT throws a held car.
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
  const lt=!!(gpWorld?.buttons[6]?.pressed||gpWorld?.buttons[6]?.value>.35||gpWorld?.axes?.[4]>.35),lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!(gpWorld?.buttons[7]?.pressed||gpWorld?.buttons[7]?.value>.35);
  updateCrownCharge(dt,gpWorld);worldGripActive=lb;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
- if(rt&&!lt){riftPressTime+=dt;if(riftPressTime>=.16&&!combatBlastLatch){riffStep();combatBlastLatch=true;}}else{riftPressTime=0;combatBlastLatch=false;}if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
+ if(rt&&!lt&&!lb){riftPressTime+=dt;if(riftPressTime>=.16&&!combatBlastLatch){riffStep();combatBlastLatch=true;}}else{riftPressTime=0;combatBlastLatch=false;}if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
  if(rb&&!lb&&!worldSwingLatch){if(slottaSnare>0)toast('Circuit Serpents: swing disabled');else{pressed.KeyQ=true;keys.KeyQ=true;}}if(!rb||lb||slottaSnare>0)keys.KeyQ=false;worldSwingLatch=rb&&!lb&&slottaSnare<=0;
  if((lb&&!heldCar&&!heldCitizen&&!gripTarget&&worldGripRetry<=0)||tap('KeyU')){if(slottaSnare>0)toast('Circuit Serpents disrupting Galaxy Gallium');else galliumGrabWorld();worldGripRetry=.4;}else worldGripRetry=Math.max(0,worldGripRetry-dt);
  if((lb&&rt&&!worldThrowLatch)||tap('KeyI')){slingCar();clearGripVisual();gripTarget=null;}
