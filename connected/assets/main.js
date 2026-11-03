@@ -1054,6 +1054,7 @@ function updateSlottaBoss(dt){
    }else if(!game&&slottaSwapClock<=0){
     const stored=slottaConsole.stored.findIndex(id=>id&&SLOTTA_GAMES.some(g=>g.id===id));
     if(stored>=0&&swapSlot(slottaConsole,slottaTurn,stored)){
+     const visual=boss.userData.slottaRig;if(visual){visual.selectedSlot=slottaTurn;visual.selectedStorageSlot=stored;}
      slottaSwapClock=2.5;
      startSlottaAction(slottaAnimator,'swap');
      toast('SLOTTA · PHATOM BACKPACK · SWITCHING GAME');
