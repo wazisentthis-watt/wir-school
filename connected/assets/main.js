@@ -6,7 +6,7 @@ import {createCombatBody,applyCombatHit,stepCombatBody,blastDirection} from './m
 import * as THREE from 'three';
 import {STORY_ENEMIES} from './story_enemies.js';
 import {createEncounter,stepEncounter} from './morrow_encounters.js';
-import {createSlottaLoadout,tickSlotta,activateSlot} from './slotta_slots.js';
+import {createSlottaLoadout,tickSlotta,activateSlot,swapSlot,SLOTTA_GAMES} from './slotta_slots.js';
 import {createDirector,tickDirector,finishEncounter,witness,createImpactState,impactStructure,stepImpact} from './city_combat_director.js';
 import {BodyMachine} from './body_machine.js';
 import {WorldBody} from './world_body.js';
@@ -842,7 +842,7 @@ function factionActor(label,color,x,z,kind){const root=new THREE.Group();root.na
 function updateFactionActors(dt){if(!P)return;for(const a of factionActors){a.attackCooldown=Math.max(0,(a.attackCooldown||0)-dt);const hostile=a.kind==='framebreaker'||a.kind==='reframer'||a.kind==='slotta';const delta=P.o.position.clone().sub(a.root.position).setY(0);const range=delta.length();if(hostile&&a.root.visible&&range<17&&a.body.state==='standing'){if(range>3&&range>0.01){a.home.addScaledVector(delta.normalize(),dt*(a.kind==='reframer'?1.8:2.5));}else if(a.attackCooldown<=0){const dir=delta.lengthSq()>.01?delta.normalize():new THREE.Vector3(0,0,1);vel.addScaledVector(dir,5);vel.y=Math.max(vel.y,1.8);a.attackCooldown=a.kind==='reframer'?2.8:1.8;toast(a.kind==='reframer'?'REFRAMER · kinetic strike':'FRAMEBREAKER · counterattack');}}a.phase+=dt*(a.kind==='reframer'?1.4:.7);if(a.body.state!=='standing'){stepCombatBody(a.body,dt,groundY);a.root.position.set(a.body.position.x,a.body.position.y,a.body.position.z);a.root.rotation.z=Math.min(1.1,Math.hypot(a.body.velocity.x,a.body.velocity.z)*.07);if(a.body.state==='standing'){a.home.copy(a.root.position);a.root.rotation.z=0;}}else{a.root.position.x=a.home.x+Math.sin(a.phase)*2;a.root.position.z=a.home.z+Math.cos(a.phase)*2;a.root.rotation.y+=dt*.3;a.body.position.x=a.root.position.x;a.body.position.z=a.root.position.z;}}}
 
 // SLOTTA's backpack console: autonomous first-boss combat encounter.
-const slottaConsole=createSlottaLoadout(),slottaMinions=[];let slottaAttackClock=2,slottaSnare=0,slottaAnnounced=false;
+const slottaConsole=createSlottaLoadout(),slottaMinions=[];let slottaAttackClock=2,slottaSnare=0,slottaAnnounced=false,slottaTurn=0,slottaSwapClock=0;const slottaEffects=[];
 function spawnSlottaMinion(kind,origin){
  const color=kind==='serpent'?0x7a34e5:0x58d5ef;
  const root=new THREE.Group(),body=new THREE.Mesh(new THREE.CapsuleGeometry(kind==='serpent'?.17:.33,kind==='serpent'?.9:1.1,4,7),new THREE.MeshStandardMaterial({color,metalness:.85,roughness:.28,emissive:color,emissiveIntensity:.28}));
@@ -851,17 +851,34 @@ function spawnSlottaMinion(kind,origin){
  root.position.copy(origin).add(new THREE.Vector3((Math.random()-.5)*2,0,(Math.random()-.5)*2));scene.add(root);
  slottaMinions.push({root,kind,life:kind==='serpent'?11:18,hit:false,phase:Math.random()*6.28});
 }
+function slottaEffect(kind,pos,radius=3,life=1.1){const colors={pulse:0x7b75ff,shield:0x47d3e5,jam:0xd448ed,strike:0xff8a49};const mesh=new THREE.Mesh(new THREE.TorusGeometry(radius,.09,6,32),new THREE.MeshBasicMaterial({color:colors[kind]||0xffffff,transparent:true,opacity:.8}));mesh.rotation.x=Math.PI/2;mesh.position.copy(pos);mesh.position.y=groundY+.16;scene.add(mesh);slottaEffects.push({mesh,life,max:life});}
+function slottaUseGame(game,boss,range){
+ const toward=P.o.position.clone().sub(boss.position).setY(0).normalize();
+ switch(game.id){
+ case 'slither-master':for(let j=0;j<2;j++)spawnSlottaMinion('serpent',boss.position);break;
+ case 'ninja-star':for(let j=0;j<2;j++)spawnSlottaMinion('clone',boss.position);break;
+ case 'phantom-racer':boss.position.addScaledVector(toward,-Math.min(8,range*.45));break;
+ case 'iron-arena':slottaEffect('strike',boss.position,3);if(range<5){vel.addScaledVector(toward,8);vel.y=Math.max(vel.y,2);}break;
+ case 'ghost-frequency':slottaEffect('jam',boss.position,6);if(range<12)slottaSnare=Math.max(slottaSnare,2.5);break;
+ case 'beast-byte':spawnSlottaMinion('clone',boss.position);break;
+ case 'gravity-jam':slottaEffect('pulse',boss.position,8);if(range<9){vel.x*=.3;vel.z*=.3;vel.y=Math.min(vel.y,1);}break;
+ case 'tower-zero':slottaEffect('shield',boss.position,3,2.5);break;
+ }
+ toast('SLOTTA · '+game.name.toUpperCase()+' · '+game.move.toUpperCase());
+}
 function updateSlottaBoss(dt){
  if(!P||!morrow.slottaMesh)return;
  tickSlotta(slottaConsole,dt);slottaSnare=Math.max(0,slottaSnare-dt);
  const boss=morrow.slottaMesh,range=boss.position.distanceTo(P.o.position);
  if(range<24&&!slottaAnnounced){slottaAnnounced=true;toast('BOSS: SLOTTA · SLITHER MASTER + NINJA STAR');}
+ for(let i=slottaEffects.length-1;i>=0;i--){const fx=slottaEffects[i];fx.life-=dt;fx.mesh.material.opacity=Math.max(0,fx.life/fx.max)*.8;fx.mesh.scale.setScalar(1+(1-fx.life/fx.max)*.45);if(fx.life<=0){scene.remove(fx.mesh);fx.mesh.geometry.dispose();fx.mesh.material.dispose();slottaEffects.splice(i,1);}}
  if(range<25&&!morrow.slotta.captured&&!morrow.slotta.escaped){
-  slottaAttackClock-=dt;
-  if(slottaAttackClock<=0){const idx=slottaConsole.cooldowns['slither-master']<=0?0:1;const game=activateSlot(slottaConsole,idx);
-   if(game){if(game.id==='slither-master'){for(let j=0;j<2;j++)spawnSlottaMinion('serpent',boss.position);toast('SLOTTA: CIRCUIT SERPENTS');}
-   else if(game.id==='ninja-star'){for(let j=0;j<2;j++)spawnSlottaMinion('clone',boss.position);toast('SLOTTA: CYBORG CLONES');}}
-   slottaAttackClock=2.8;
+  slottaAttackClock-=dt;slottaSwapClock-=dt;
+  if(slottaAttackClock<=0){
+   let game=null;for(let n=0;n<3;n++){const idx=(slottaTurn+n)%3;game=activateSlot(slottaConsole,idx);if(game){slottaTurn=(idx+1)%3;break;}}
+   if(game)slottaUseGame(game,boss,range);
+   else if(slottaSwapClock<=0){const stored=slottaConsole.stored.findIndex(id=>id&&SLOTTA_GAMES.some(g=>g.id===id));if(stored>=0&&swapSlot(slottaConsole,slottaTurn,stored)){slottaSwapClock=2.5;toast('SLOTTA · PHANTOM BACKPACK · SWITCHING GAME');}}
+   slottaAttackClock=game?2.8:1.1;
   }
  }
  for(let i=slottaMinions.length-1;i>=0;i--){const m=slottaMinions[i];m.life-=dt;m.phase+=dt*7;
