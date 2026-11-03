@@ -1,3 +1,4 @@
+import {createCombatBody,applyCombatHit,stepCombatBody,blastDirection} from './metal_combat_physics.js';
 // WIR: Connected — unified open-world prototype (HTML/JS per Coach's decisions; Godot later).
 // Sources: [S1] Metal InDa RIFFT, [S3] Valence Life, [S4] Retro Bowl, [S5] Stay On Page, attunement packet.
 // Anything not stated in those sources is labelled PROPOSAL. Code is original; libs MIT, assets CC0.
@@ -243,7 +244,7 @@ let controllerLegend=null,controllerSeen=false;
 function showControllerLegend(){
  if(!controllerLegend){controllerLegend=document.createElement('div');controllerLegend.id='controllerLegend';
  controllerLegend.style.cssText='position:fixed;right:12px;top:62px;z-index:20;max-width:240px;background:#10131fee;color:#f4f1ff;border:1px solid #9876e8;border-radius:12px;padding:12px;font:12px/1.6 system-ui;box-shadow:0 4px 20px #0008';
- controllerLegend.innerHTML='<b>🎮 METAL · CONTROLLER</b><br>Left stick: move · Right stick: camera<br>A: jump / recover · B: dodge / combat<br>X: left combat action · Y: right combat action<br>LB: alternate action · RB: structure swing<br>LT: aim/grapple car · RT: mapped action<br><b>LT + right stick:</b> move suspended car<br><b>LT + RT:</b> throw held car<br>D-pad: actions · Menu: profile<br><small>H: hide/show this guide · Keyboard U/I: car grab/throw</small>';
+ controllerLegend.innerHTML='<b>🎮 METAL · CONTROLLER</b><br>Left stick: move · Right stick: camera<br>A: jump / recover · B: dodge / combat<br>X: left combat action · Y: right combat action<br>LB: alternate action · RB: structure swing<br>LT: aim/grapple car · RT: Gallium plasma blast<br><b>LT + right stick:</b> move suspended car<br><b>LT + RT:</b> throw held car<br>D-pad: actions · Menu: profile<br><small>H: hide/show this guide · Keyboard U/I: car grab/throw</small>';
  document.body.append(controllerLegend);}
  controllerLegend.style.display=controllerLegend.style.display==='none'?'block':'none';
 }
@@ -774,9 +775,12 @@ const physicsTelemetry=new PhysicsTelemetry();let physicsTime=0;
 // Morrow prototype encounter: visual pursuit and timed ReFramer counter.
 // PUBLISH HOLD: training encounter only; no story canon or police behavior implied.
 const morrow=createEncounter();let morrowClock=0,morrowStatus='';
-const morrowMeshes=[];const factionActors=[];
-function factionActor(label,color,x,z,kind){const root=new THREE.Group();root.name=label;const mat=new THREE.MeshStandardMaterial({color,metalness:kind==='reframer'?.85:.25,roughness:.4});const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.43,.9,4,8),mat);torso.position.y=1.15;root.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),mat);head.position.y=2.08;root.add(head);if(kind==='reframer'){for(let j=0;j<6;j++){const a=j*Math.PI/3;const arm=new THREE.Mesh(new THREE.CylinderGeometry(.09,.16,2.4,6),mat);arm.position.set(Math.cos(a)*.95,1.2,Math.sin(a)*.95);arm.rotation.z=Math.cos(a)*.8;arm.rotation.x=Math.sin(a)*.8;root.add(arm);}}root.position.set(x,groundY,z);scene.add(root);factionActors.push({root,label,kind,home:root.position.clone(),phase:Math.random()*6.28});return root;}
-function updateFactionActors(dt){if(!P)return;for(const a of factionActors){a.phase+=dt*(a.kind==='reframer'?1.4:.7);a.root.position.x=a.home.x+Math.sin(a.phase)*2;a.root.position.z=a.home.z+Math.cos(a.phase)*2;a.root.rotation.y+=dt*.3;}}
+const morrowMeshes=[];const factionActors=[];const metalBlasts=[];let combatBlastLatch=false;
+function fireMetalBlast(){if(!P||st.gal<.12)return;st.gal-=.12;const d=blastDirection(camYaw,Math.max(-.3,Math.min(.3,-camPitch*.35)));const p=P.o.position.clone().add(new THREE.Vector3(0,1.3,0));const ball=new THREE.Mesh(new THREE.SphereGeometry(.38,10,8),new THREE.MeshStandardMaterial({color:0xc5a3ff,emissive:0x873aff,emissiveIntensity:2,metalness:.9}));ball.position.copy(p);scene.add(ball);metalBlasts.push({mesh:ball,dir:new THREE.Vector3(d.x,d.y,d.z),life:1.3});toast('GALAXY GALLIUM · plasma-core discharge');}
+function updateMetalBlasts(dt){for(let i=metalBlasts.length-1;i>=0;i--){const b=metalBlasts[i];b.life-=dt;b.mesh.position.addScaledVector(b.dir,dt*28);b.mesh.scale.setScalar(.65+Math.sin(b.life*25)*.18);for(const a of factionActors){if(a.root===morrow.reframerMesh&&!a.root.visible)continue;if(b.mesh.position.distanceTo(a.root.position.clone().add(new THREE.Vector3(0,1.2,0)))<2){if(!a.body)a.body=createCombatBody({x:a.root.position.x,y:a.root.position.y,z:a.root.position.z});applyCombatHit(a.body,{direction:b.dir,impulse:520,vertical:160});b.life=0;break;}}if(b.life<=0){scene.remove(b.mesh);b.mesh.geometry.dispose();b.mesh.material.dispose();metalBlasts.splice(i,1);}}}
+
+function factionActor(label,color,x,z,kind){const root=new THREE.Group();root.name=label;const mat=new THREE.MeshStandardMaterial({color,metalness:kind==='reframer'?.85:.25,roughness:.4});const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.43,.9,4,8),mat);torso.position.y=1.15;root.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),mat);head.position.y=2.08;root.add(head);if(kind==='reframer'){for(let j=0;j<6;j++){const a=j*Math.PI/3;const arm=new THREE.Mesh(new THREE.CylinderGeometry(.09,.16,2.4,6),mat);arm.position.set(Math.cos(a)*.95,1.2,Math.sin(a)*.95);arm.rotation.z=Math.cos(a)*.8;arm.rotation.x=Math.sin(a)*.8;root.add(arm);}}root.position.set(x,groundY,z);scene.add(root);factionActors.push({root,label,kind,home:root.position.clone(),phase:Math.random()*6.28,body:createCombatBody({x,y:groundY,z})});return root;}
+function updateFactionActors(dt){if(!P)return;for(const a of factionActors){a.phase+=dt*(a.kind==='reframer'?1.4:.7);if(a.body.state!=='standing'){stepCombatBody(a.body,dt,groundY);a.root.position.set(a.body.position.x,a.body.position.y,a.body.position.z);a.root.rotation.z=Math.min(1.1,Math.hypot(a.body.velocity.x,a.body.velocity.z)*.07);if(a.body.state==='standing'){a.home.copy(a.root.position);a.root.rotation.z=0;}}else{a.root.position.x=a.home.x+Math.sin(a.phase)*2;a.root.position.z=a.home.z+Math.cos(a.phase)*2;a.root.rotation.y+=dt*.3;a.body.position.x=a.root.position.x;a.body.position.z=a.root.position.z;}}}
 
 function initMorrow(){
  const home=SPOTS.home.c;const mk=(color,x,z,h=1.7)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(.85,h,.85),new THREE.MeshStandardMaterial({color,metalness:.55,roughness:.38}));o.position.set(home.x+x,groundY+h/2,home.z+z);scene.add(o);morrowMeshes.push(o);return o;};
@@ -824,11 +828,12 @@ function update(dt){
  if(FG.inFight&&!st.board&&pressed.KeyB){pressed.KeyB=false;FG.wantDodge=true;}
  const pad=pollPad();
  if(pad&&!controllerSeen){controllerSeen=true;/* guide available on H, not forced over gameplay */}
- tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);
+ tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);updateMetalBlasts(dt);
  // Xbox-style chord: hold LT + LB to grapple a nearby vehicle, LT + RT to sling it.
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
  const lt=!!gpWorld?.buttons[6]?.pressed,lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!gpWorld?.buttons[7]?.pressed;
  worldGripActive=lt;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
+ if(rt&&!lt&&!combatBlastLatch)fireMetalBlast();combatBlastLatch=rt&&!lt;if(tap('KeyZ'))fireMetalBlast();
  if(rb&&!worldSwingLatch){pressed.KeyQ=true;keys.KeyQ=true;}if(!rb&&worldSwingLatch)keys.KeyQ=false;worldSwingLatch=rb;
  if((lt&&!worldGrabLatch)||tap('KeyU'))grabCar();
  if((lt&&rt&&!worldThrowLatch)||tap('KeyI'))slingCar();
