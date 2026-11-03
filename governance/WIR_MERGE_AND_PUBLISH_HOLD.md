@@ -37,9 +37,16 @@ Repo metadata: `has_pages:true`, `private:false`. The accessible
 `.github/workflows` directory contained only four existing test workflows
 (`metal-syntax`, `physics-tests`, `slotta-browser-qa`,
 `mission-load-qa`), and **no explicit deploy-pages workflow**.
-This does **not prove Pages is unpublished**. A Pages branch source may publish
+**Confirmed live publishing risk:** GitHub Actions run
+[41655518339](https://github.com/wazisentthis-watt/wir-school/actions/runs/41655518339)
+(`pages build and deployment`, event `dynamic`) built and successfully deployed
+from `main` commit `75ae9a01efcdc75f9f793303124e5438135c7ab7`, which is
+PR #12's merge commit, beginning 2026-11-03 14:37:25 UTC (09:37:25 EST).
+The build used GitHub's Jekyll Pages builder and the deployment job succeeded.
+This is a **verified successful Pages deployment after an unapproved merge**,
+not merely a potential risk. A Pages publishing source may be a branch even
 without a repo-stored deployment workflow. The connected GitHub API could
-not read the Pages settings endpoint, so the **publishing source is unknown**.
+not read the Pages configuration endpoint, so the **exact source setting remains unknown**.
 
 ## Security code included in this draft
 
