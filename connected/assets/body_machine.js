@@ -6,6 +6,7 @@ export class BodyMachine {
   this.position={x:0,y:groundY,z:0};this.velocity={x:0,y:0,z:0};
   this.mode='grounded';this.balance=1;this.impact=0;this.recovery=0;
   this.bodyLean=0;this.fallDirection={x:0,z:1};this.fallTime=0;
+  this.bodyLean=0;this.fallDirection={x:0,z:1};this.fallTime=0;this.downTime=0;
  }
  impulse(x,y,z){
   if(![x,y,z].every(Number.isFinite))return;
@@ -22,6 +23,10 @@ export class BodyMachine {
   return true;
  }
  step(dt,groundY=this.groundY){
+  this.mode='falling';this.fallTime=0;this.downTime=0;this.recovery=0;this.balance=0;
+  return true;
+ }
+ step(dt,groundY=this.groundY,externalRoot=false){
   if(!Number.isFinite(dt)||dt<=0)return;
   dt=Math.min(dt,1/30);this.groundY=groundY;
   if(this.mode==='recovering'){
@@ -30,6 +35,8 @@ export class BodyMachine {
    return;
   }
   if(this.mode==='fallen'){
+   this.downTime+=dt;
+   if(externalRoot&&this.downTime>=1.25){this.velocity.x=0;this.velocity.z=0;this.recover();return;}
    const drag=Math.exp(-6*dt);this.velocity.x*=drag;this.velocity.z*=drag;
    this.position.x+=this.velocity.x*dt;this.position.z+=this.velocity.z*dt;return;
   }
@@ -39,6 +46,7 @@ export class BodyMachine {
    if(this.fallTime>=.3){this.mode='fallen';this.fallTime=0;}
    return;
   }
+  if(externalRoot){this.balance=Math.min(1,this.balance+dt*.6);return;}
   this.velocity.y-=this.gravity*dt;
   this.position.x+=this.velocity.x*dt;this.position.y+=this.velocity.y*dt;this.position.z+=this.velocity.z*dt;
   if(this.position.y<=groundY){

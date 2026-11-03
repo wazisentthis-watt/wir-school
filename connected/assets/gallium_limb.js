@@ -57,7 +57,7 @@ export function makeGalliumLimb(scene,THREEref){
  const drips=[];const dripG=new THREE.SphereGeometry(.05,8,6);const MAXD=60;
  const spawnDrip=(p,v)=>{if(drips.length>=MAXD)return;const m=new THREE.Mesh(dripG,dripM);m.position.copy(p);scene.add(m);drips.push({m,v,t:0,s:.6+Math.random()*.8});};
  const puddles=[];const pudG=new THREE.CircleGeometry(.45,20);
- let S=null,prevSwing=null;
+ let S=null,prevSwing=null,gripRef=null,gripSource=null;
  const curvePts=(a,b,t,wob,time,sag)=>{const pts=[];const end=a.clone().lerp(b,t);const d=end.clone().sub(a);const L=d.length()||1e-3;
   const side=new THREE.Vector3().crossVectors(d,new THREE.Vector3(0,1,0)).normalize();if(!isFinite(side.x)||side.lengthSq()<.1)side.set(1,0,0);
   const up=new THREE.Vector3().crossVectors(side,d).normalize();
@@ -82,10 +82,10 @@ export function makeGalliumLimb(scene,THREEref){
  const hide=()=>{liquid.visible=frozen.visible=origin.visible=front.visible=splash.visible=false;frost.visible=false;};
  const blob=(m,p,s,time,amp)=>{m.position.copy(p);m.scale.set(s*(1+amp*Math.sin(time*13)),s*(.7+amp*Math.sin(time*11+1)),s*(1+amp*Math.cos(time*9+2)));m.rotation.y=time*.7;};
  return {LIMB,state:()=>S,
-  tick(dt,{swing,hand,model,st,groundY,playerPos}){const time=performance.now()/1000;GU.value=time;
+  tick(dt,{swing,grip,hand,model,st,groundY,playerPos}){const gripOnly=!swing&&!!grip;if(grip!==gripSource){gripSource=grip;gripRef=grip?{a:grip.position}:null;}swing=swing||gripRef;const time=performance.now()/1000;GU.value=time;
    for(let i=rings.length-1;i>=0;i--){const r=rings[i];r.t+=dt;const k=Math.max(0,r.t)/.7;r.m.scale.setScalar(.2+k*1.6);r.m.material.opacity=r.t<0?0:.8*(1-k);if(k>=1){scene.remove(r.m);r.m.material.dispose();rings.splice(i,1);}}
    if(swing&&swing!==prevSwing){ // new line committed
-    S={phase:'extend',t:0,a:swing.a.clone(),cost:Math.min(st.gal,LIMB.lineCost)};st.gal=Math.max(0,st.gal-S.cost);}
+    S={phase:'extend',t:0,a:swing.a.clone(),cost:gripOnly?0:Math.min(st.gal,LIMB.lineCost)};st.gal=Math.max(0,st.gal-S.cost);}
    if(!swing&&prevSwing&&S&&S.phase!=='retract'){S.phase='retract';S.t=0;S.from=S.a.clone();
     st.gal=Math.min(1,st.gal+S.cost*LIMB.returnShare); // 80% flows back
     const pm=new THREE.Mesh(pudG,galliumLiquidMat({transmission:0,color:0x8d93a0}));ripple(new THREE.Vector3(playerPos.x+.6,groundY+.05,playerPos.z));

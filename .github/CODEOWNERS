@@ -1,0 +1,6 @@
+# Requested reviewers for all WIR source, governance and delivery changes.
+# Effective enforcement requires GitHub main branch protection with required reviews.
+* @wazisentthis-watt
+/.github/ @wazisentthis-watt
+/governance/ @wazisentthis-watt
+/connected/ @wazisentthis-watt

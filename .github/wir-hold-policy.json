@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "owner": "wazisentthis-watt",
+  "mode": "HOLD",
+  "allowPublicPublish": false,
+  "approvedMerges": [],
+  "approvedReleases": [],
+  "note": "PROPOSAL/HOLD. This protected base-branch policy is authoritative; PR branch edits do not grant approval."
+}

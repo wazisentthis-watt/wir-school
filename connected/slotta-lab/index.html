@@ -1,0 +1,131 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>WIR Connected · SLOTTA Lab v1</title>
+<script type="importmap">{"imports":{"three":"../assets/lib/three.module.min.js"}}</script>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif}*{box-sizing:border-box}body{margin:0;background:#080c16;color:#e9eaff}
+header{padding:16px 20px;background:#19172b;border-bottom:2px solid #8a4fee}h1{font-size:22px;letter-spacing:.09em;margin:0}small{color:#9ecbe6}
+main{display:grid;grid-template-columns:1fr minmax(245px,330px);height:calc(100dvh - 77px)}canvas{display:block;width:100%;height:100%;touch-action:none}
+aside{border-left:1px solid #48375d;padding:18px;background:#111524;overflow:auto}
+button{background:#32234d;color:#f0ebfa;border:1px solid #8453bb;border-radius:9px;padding:11px 13px;cursor:pointer;font-size:14px;font-weight:700;margin:4px 3px 4px 0}
+button[aria-pressed="true"]{background:#693cb5}p{line-height:1.5;font-size:13px;color:#b5b4cd}
+.icons{width:100%;border-radius:8px;background:#090a17}
+select,input[type=range]{width:100%;accent-color:#a778fa;background:#202039;color:white;border:1px solid #765ca2;border-radius:8px;padding:9px;margin:7px 0}
+.status{font:12px ui-monospace,monospace;color:#b3e9f5;border:1px solid #2e4561;border-radius:9px;padding:9px;background:#090e1b;margin:8px 0}
+.controls{display:flex;gap:4px;flex-wrap:wrap} .controls button{flex:1;min-width:72px}
+legend{color:#dbb7ff;font-weight:700;font-size:12px}fieldset{border:1px solid #52456f;border-radius:12px;padding:10px;margin:12px 0}
+label{display:block;font-size:13px}.stage{position:relative;min-height:320px}
+.hint{position:absolute;left:14px;bottom:12px;color:#b5dce9;background:#0b0e18ba;padding:8px;border-radius:8px;font-size:12px;pointer-events:none}
+@media(max-width:720px){main{display:flex;flex-direction:column;height:auto}.stage{height:55dvh}aside{border-left:0;border-top:1px solid #48375d}header{padding:12px}h1{font-size:19px}}
+</style></head><body>
+<header><h1>SLOTTA LAB <small>WIR: CONNECTED / ASSET PACK v1</small></h1></header>
+<main><section class="stage" id="stage"><div class="hint">Drag to rotate · Pinch or scroll to zoom · PROPOSAL visual</div></section>
+<aside><h2>3D prototype preview</h2><button data-kind="boss" aria-pressed="true">SLOTTA</button><button data-kind="serpent" aria-pressed="false">Circuit Serpent</button><button data-kind="clone" aria-pressed="false">Cyborg Clone</button>
+<p>Playable joint/pivot animation preview. The uploaded future GLB is not yet a skinned character. No boss combat progression changes occur in this lab.</p>
+<fieldset><legend>Animation controller</legend>
+ <label for="clip">Animation / attack pose</label><select id="clip"></select>
+ <div class="controls"><button id="play">Play</button><button id="pause">Pause</button><button id="slow">Speed 1×</button><button id="repeat">Repeat off</button></div>
+ <label for="timeline">Timeline (scrub)</label><input id="timeline" type="range" min="0" max="1000" value="0" step="1">
+ <div class="status" id="stateInfo" aria-live="polite">Idle</div>
+ <div class="controls"><button data-camera="0">Front</button><button data-camera="1.5708">Side</button><button data-camera="3.1416">Back</button></div>
+ <label><input id="sockets" type="checkbox"> Show attachment sockets</label>
+ <label><input id="hitbox" type="checkbox"> Show approximate collision silhouette</label>
+ </fieldset>
+ <p>Animation markers display when a cast should spawn serpents, clones or Phantom Racer VFX. The live boss uses the same state machine.</p>
+<h3>PHATOM System</h3><p><b>3 active game ports</b><br><b>5 stored cartridge bays</b><br><b>1 orange remote-retrieval interface</b></p>
+<h4>Starting slots</h4><img class="icons" src="../assets/slotta_assets/signature_cartridges.svg" alt="Slither Master, Ninja Star and Phantom Racer" />
+<h4>Legacy library (8 games)</h4><img class="icons" src="../assets/slotta_assets/cartridge_atlas.svg" alt="Eight original game cartridges" />
+<p>Game names and ability definitions come from the existing <code>slotta_slots.js</code> module. This preview does not alter saves or combat progression.</p>
+<a style="color:#c6a6ff" href="../">Return to WIR Connected</a>
+</aside></main>
+<script type="module">
+import * as THREE from 'three';
+import {createSlottaBossAsset,animateSlottaBossAsset,createSlottaMinionAsset,animateSlottaMinionAsset} from '../assets/slotta_visuals.js';
+import {SLOTTA_ACTIONS,createSlottaAnimator,startSlottaAction,tickSlottaAnimator,slottaAnimationSnapshot} from '../assets/slotta_animation_machine.js';
+import {createSlottaMinionMotion,minionChoreographyStep} from '../assets/slotta_choreography.js';
+const stage=document.getElementById('stage'),renderer=new THREE.WebGLRenderer({antialias:!('ontouchstart' in window),alpha:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(stage.clientWidth,stage.clientHeight);renderer.setClearColor(0x0d1320);
+renderer.toneMapping=THREE.ACESFilmicToneMapping;stage.prepend(renderer.domElement);
+const scene=new THREE.Scene();scene.fog=new THREE.Fog(0x0d1320,8,20);
+scene.add(new THREE.HemisphereLight(0xbddcfc,0x453047,1.7));
+const lamp=new THREE.DirectionalLight(0xffffff,2.5);lamp.position.set(3,7,5);scene.add(lamp);
+const back=new THREE.PointLight(0x9b5cff,16,11);back.position.set(-2,3,-2);scene.add(back);
+const ground=new THREE.Mesh(new THREE.CircleGeometry(3.4,48),new THREE.MeshStandardMaterial({color:0x222238,roughness:.8,metalness:.3}));ground.rotation.x=-Math.PI/2;ground.position.y=-.015;scene.add(ground);
+const camera=new THREE.PerspectiveCamera(46,1,.05,100);let yaw=.38,pitch=.23,dist=5.6,dragging=false,px=0,py=0;
+const model={boss:createSlottaBossAsset(),serpent:createSlottaMinionAsset('serpent'),clone:createSlottaMinionAsset('clone')};for(const m of Object.values(model)){scene.add(m);m.visible=false;}
+const targetDummy=new THREE.Mesh(new THREE.CapsuleGeometry(.34,1.05,4,10),
+ new THREE.MeshBasicMaterial({color:0xf4c678,transparent:true,opacity:.32,depthWrite:false}));
+targetDummy.position.set(0,1.0,0);targetDummy.visible=false;scene.add(targetDummy);
+const minionMotion={serpent:createSlottaMinionMotion('serpent',0),clone:createSlottaMinionMotion('clone',1)};
+function resetMinion(kind){minionMotion[kind]=createSlottaMinionMotion(kind,kind==='serpent'?0:1);model[kind].position.set(-2.7,0,kind==='serpent'?-1.15:1.15);}
+const $=id=>document.getElementById(id);
+const animator=createSlottaAnimator(),clip=$('clip'),timeline=$('timeline'),stateInfo=$('stateInfo');
+let speed=1,paused=false,repeat=false,selectedState='idle',showSockets=false,showHitbox=false;
+for(const state of Object.keys(SLOTTA_ACTIONS)){const o=document.createElement('option');o.value=state;o.textContent=state.replace(/[A-Z]/g,s=>' '+s).replace(/^./,x=>x.toUpperCase());clip.append(o);}
+function setAction(state){selectedState=state;startSlottaAction(animator,state,{force:true});clip.value=state;timeline.value='0';}
+function addEffect(event){
+ if(event.type!=='cast'&&event.type!=='telegraph'&&event.type!=='cartridge-select')return;
+ const mesh=new THREE.Mesh(new THREE.TorusGeometry(event.type==='cast'?1.15:.65,.055,5,28),
+  new THREE.MeshBasicMaterial({color:event.type==='cast'?0x9b5cff:0xffae66,transparent:true,opacity:.85,depthWrite:false}));
+ mesh.rotation.x=Math.PI/2;mesh.position.set(0,.06,0);scene.add(mesh);effects.push({mesh,age:0});
+}
+const effects=[];
+const socketSpheres=[],rig=model.boss.userData.slottaRig;
+for(const [name,socket]of Object.entries(rig.sockets||{})){
+ const m=new THREE.Mesh(new THREE.SphereGeometry(.055,8,6),new THREE.MeshBasicMaterial({color:name.includes('Hand')?0x66d9ff:0xffb75c,depthTest:false}));m.visible=false;scene.add(m);socketSpheres.push({m,socket});
+}
+const hitVisual=new THREE.Mesh(new THREE.CapsuleGeometry(.65,1.1,4,10),
+ new THREE.MeshBasicMaterial({color:0xfaff9e,wireframe:true,transparent:true,opacity:.35,depthWrite:false}));
+hitVisual.position.y=1.2;hitVisual.visible=false;scene.add(hitVisual);
+clip.addEventListener('change',()=>{setAction(clip.value);select('boss');paused=true;$('pause').textContent='Resume';});
+$('play').addEventListener('click',()=>{if(kind==='boss')setAction(clip.value);else resetMinion(kind);paused=false;$('pause').textContent='Pause';});
+$('pause').addEventListener('click',()=>{paused=!paused;$('pause').textContent=paused?'Resume':'Pause';});
+$('slow').addEventListener('click',()=>{speed=speed===1?.5:speed===.5?.25:1;$('slow').textContent='Speed '+speed+'×';});
+$('repeat').addEventListener('click',()=>{repeat=!repeat;$('repeat').textContent=repeat?'Repeat on':'Repeat off';});
+timeline.addEventListener('input',()=>{
+ paused=true;$('pause').textContent='Resume';
+ const duration=SLOTTA_ACTIONS[selectedState]?.duration;
+ if(Number.isFinite(duration)){startSlottaAction(animator,selectedState,{force:true});animator.time=Number(timeline.value)/1000*duration;}
+});
+$('sockets').addEventListener('change',e=>{showSockets=e.target.checked;});
+$('hitbox').addEventListener('change',e=>{showHitbox=e.target.checked;});
+document.querySelectorAll('button[data-camera]').forEach(b=>b.addEventListener('click',()=>{yaw=Number(b.dataset.camera);pitch=.15;dist=5.6;}));
+let kind='boss',clock=0;function select(next){
+ kind=next;Object.entries(model).forEach(([key,val])=>val.visible=key===kind);
+ targetDummy.visible=kind!=='boss';
+ if(kind!=='boss')resetMinion(kind);
+ document.querySelectorAll('button[data-kind]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.kind===kind)));
+}
+document.querySelectorAll('button[data-kind]').forEach(b=>b.addEventListener('click',()=>select(b.dataset.kind)));select('boss');
+const el=renderer.domElement;el.addEventListener('pointerdown',e=>{dragging=true;px=e.clientX;py=e.clientY;el.setPointerCapture(e.pointerId);});
+el.addEventListener('pointerup',()=>{dragging=false});el.addEventListener('pointermove',e=>{if(!dragging)return;yaw+=(e.clientX-px)*.009;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-py)*.006,-.5,1.1);px=e.clientX;py=e.clientY;});
+el.addEventListener('wheel',e=>{e.preventDefault();dist=THREE.MathUtils.clamp(dist+e.deltaY*.008,3.2,10);},{passive:false});
+function resize(){const w=stage.clientWidth,h=stage.clientHeight;if(w&&h){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}}addEventListener('resize',resize);resize();
+let last=performance.now();function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;clock+=dt;
+ const height=kind==='boss'?1.15:.95;camera.position.set(Math.sin(yaw)*Math.cos(pitch)*dist,Math.sin(pitch)*dist+height,Math.cos(yaw)*Math.cos(pitch)*dist);camera.lookAt(0,height,0);
+ if(kind==='boss'){
+  const events=paused?[]:tickSlottaAnimator(animator,dt*speed);
+  for(const e of events){addEffect(e);if(e.type==='complete'&&repeat)setAction(selectedState);}
+  const snap=slottaAnimationSnapshot(animator);
+  animateSlottaBossAsset(model.boss,paused?0:dt*speed,snap);
+  const duration=SLOTTA_ACTIONS[snap.state]?.duration;
+  if(snap.state===selectedState&&Number.isFinite(duration))timeline.value=Math.round(snap.progress*1000);
+  else if(snap.state==='idle'&&selectedState!=='idle')timeline.value='1000';
+  stateInfo.textContent='STATE: '+snap.state+' | progress '+Math.round(snap.progress*100)+'% | '+(paused?'PAUSED':'PLAYING')+' | speed '+speed+'×';
+ }else{
+  const motion=minionMotion[kind],root=model[kind];
+  if(!paused){
+   const move=minionChoreographyStep(motion,dt*speed,root.position,{x:0,z:0});
+   root.position.set(move.x,move.elevation,move.z);root.rotation.y=move.yaw;
+   if(move.telegraph)addEffect({type:'telegraph'});
+   if(move.impact){addEffect({type:'cast'});resetMinion(kind);}
+  }
+  animateSlottaMinionAsset(root,clock*3.2,motion.stage,motion.side);
+  stateInfo.textContent='MINION: '+kind.toUpperCase()+' | '+motion.stage.toUpperCase()+
+    ' | '+(paused?'PAUSED':'PLAYING')+' | speed '+speed+'×';
+}
+ scene.updateMatrixWorld(true);
+ socketSpheres.forEach(({m,socket})=>{m.visible=showSockets&&kind==='boss';if(m.visible)socket.getWorldPosition(m.position);});
+ hitVisual.visible=showHitbox&&kind==='boss';
+ for(let i=effects.length-1;i>=0;i--){const e=effects[i];e.age+=dt*speed;e.mesh.scale.setScalar(1+e.age*1.6);e.mesh.material.opacity=Math.max(0,.85-e.age*1.7);if(e.age>.5){scene.remove(e.mesh);e.mesh.geometry.dispose();e.mesh.material.dispose();effects.splice(i,1);}}
+ renderer.render(scene,camera);}requestAnimationFrame(frame);
+</script></body></html>
