@@ -798,10 +798,24 @@ const galliumRibbons=[];let gripVisual=null,gripTarget=null,riftCooldown=0,riftP
 const galliumMaterial=()=>new THREE.MeshStandardMaterial({color:0xb9c8d1,emissive:0x151e35,emissiveIntensity:.16,metalness:1,roughness:.075,side:THREE.DoubleSide});
 function galliumSegment(a,b,r=.095){const d=b.clone().sub(a),mesh=new THREE.Mesh(new THREE.CylinderGeometry(r,r,d.length(),6),galliumMaterial());mesh.position.copy(a).addScaledVector(d,.5);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());scene.add(mesh);return mesh;}
 function clearGripVisual(){if(!gripVisual)return;for(const m of gripVisual){scene.remove(m);m.geometry.dispose();m.material.dispose();}gripVisual=null;}
-function showGalliumHand(target){clearGripVisual();if(!P||!target)return;const a=P.o.position.clone().add(new THREE.Vector3(0,1.3,0)),b=target.position.clone().add(new THREE.Vector3(0,1,0));gripVisual=[];const forward=b.clone().sub(a).normalize(),side=new THREE.Vector3(-forward.z,0,forward.x);for(let i=-2;i<=2;i++){const base=b.clone().addScaledVector(side,i*.23);const tip=base.clone().addScaledVector(forward,.4).add(new THREE.Vector3(0,-.28,0));gripVisual.push(galliumSegment(base,tip,.075));}gripTarget=target;}
-function leaveGalliumTrail(a,b){if(a.distanceTo(b)<1)return;return; // No permanent lines: Galaxy Gallium reabsorbs instead of leaving web-like rails.if(galliumRibbons.length>40){const old=galliumRibbons.shift();scene.remove(old.mesh);old.mesh.geometry.dispose();old.mesh.material.dispose();}}
+// Galaxy Gallium grip is contact-local, not a web, rope, or beam.
+// Keep only a brief metallic contact shell on the grabbed object.
+function showGalliumHand(target){
+ clearGripVisual();gripTarget=target||null;
+ if(!target)return;
+ const shell=new THREE.Mesh(new THREE.IcosahedronGeometry(.34,1),galliumMaterial());
+ shell.userData.galliumContact=true;scene.add(shell);gripVisual=[shell];
+}
+function leaveGalliumTrail(){/* No persistent grapple trails. */}
 function riffStep(){if(!P||riftCooldown>0)return;riftCooldown=.65;const dir=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw));const launch=36;vel.x+=dir.x*launch;vel.z+=dir.z*launch;vel.y=Math.max(vel.y,6);const pos=P.o.position.clone();const crater=new THREE.Mesh(new THREE.CylinderGeometry(1.4,.9,.14,12),new THREE.MeshStandardMaterial({color:0x342847,emissive:0x4a1e80,emissiveIntensity:.6}));crater.position.set(pos.x,groundY-.08,pos.z);scene.add(crater);riftMarks.push({mesh:crater,life:3.5});toast('RIFFT STEP · RIGHT FOOT');}
-function updateGalliumPhysics(dt){for(let i=riftMarks.length-1;i>=0;i--){const mark=riftMarks[i];mark.life-=dt;if(mark.life<=0){scene.remove(mark.mesh);mark.mesh.geometry.dispose();mark.mesh.material.dispose();riftMarks.splice(i,1);}}if(gripTarget&&gripVisual){const start=P.o.position.clone().add(new THREE.Vector3(0,1.3,0)),end=gripTarget.position.clone().add(new THREE.Vector3(0,1,0));const m=gripVisual[0],d=end.clone().sub(start);m.position.copy(start).addScaledVector(d,.5);m.scale.y=d.length()/m.geometry.parameters.height;m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());}if(heldCar&&gripTarget!==heldCar)showGalliumHand(heldCar);}
+function updateGalliumPhysics(dt){
+ for(let i=riftMarks.length-1;i>=0;i--){const mark=riftMarks[i];mark.life-=dt;if(mark.life<=0){scene.remove(mark.mesh);mark.mesh.geometry.dispose();mark.mesh.material.dispose();riftMarks.splice(i,1);}}
+ if(gripTarget&&gripVisual?.length){
+  gripVisual[0].position.copy(gripTarget.position).add(new THREE.Vector3(0,.9,0));
+  gripVisual[0].rotation.y+=dt*1.8;
+ }
+ if(heldCar&&gripTarget!==heldCar)showGalliumHand(heldCar);
+}
 function galliumGrabWorld(){if(!P)return;
  const origin=P.o.position.clone().add(new THREE.Vector3(0,1.3,0));
  const direction=new THREE.Vector3(-Math.sin(camYaw+gripAxisX*.65),Math.max(-.6,Math.min(.6,-gripAxisY*.5)),-Math.cos(camYaw+gripAxisX*.65)).normalize();
