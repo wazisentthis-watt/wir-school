@@ -249,7 +249,7 @@ function showControllerLegend(){
 }
 const padMap={0:'Space',1:'KeyB',2:'Numpad4',3:'Numpad6',4:'KeyQ',5:'KeyF',6:'Numpad2',7:'Numpad5',8:'KeyM',9:'KeyP',12:'KeyE',13:'KeyX',14:'Numpad1',15:'Numpad3'};const padPrev={};
 function pollPad(){const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;if(!gp)return null;
- for(const [i,k] of Object.entries(padMap)){const chord=!!gp.buttons[6]?.pressed&&(i==='4'||i==='6'||i==='7');const v=!chord&&gp.buttons[i]&&gp.buttons[i].pressed;if(v&&!padPrev[i])pressed[k]=true;keys[k]=!!v;padPrev[i]=v;}
+ for(const [i,k] of Object.entries(padMap)){const chord=!!gp.buttons[6]?.pressed&&(i==='4'||i==='6'||i==='7');const v=!!(!chord&&gp.buttons[i]&&gp.buttons[i].pressed);if(v&&!padPrev[i])pressed[k]=true;if(v)keys[k]=true;else if(padPrev[i])keys[k]=false;padPrev[i]=v;}
  const dz=v=>Math.abs(v)<.15?0:v;if(gp.axes.length>=4){camYaw-=dz(gp.axes[2])*.04;camPitch=THREE.MathUtils.clamp(camPitch+dz(gp.axes[3])*.03,-.1,1.1);}return {x:dz(gp.axes[0]),y:dz(gp.axes[1])};}
 const tap=c=>{const v=pressed[c];pressed[c]=false;return v;};
 const ALT={KeyU:'Numpad7',KeyI:'Numpad8',KeyY:'Numpad9',KeyJ:'Numpad4',KeyK:'Numpad5',KeyL:'Numpad6',KeyM_:'Numpad1',Comma:'Numpad2',Period:'Numpad3'}; // laptop fallback [S5]
@@ -774,10 +774,14 @@ const physicsTelemetry=new PhysicsTelemetry();let physicsTime=0;
 // Morrow prototype encounter: visual pursuit and timed ReFramer counter.
 // PUBLISH HOLD: training encounter only; no story canon or police behavior implied.
 const morrow=createEncounter();let morrowClock=0,morrowStatus='';
-const morrowMeshes=[];
+const morrowMeshes=[];const factionActors=[];
+function factionActor(label,color,x,z,kind){const root=new THREE.Group();root.name=label;const mat=new THREE.MeshStandardMaterial({color,metalness:kind==='reframer'?.85:.25,roughness:.4});const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.43,.9,4,8),mat);torso.position.y=1.15;root.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),mat);head.position.y=2.08;root.add(head);if(kind==='reframer'){for(let j=0;j<6;j++){const a=j*Math.PI/3;const arm=new THREE.Mesh(new THREE.CylinderGeometry(.09,.16,2.4,6),mat);arm.position.set(Math.cos(a)*.95,1.2,Math.sin(a)*.95);arm.rotation.z=Math.cos(a)*.8;arm.rotation.x=Math.sin(a)*.8;root.add(arm);}}root.position.set(x,groundY,z);scene.add(root);factionActors.push({root,label,kind,home:root.position.clone(),phase:Math.random()*6.28});return root;}
+function updateFactionActors(dt){if(!P)return;for(const a of factionActors){a.phase+=dt*(a.kind==='reframer'?1.4:.7);a.root.position.x=a.home.x+Math.sin(a.phase)*2;a.root.position.z=a.home.z+Math.cos(a.phase)*2;a.root.rotation.y+=dt*.3;}}
+
 function initMorrow(){
  const home=SPOTS.home.c;const mk=(color,x,z,h=1.7)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(.85,h,.85),new THREE.MeshStandardMaterial({color,metalness:.55,roughness:.38}));o.position.set(home.x+x,groundY+h/2,home.z+z);scene.add(o);morrowMeshes.push(o);return o;};
- morrow.slottaMesh=mk(0xd65d36,10,3);morrow.reframerMesh=mk(0x546b81,17,3,3.1);morrow.constructMesh=mk(0x858a99,14,3,2.4);
+ morrow.slottaMesh=factionActor('SLOTTA',0xd65d36,home.x+10,home.z+3,'slotta');morrow.reframerMesh=factionActor('ReFramer',0x546b81,home.x+17,home.z+3,'reframer');morrow.constructMesh=mk(0x858a99,14,3,2.4);
+ factionActor('Framekeeper Patrol',0x4778d5,home.x-11,home.z+7,'framekeeper');factionActor('Framebreaker',0xc34c62,home.x-15,home.z-6,'framebreaker');factionActor('Framebreaker Scout',0xa64b5d,home.x+5,home.z-16,'framebreaker');
  morrow.reframerMesh.visible=false;morrow.constructMesh.visible=false;
  const panel=document.createElement('div');panel.id='morrowMission';panel.style.cssText='position:fixed;left:12px;bottom:92px;z-index:12;max-width:300px;padding:10px 12px;background:#10141de6;color:#f1f2ff;border:1px solid #a978f0;border-radius:10px;font:12px system-ui;pointer-events:none';document.body.append(panel);morrow.panel=panel;
 }
@@ -790,7 +794,7 @@ function updateMorrow(dt){if(!morrow.slottaMesh)return;
  else if(tap('KeyV'))action='brace';
  const old=morrow.events.length;stepEncounter(morrow,action,dt);
  if(morrow.events.length!==old&&action!=='wait')toast(morrow.events[morrow.events.length-1]);
- if(!morrow.slotta.captured&&!morrow.slotta.escaped){const away=sm.position.clone().sub(p).setY(0);if(away.lengthSq()<100&&away.lengthSq()>.01)sm.position.addScaledVector(away.normalize(),dt*2.6);}
+ if(!morrow.slotta.captured&&!morrow.slotta.escaped){const away=sm.position.clone().sub(p).setY(0);if(away.lengthSq()<100&&away.lengthSq()>.01){sm.position.addScaledVector(away.normalize(),dt*2.6);const actor=factionActors.find(a=>a.root===sm);if(actor)actor.home.copy(sm.position);}}
  sm.visible=!morrow.slotta.captured&&!morrow.slotta.escaped;
  rm.visible=morrow.reframer.active;cm.visible=rm.visible&&morrow.reframer.construct>.05;
  cm.scale.y=Math.max(.08,morrow.reframer.construct);cm.material.emissive.setHex(morrow.reframer.windup>.55&&morrow.reframer.windup<.85?0xa34c24:0x000000);
@@ -813,8 +817,6 @@ function tickCitySystems(dt){if(!P)return;const p=P.o.position;
 }
 let worldGrabLatch=false,worldThrowLatch=false;
 function update(dt){
- tickCitySystems(dt);
- updateMorrow(dt);
  st.grinding=false;
  bodyMachine.step(dt,0,true);
  bodyMachine.position.x=P.o.position.x;bodyMachine.position.z=P.o.position.z;
@@ -822,6 +824,7 @@ function update(dt){
  if(FG.inFight&&!st.board&&pressed.KeyB){pressed.KeyB=false;FG.wantDodge=true;}
  const pad=pollPad();
  if(pad&&!controllerSeen){controllerSeen=true;showControllerLegend();}
+ tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);
  // Xbox-style chord: hold LT + LB to grapple a nearby vehicle, LT + RT to sling it.
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
  const lt=!!gpWorld?.buttons[6]?.pressed,lb=!!gpWorld?.buttons[4]?.pressed,rt=!!gpWorld?.buttons[7]?.pressed;
@@ -964,7 +967,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  physicsTime+=dt;
  physicsTelemetry.sample({time:physicsTime,dt,position:P.o.position,velocity:vel,grounded:onGround,board:st.board,wall:st.wall,swing:st.swing,flying:st.flying,body:bodyMachine});
 }
-let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());if(window.__testHold){if(LITE)renderer.render(scene,camera);else composer.render();return;}try{update(fgTime(dt));window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<3){console.error(e);window.__errors.push(String(e));}}if(LITE)renderer.render(scene,camera);else composer.render();}
+let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());if(window.__testHold){if(LITE)renderer.render(scene,camera);else composer.render();return;}try{update(fgTime(dt));window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<12){console.error(e);window.__errors.push(String(e));toast('Runtime error: '+String(e.message||e).slice(0,80));}}if(LITE)renderer.render(scene,camera);else composer.render();}
 
 (async()=>{const msg=t=>$('loadmsg').textContent=t;
  try{await buildWorld(msg);msg('Characters (Quaternius CC0)…');robotGLTF=await loadG('assets/models/RobotExpressive.glb');msg('Sparring rival…');rivalGLTF=await loadG('assets/models/rival_sparring_hero.glb').catch(()=>null);crewFemGLTF=await loadG('assets/models/crew_female.glb').catch(()=>null);msg('3D Metal…');metalGLTF=await loadG('assets/models/metal/metal_phase6_fight.glb');boardGLTF=await loadG('assets/models/metal/metal_skateboard_4wheel_PLACEHOLDER.glb');
