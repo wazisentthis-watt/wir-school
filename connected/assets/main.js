@@ -238,6 +238,15 @@ const stick={x:0,y:0};{const s=$('stick'),n=$('nub');let id=null;const mv=e=>{co
  s.addEventListener('pointerdown',e=>{id=e.pointerId;s.setPointerCapture(id);mv(e);});s.addEventListener('pointermove',e=>{if(e.pointerId===id)mv(e);});s.addEventListener('pointerup',()=>{id=null;stick.x=stick.y=0;n.style.left=n.style.top='40px';});}
 document.querySelectorAll('#tbtn button').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();pressed[b.dataset.k]=true;keys[b.dataset.k]=true;});b.addEventListener('pointerup',()=>{keys[b.dataset.k]=false;if(b.dataset.k==='KeyX')xRel=true;});});
 // Xbox layout [S5]: A jump, B board, X 4-hand, Y 6-hand, LB grapple, RB fly, LT block, RT charge, Back map, Start profile, dpad interact
+// Controller legend is intentionally visible on first connection and can be toggled with H.
+let controllerLegend=null,controllerSeen=false;
+function showControllerLegend(){
+ if(!controllerLegend){controllerLegend=document.createElement('div');controllerLegend.id='controllerLegend';
+ controllerLegend.style.cssText='position:fixed;right:12px;top:62px;z-index:20;max-width:280px;background:#10131fee;color:#f4f1ff;border:1px solid #9876e8;border-radius:12px;padding:12px;font:12px/1.6 system-ui;box-shadow:0 4px 20px #0008';
+ controllerLegend.innerHTML='<b>🎮 METAL · CONTROLLER</b><br>Left stick: move · Right stick: camera<br>A: jump / recover · B: dodge / combat<br>X: strike · Y: ability<br>LB: Gallium action · RB: interaction<br>LT: modifier · RT: attack/action<br><b>LT + LB:</b> grapple nearby car<br><b>LT + RT:</b> throw held car<br>D-pad: actions · Menu: profile<br><small>H: hide/show this guide · Keyboard U/I: car grab/throw</small>';
+ document.body.append(controllerLegend);}
+ controllerLegend.style.display=controllerLegend.style.display==='none'?'block':'none';
+}
 const padMap={0:'Space',1:'KeyB',2:'Numpad4',3:'Numpad6',4:'KeyQ',5:'KeyF',6:'Numpad2',7:'Numpad5',8:'KeyM',9:'KeyP',12:'KeyE',13:'KeyX',14:'Numpad1',15:'Numpad3'};const padPrev={};
 function pollPad(){const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;if(!gp)return null;
  for(const [i,k] of Object.entries(padMap)){const chord=!!gp.buttons[6]?.pressed&&(i==='4'||i==='6'||i==='7');const v=!chord&&gp.buttons[i]&&gp.buttons[i].pressed;if(v&&!padPrev[i])pressed[k]=true;keys[k]=!!v;padPrev[i]=v;}
@@ -812,6 +821,7 @@ function update(dt){
  bodyMachine.position.y=Math.max(0,P.o.position.y-floorAt(P.o.position));
  if(FG.inFight&&!st.board&&pressed.KeyB){pressed.KeyB=false;FG.wantDodge=true;}
  const pad=pollPad();
+ if(pad&&!controllerSeen){controllerSeen=true;showControllerLegend();}
  // Xbox-style chord: hold LT + LB to grapple a nearby vehicle, LT + RT to sling it.
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
  const lt=!!gpWorld?.buttons[6]?.pressed,lb=!!gpWorld?.buttons[4]?.pressed,rt=!!gpWorld?.buttons[7]?.pressed;
@@ -827,7 +837,7 @@ function update(dt){
  if(tap('Escape')){toggle('map',false);toggle('prof',false);}
  for(let k=0;k<4;k++)if(tap('Digit'+(k+1))||tap('F'+(k+1)))setForm(k);
  if(tap('KeyO')){setMask((maskI+1)%MASKS.length);toast('Mask: '+({none:'none',HeavyCrown:'Heavy Crown (PLACEHOLDER)',KITO:'KITO Mask (PLACEHOLDER)'})[MASKS[maskI]]);}
- if(tap('KeyH'))$('help').style.display=$('help').style.display==='none'?'block':'none';
+ if(tap('KeyH')){showControllerLegend();$('help').style.display=$('help').style.display==='none'?'block':'none';}
  const pp=P.o.position;
  // camera-relative movement
  const fwd=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw)),right=new THREE.Vector3(-fwd.z,0,fwd.x);
