@@ -71,8 +71,8 @@ test('future rig adapter fails safely with no skinned mesh and describes sockets
 test('real boss JS dispatches attack effects on timeline markers, not animation selection',()=>{
  const main=readFileSync(new URL('../assets/main.js',import.meta.url),'utf8');
  assert.match(main,/tickSlottaAnimator\(slottaAnimator,dt\)/);
- assert.match(main,/event\.type==='cast'&&slottaPendingGame/);
- assert.match(main,/slottaUseGame\(slottaPendingGame/);
+ assert.match(main,/advanceSlottaAttackEvent\(slottaConsole,slottaAnimator,slottaPendingGame,event/);
+ assert.match(main,/if\(out\.cast\)slottaUseGame\(out\.cast/);
  assert.match(main,/updateSlottaDash\(dt,boss\)/);
  assert.match(main,/startSlottaAction\(slottaAnimator,heavy\?'hitHeavy'/);
 });
