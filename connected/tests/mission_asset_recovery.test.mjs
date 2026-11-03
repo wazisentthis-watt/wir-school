@@ -57,3 +57,10 @@ test('recoverable startup has UI boot script before module, keeps its main asset
  assert.ok(!script.includes('localStorage.clear('));
  assert.ok(!script.includes('removeItem('));
 });
+
+test('rigless fallback never dereferences a missing current animation clip',()=>{
+ const main=read('../assets/main.js');
+ assert.match(main,/if\(actT<=0&&\(!P\.cur\|\|P\.cur\.loop!==THREE\.LoopOnce/);
+ assert.match(main,/ch\.feet\.length\?Math\.min/);
+ assert.match(main,/if\(!P\.feet\.length\)return/);
+});
