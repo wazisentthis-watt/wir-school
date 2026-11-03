@@ -1,0 +1,26 @@
+name: Physics regression tests
+on:
+  push:
+    paths:
+      - 'connected/assets/**'
+      - 'connected/tests/**'
+      - '.github/workflows/physics-tests.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/**'
+      - 'connected/tests/**'
+  workflow_dispatch:
+jobs:
+  physics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax check
+        run: |
+          node --check connected/assets/main.js
+          node --check connected/assets/world_body.js
+      - name: Physics unit tests
+        run: node --test connected/tests/body_machine.test.mjs connected/tests/world_body.test.mjs connected/tests/physics_telemetry.test.mjs connected/tests/physics_analysis.test.mjs
