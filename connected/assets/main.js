@@ -249,8 +249,8 @@ function showControllerLegend(){
 }
 const padMap={0:'Space',1:'KeyB',2:'Numpad4',3:'Numpad6',4:'KeyQ',5:'KeyF',6:'Numpad2',7:'Numpad5',8:'KeyM',9:'KeyP',12:'KeyE',13:'KeyX',14:'Numpad1',15:'Numpad3'};const padPrev={};
 function pollPad(){const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;if(!gp)return null;
- for(const [i,k] of Object.entries(padMap)){const chord=!!gp.buttons[6]?.pressed&&(i==='4'||i==='6'||i==='7');const v=!!(!chord&&gp.buttons[i]&&gp.buttons[i].pressed);if(v&&!padPrev[i])pressed[k]=true;if(v)keys[k]=true;else if(padPrev[i])keys[k]=false;padPrev[i]=v;}
- const dz=v=>Math.abs(v)<.15?0:v;if(gp.axes.length>=4){camYaw-=dz(gp.axes[2])*.04;camPitch=THREE.MathUtils.clamp(camPitch+dz(gp.axes[3])*.03,-.1,1.1);}return {x:dz(gp.axes[0]),y:dz(gp.axes[1])};}
+ for(const [i,k] of Object.entries(padMap)){const chord=(i==='4'||i==='5'||i==='6'||i==='7');const v=!!(!chord&&gp.buttons[i]&&gp.buttons[i].pressed);if(v&&!padPrev[i])pressed[k]=true;if(v)keys[k]=true;else if(padPrev[i])keys[k]=false;padPrev[i]=v;}
+ const dz=v=>Math.abs(v)<.15?0:v;if(gp.axes.length>=4&&!worldGripActive){camYaw-=dz(gp.axes[2])*.04;camPitch=THREE.MathUtils.clamp(camPitch+dz(gp.axes[3])*.03,-.1,1.1);}return {x:dz(gp.axes[0]),y:dz(gp.axes[1])};}
 const tap=c=>{const v=pressed[c];pressed[c]=false;return v;};
 const ALT={KeyU:'Numpad7',KeyI:'Numpad8',KeyY:'Numpad9',KeyJ:'Numpad4',KeyK:'Numpad5',KeyL:'Numpad6',KeyM_:'Numpad1',Comma:'Numpad2',Period:'Numpad3'}; // laptop fallback [S5]
 
@@ -815,7 +815,7 @@ function tickCitySystems(dt){if(!P)return;const p=P.o.position;
  if(structureImpact.mode==='embedded'||structureImpact.mode==='recovering'){vel.multiplyScalar(Math.exp(-10*dt));}
  directorHudClock+=dt;if(directorHudClock>.3){directorHudClock=0;if(morrow.panel){const detail=cityDirector.active?cityDirector.active.type+' '+Math.round(Math.hypot(cityDirector.active.pos.x-p.x,cityDirector.active.pos.z-p.z))+'m':'quiet';morrow.panel.dataset.director='MORROW '+detail+' · HEAT '+Math.round(cityDirector.heat*100)+'% · IMPACT '+structureImpact.mode;}}
 }
-let worldGrabLatch=false,worldThrowLatch=false;
+let worldSwingLatch=false,worldGrabLatch=false,worldThrowLatch=false,worldGripActive=false,gripAxisX=0,gripAxisY=0;
 function update(dt){
  st.grinding=false;
  bodyMachine.step(dt,0,true);
@@ -827,10 +827,12 @@ function update(dt){
  tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);
  // Xbox-style chord: hold LT + LB to grapple a nearby vehicle, LT + RT to sling it.
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
- const lt=!!gpWorld?.buttons[6]?.pressed,lb=!!gpWorld?.buttons[4]?.pressed,rt=!!gpWorld?.buttons[7]?.pressed;
- if((lt&&lb&&!worldGrabLatch)||tap('KeyU'))grabCar();
+ const lt=!!gpWorld?.buttons[6]?.pressed,lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!gpWorld?.buttons[7]?.pressed;
+ worldGripActive=lt;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
+ if(rb&&!worldSwingLatch){pressed.KeyQ=true;keys.KeyQ=true;}if(!rb&&worldSwingLatch)keys.KeyQ=false;worldSwingLatch=rb;
+ if((lt&&!worldGrabLatch)||tap('KeyU'))grabCar();
  if((lt&&rt&&!worldThrowLatch)||tap('KeyI'))slingCar();
- worldGrabLatch=lt&&lb;worldThrowLatch=lt&&rt;
+ worldGrabLatch=lt;worldThrowLatch=lt&&rt;
  let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
  if(bodyMachine.mode==='fallen'&&(pressed.Space||pressed.KeyE)){bodyMachine.velocity.x=0;bodyMachine.velocity.z=0;bodyMachine.recover();pressed.Space=false;pressed.KeyE=false;}
  if(bodyMachine.mode==='fallen'||bodyMachine.mode==='recovering'){ix=0;iz=0;vel.x*=Math.exp(-8*dt);vel.z*=Math.exp(-8*dt);}
