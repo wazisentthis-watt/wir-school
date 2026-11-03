@@ -2,7 +2,7 @@
 // Pure simulation; scene meshes and animation remain owned by the rendering workstream.
 // Units are normalized game material and stress, not engineering measurements.
 export function createStructureLedger(structures=[]){
- const entries=structures.map(s=>({id:s.id,capacity:Math.max(0,s.metal||0),stored:Math.max(0,s.metal||0),criticalRatio:s.criticalRatio??.35,stress:0,integrity:1,state:'stable',countdown:0}));
+ const entries=structures.map(s=>({id:s.id,capacity:Math.max(0,s.metal||0),stored:Math.max(0,s.metal||0),criticalRatio:Math.max(0,Math.min(1,s.criticalRatio??.35)),stress:0,integrity:1,state:'stable',countdown:0}));
  if(new Set(entries.map(s=>s.id)).size!==entries.length)throw Error('Structure ids must be unique');
  return {structures:entries,carried:0,returned:0,extracted:0,emergency:false};
 }
