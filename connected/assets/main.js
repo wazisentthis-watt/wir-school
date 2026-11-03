@@ -154,7 +154,15 @@ let plutoC,plutoRing;function buildPluto(c){sign(SPOTS.pluto);plutoC=c;plutoRing
 let cartPos,benchPos;function buildHome(c){sign(SPOTS.home);
  const fount=new THREE.Mesh(new THREE.CylinderGeometry(3,3.4,1,24),new THREE.MeshStandardMaterial({color:0xd8d2c4}));fount.position.set(c.x,0.6,c.z);fount.castShadow=true;scene.add(fount);colliders.push(new THREE.Box3().setFromObject(fount));
  cartPos=new THREE.Vector3(c.x+10,0,c.z+8);const cart=new THREE.Mesh(new THREE.BoxGeometry(2.4,1.4,1.4),new THREE.MeshStandardMaterial({color:0xd84a2a}));cart.position.copy(cartPos).setY(1);cart.castShadow=true;scene.add(cart);label('Food cart',cartPos.clone().setY(3),'#ffd28a').scale.setScalar(.5);
- benchPos=new THREE.Vector3(c.x-10,0,c.z+8);const bench=new THREE.Mesh(new THREE.BoxGeometry(3,.5,1),new THREE.MeshStandardMaterial({color:0x6b4a2a}));bench.position.copy(benchPos).setY(.6);bench.castShadow=true;scene.add(bench);label('Bench · rest',benchPos.clone().setY(2.4),'#bfe').scale.setScalar(.5);}
+ benchPos=new THREE.Vector3(c.x-10,0,c.z+8);const bench=new THREE.Mesh(new THREE.BoxGeometry(3,.5,1),new THREE.MeshStandardMaterial({color:0x6b4a2a}));bench.position.copy(benchPos).setY(.6);bench.castShadow=true;scene.add(bench);label('Bench · rest',benchPos.clone().setY(2.4),'#bfe').scale.setScalar(.5);
+ // A real, grippable construction frame near Metal's spawn, with live geometry and collider.
+ const frame=new THREE.Group(),metal=new THREE.MeshStandardMaterial({color:0xb4c6cf,metalness:.87,roughness:.23});
+ const beam=(w,h,d,x,y,z)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),metal);m.position.set(x,y,z);m.castShadow=true;frame.add(m);};
+ for(const x of [-1.2,1.2])for(const z of [-.55,.55])beam(.17,2.8,.17,x,1.4,z);
+ for(const y of [.2,2.65]){beam(2.6,.18,.18,0,y,-.55);beam(2.6,.18,.18,0,y,.55);}
+ frame.position.set(c.x+4,0.1,c.z+3);scene.add(frame);registerGrippableStructure(frame);
+ label('L1 · GALLIUM FRAME',frame.position.clone().add(new THREE.Vector3(0,3.5,0)),'#d4e6ff').scale.setScalar(.5);
+}
 
 // ---------- characters (Quaternius CC0 rigged robot, recoloured) ----------
 let robotGLTF;const mixers=[];
