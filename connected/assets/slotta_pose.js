@@ -7,7 +7,7 @@ export function applySlottaPose(rig,snapshot={},loadout=null){
  if(!rig)return;
  const state=snapshot.state||'idle',p=saturate(snapshot.progress),b=bump(p),t=rig.clock||0;
  const [left,right]=rig.arms,legs=rig.legs;
- rig.body.rotation.x=0;rig.body.rotation.y=0;
+ rig.body.rotation.x=0;rig.body.rotation.y=0;rig.head.rotation.x=0;
  left.rotation.z=right.rotation.z=left.rotation.y=right.rotation.y=0;
  rig.pack.rotation.x=rig.pack.rotation.y=0;
  const ports=rig.pack.userData.active||[],stored=rig.pack.userData.stored||[];
@@ -18,11 +18,13 @@ export function applySlottaPose(rig,snapshot={},loadout=null){
   const selected=(rig.selectedSlot??0)===i,active=state==='select'||state==='swap'||state==='slitherCast'||state==='ninjaSummon'||state==='phantomDash'||state==='legacyCast';
   port.material.emissiveIntensity=selected&&active?1.25+.55*Math.sin(t*22):.24+.09*Math.sin(t*3+i);
   port.scale.y=1+(selected&&active?b*.24:0);
+  port.position.z=-.37-(selected&&(state==='select'||state==='swap')?b*.16:0);
  }
  for(let i=0;i<stored.length;i++){
   const port=stored[i];
   if(!port.userData.isolatedMaterial){port.material=port.material.clone();port.userData.isolatedMaterial=true;}
-  port.material.emissiveIntensity=state==='swap'?.35+b*.5:.12;
+  port.material.emissiveIntensity=state==='swap' ? .35+b*.5 : .12;
+  port.position.z=-.374-(state==='swap'&&i===(rig.selectedStorageSlot??0)?b*.19:0);
  }
  switch(state){
   case 'intro':rig.body.rotation.y=b*.32;right.rotation.x=-b*.9;left.rotation.x=-b*.2;rig.head.rotation.y=b*.4;break;
