@@ -1,0 +1,88 @@
+name: WIR HOLD authorization
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft, edited, labeled, unlabeled]
+  merge_group:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  policy-regression:
+    name: HOLD policy unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout proposed source for read-only validation
+        uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test fail-closed merge and release decisions
+        run: |
+          node --check governance/wir-hold-gate.mjs
+          node --check governance/wir-publication-audit.mjs
+          node --test governance/wir-hold-gate.test.mjs governance/wir-publication-audit.test.mjs
+          node governance/wir-publication-audit.mjs
+
+  merge-authorization:
+    name: WIR HOLD - required merge authorization
+    runs-on: ubuntu-latest
+    # This job is intentionally RED while HOLD is active. It MUST become a
+    # required branch check to prevent merges; a red optional check is advisory.
+    steps:
+      - name: Checkout trusted default branch, not PR policy overrides
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+      - name: Checkout candidate gate for bootstrap diagnostics only
+        uses: actions/checkout@v4
+        with:
+          path: proposal
+          persist-credentials: false
+      - name: Enforce owner authorization from trusted base
+        env:
+          WIR_TRUSTED_POLICY: trusted/.github/wir-hold-policy.json
+          WIR_GUARD_ACTION: merge
+          WIR_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          WIR_PR_NUMBER: ${{ github.event.pull_request.number || '0' }}
+          WIR_PR_DRAFT: ${{ toJSON(github.event.pull_request.draft) }}
+        run: |
+          set -euo pipefail
+          if test -f trusted/governance/wir-hold-gate.mjs; then
+            node trusted/governance/wir-hold-gate.mjs
+          else
+            # First governance PR: policy does not yet exist on main; fail closed.
+            echo "::error::Trusted branch has no installed HOLD gate. Bootstrap requires explicit owner/admin intervention."
+            node proposal/governance/wir-hold-gate.mjs || true
+            exit 1
+          fi
+
+  publish-authorization:
+    name: WIR HOLD - required publishing authorization
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: trusted
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          path: proposal
+          persist-credentials: false
+      - name: Deny unapproved source release
+        env:
+          WIR_TRUSTED_POLICY: trusted/.github/wir-hold-policy.json
+          WIR_GUARD_ACTION: publish
+          WIR_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if test -f trusted/governance/wir-hold-gate.mjs; then
+            node trusted/governance/wir-hold-gate.mjs
+          else
+            echo "::error::Base branch has no trusted publish gate. Publication stays HOLD."
+            exit 1
+          fi
