@@ -7,12 +7,12 @@ export const SLOTTA_BONE_ALIASES=Object.freeze({
  hips:['Hips','hips','pelvis','mixamorigHips','mixamorig:Hips'],
  spine:['Spine','spine','Chest','mixamorigSpine','mixamorig:Spine'],
  head:['Head','head','DEF-head','mixamorigHead','mixamorig:Head'],
- leftHand:['LeftHand','hand.L','DEF-hand.L','mixamorigLeftHand','mixamorig:LeftHand'],
- rightHand:['RightHand','hand.R','DEF-hand.R','mixamorigRightHand','mixamorig:RightHand'],
+ leftHand:['LeftHand','hand.L','DEF-hand.L','mixamorigLeftHand','mixamorig:LeftHand','SLOTTA_LEFT_HAND'],
+ rightHand:['RightHand','hand.R','DEF-hand.R','mixamorigRightHand','mixamorig:RightHand','SLOTTA_RIGHT_HAND'],
  phatomRoot:['PHATOM_BACK','PHATOM_socket','backpackSocket','BackAttachment'],
- serpentSpawn:['SLOTTA_SERPENT_SPAWN','serpentSpawn','RightHand','mixamorigRightHand'],
- cloneSpawn:['SLOTTA_CLONE_SPAWN','cloneSpawn','Hips','mixamorigHips'],
- dashTrail:['SLOTTA_DASH_TRAIL','dashTrail','Hips','mixamorigHips']
+ serpentSpawn:['SLOTTA_SERPENT_SPAWN','serpentSpawn'],
+ cloneSpawn:['SLOTTA_CLONE_SPAWN','cloneSpawn'],
+ dashTrail:['SLOTTA_DASH_TRAIL','dashTrail']
 });
 export function inspectSlottaRig(root){
  if(!root?.traverse)return {ready:false,sockets:{},missing:[...SLOTTA_REQUIRED_SOCKETS],meshCount:0,boneCount:0,skinnedMeshCount:0};
@@ -28,7 +28,24 @@ export function inspectSlottaRig(root){
 export function createSlottaGLBAdapter(gltf,THREE){
  const inspection=inspectSlottaRig(gltf?.scene);
  if(!inspection.skinnedMeshCount)return {ok:false,reason:'Model lacks a skinned mesh; use procedural fallback',inspection};
- if(!THREE?.AnimationMixer)return {ok:false,reason:'Three.js AnimationMixer unavailable',inspection};
+ const essential=['hips','spine','head','leftHand','rightHand'];
+ const missingEssential=essential.filter(name=>!inspection.sockets[name]);
+ if(missingEssential.length)return {ok:false,reason:'Missing required humanoid bones: '+missingEssential.join(', '),inspection};
+ if(!THREE?.AnimationMixer||!THREE?.Object3D)return {ok:false,reason:'Three.js animation or attachment primitives unavailable',inspection};
+ // Provision only optional sockets so standard Mixamo rigs can be imported safely.
+ const fallbacks={
+  phatomRoot:{parent:'spine',name:'PHATOM_socket',at:[0,.20,-.28]},
+  serpentSpawn:{parent:'rightHand',name:'SLOTTA_SERPENT_SPAWN',at:[0,0,.20]},
+  cloneSpawn:{parent:'hips',name:'SLOTTA_CLONE_SPAWN',at:[0,-.45,-.55]},
+  dashTrail:{parent:'hips',name:'SLOTTA_DASH_TRAIL',at:[0,-.15,-.35]}
+ };
+ for(const [key,config] of Object.entries(fallbacks)){
+  if(inspection.sockets[key])continue;
+  const node=new THREE.Object3D();node.name=config.name;node.position.set(...config.at);
+  inspection.sockets[config.parent].add(node);
+  inspection.sockets[key]=node;
+ }
+ inspection.missing=SLOTTA_REQUIRED_SOCKETS.filter(key=>!inspection.sockets[key]);inspection.ready=inspection.missing.length===0;
  const mixer=new THREE.AnimationMixer(gltf.scene),actions=new Map();
  for(const clip of gltf.animations||[]){if(clip?.name)actions.set(clip.name.toLowerCase(),mixer.clipAction(clip));}
  let active=null;
