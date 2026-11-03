@@ -38,7 +38,7 @@ export function canStartSlottaAction(controller,name,{force=false}={}){
  const prev=SLOTTA_ACTIONS[controller.state];
  if(controller.state==='victory')return false;
  if(name===controller.state)return false;
- return prev.loop||SLOTTA_ACTIONS[name].priority>=prev.priority;
+ return prev.loop||SLOTTA_ACTIONS[name].priority>prev.priority;
 }
 export function startSlottaAction(controller,name,opts={}){
  if(!canStartSlottaAction(controller,name,opts))return false;
