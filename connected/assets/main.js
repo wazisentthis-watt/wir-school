@@ -236,10 +236,11 @@ const merkaba=new THREE.Mesh(new THREE.OctahedronGeometry(.9,0),new THREE.MeshSt
 
 // NPCs with routines [S3 living city]; traffic (Kenney cars)
 const npcs=[];const cars=[];let rival,rivalSt;
-let heldCar=null;const thrownCars=[];let heldCitizen=null;
-function grabCar(selectedCar=null){if(heldCar)return;const aim=new THREE.Vector3(-Math.sin(camYaw+gripAxisX*.7),0,-Math.cos(camYaw+gripAxisX*.7));const car=selectedCar||cars.filter(c=>!c.userData.worldBody).map(c=>({c,d:c.position.distanceTo(P.o.position),dot:c.position.clone().sub(P.o.position).setY(0).normalize().dot(aim)})).filter(v=>v.d<18).sort((a,b)=>((b.dot-a.dot)*2+a.d-b.d))[0]?.c;if(!car||car.position.distanceTo(P.o.position)>18){if(!worldGripWarned){toast('L2 detected · no car targeted (move closer)');worldGripWarned=true;}return;}worldGripWarned=false;const u=car.userData;u.worldBody=new WorldBody({mass:1500,radius:2.3});u.worldBody.grab();u.worldBody.hold(car.position.x,car.position.y,car.position.z);heldCar=car;u.occupantExited=true;u.occupantCount=0;const passenger=makeChar(0xd6aa7d);passenger.o.position.copy(car.position).add(new THREE.Vector3(2.5,.3,0));scene.add(passenger.o);passenger.target=passenger.o.position.clone().add(new THREE.Vector3(8,0,8));passenger.speed=3;passenger.wait=0;passenger.role='evacuating driver';npcs.push(passenger);toast('Driver evacuated · CAR GRAPPLED');}
+let heldCar=null;const thrownCars=[];let heldCitizen=null,heldActor=null;
+function grabCar(selectedCar=null){if(heldCar)return;const aim=new THREE.Vector3(-Math.sin(camYaw+gripAxisX*.7),0,-Math.cos(camYaw+gripAxisX*.7));const car=selectedCar||cars.filter(c=>!c.userData.worldBody).map(c=>({c,d:c.position.distanceTo(P.o.position),dot:c.position.clone().sub(P.o.position).setY(0).normalize().dot(aim)})).filter(v=>v.d<18).sort((a,b)=>((b.dot-a.dot)*2+a.d-b.d))[0]?.c;if(!car||car.position.distanceTo(P.o.position)>18){if(!worldGripWarned){toast('L2 detected · no car targeted (move closer)');worldGripWarned=true;}return;}worldGripWarned=false;const u=car.userData;if(u.worldBody){u.worldBody.grab();const i=thrownCars.indexOf(car);if(i>=0)thrownCars.splice(i,1);heldCar=car;toast('CAR GRAPPLED');return;}u.worldBody=new WorldBody({mass:1500,radius:2.3});u.worldBody.grab();u.worldBody.hold(car.position.x,car.position.y,car.position.z);heldCar=car;u.occupantExited=true;u.occupantCount=0;const passenger=makeChar(0xd6aa7d);passenger.o.position.copy(car.position).add(new THREE.Vector3(2.5,.3,0));scene.add(passenger.o);passenger.target=passenger.o.position.clone().add(new THREE.Vector3(8,0,8));passenger.speed=3;passenger.wait=0;passenger.role='evacuating driver';npcs.push(passenger);toast('Driver evacuated · CAR GRAPPLED');}
+function releaseCar(){if(!heldCar)return;const car=heldCar,b=car.userData.worldBody;b.release();if(!thrownCars.includes(car))thrownCars.push(car);heldCar=null;}
 function slingCar(){if(!heldCar)return;const car=heldCar,b=car.userData.worldBody;if(!car.userData.occupantExited||car.userData.occupantCount>0){toast('Cannot throw an occupied vehicle');return;}const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));b.hold(car.position.x,car.position.y,car.position.z);b.throw(f.x*24,12,f.z*24);thrownCars.push(car);heldCar=null;toast('CAR SLING');}
-function updateCarBodies(dt){if(heldCar){const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));const right=new THREE.Vector3(f.z,0,-f.x);const target=P.o.position.clone().addScaledVector(f,3.5+Math.max(0,-gripAxisY)*2).addScaledVector(right,gripAxisX*4);target.y+=2.8-gripAxisY*2;heldCar.userData.worldBody.hold(target.x,target.y,target.z);heldCar.position.copy(target);heldCar.rotation.y+=dt*.6;}for(const c of thrownCars){const b=c.userData.worldBody;if(!b)continue;b.step(dt,.05);c.position.set(b.position.x,b.position.y,b.position.z);c.rotation.z+=dt*Math.hypot(b.velocity.x,b.velocity.z)*.045;}}
+function updateCarBodies(dt){if(heldCar){const target=gripHeldPosition(P.o.position,camYaw,gripAxisX,gripAxisY,groundY,{distance:3.5,lateral:4,height:2.8});heldCar.userData.worldBody.hold(target.x,target.y,target.z);heldCar.position.set(target.x,target.y,target.z);heldCar.rotation.y+=dt*.6;}for(const c of thrownCars){const b=c.userData.worldBody;if(!b)continue;b.step(dt,.05);c.position.set(b.position.x,b.position.y,b.position.z);c.rotation.z+=dt*Math.hypot(b.velocity.x,b.velocity.z)*.045;}}
 function wp(){const i=Math.floor(Math.random()*7)-3,j=Math.floor(Math.random()*7)-3;const c=lotCenter(i,j);const e=BLOCK/2+2;return new THREE.Vector3(c.x+(Math.random()<.5?-e:e),0.25,c.z+(Math.random()-.5)*BLOCK);}
 async function spawnLife(){const tints=[0xd9a066,0x5ea1d6,0xc85a5a,0x7bc47f,0xe0c35a,0xa07ad6,0xeeeeee,0x444444];
 
@@ -815,41 +816,72 @@ function updateCrownCharge(dt,gp){initCrownVisual();const lt=!!(gp?.buttons?.[6]
 
 const morrow=createEncounter();let morrowClock=0,morrowStatus='';
 
-// Galaxy Gallium remains as a hardenable ribbon. Visual hand is a five-digit construct, not a web.
-const galliumRibbons=[];let gripVisual=null,gripTarget=null,riftCooldown=0,riftPressTime=0;let gripConduit=null;let structureGrip=null;const riftMarks=[];
-const galliumMaterial=()=>new THREE.MeshStandardMaterial({color:0xb9c8d1,emissive:0x151e35,emissiveIntensity:.16,metalness:1,roughness:.075,side:THREE.DoubleSide});
-function galliumSegment(a,b,r=.095){const d=b.clone().sub(a),mesh=new THREE.Mesh(new THREE.CylinderGeometry(r,r,d.length(),6),galliumMaterial());mesh.position.copy(a).addScaledVector(d,.5);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());scene.add(mesh);return mesh;}
-function clearGripVisual(){if(gripConduit){scene.remove(gripConduit);gripConduit.geometry.dispose();gripConduit.material.dispose();gripConduit=null;}if(structureGrip){scene.remove(structureGrip.mesh);structureGrip.mesh.geometry.dispose();structureGrip.mesh.material.dispose();structureGrip=null;}if(!gripVisual)return;for(const m of gripVisual){scene.remove(m);m.geometry.dispose();m.material.dispose();}gripVisual=null;}
-// Galaxy Gallium grip is contact-local, not a web, rope, or beam.
-// Keep only a brief metallic contact shell on the grabbed object.
-function showGalliumHand(target){clearGripVisual();gripTarget=target||null;/* Shared R1 liquid limb renders this L1 grip. */}
-function leaveGalliumTrail(){/* No persistent grapple trails. */}
+// R1 and L1 share the fluid-metal renderer, with entirely separate physics.
+const galliumRibbons=[];let gripTarget=null,gripFollow=null,gripHeight=0,riftCooldown=0,riftPressTime=0;
+let structureGrip=null;const riftMarks=[];
+function clearGripVisual(){structureGrip=null;gripFollow=null;gripTarget=null;}
+function showGalliumHand(target,height=0){
+ clearGripVisual();if(!target)return;
+ gripFollow=target;gripHeight=height;
+ gripTarget={position:target.position.clone().add(new THREE.Vector3(0,height,0))};
+}
+function releaseGrip(){
+ if(heldCar)releaseCar();
+ if(heldCitizen){heldCitizen.o.position.y=groundY+.25;heldCitizen.wait=.4;heldCitizen.target=wp();heldCitizen=null;}
+ if(heldActor){
+  const a=heldActor;a.root.position.y=groundY;a.home.copy(a.root.position);
+  Object.assign(a.body.position,{x:a.root.position.x,y:groundY,z:a.root.position.z});
+  Object.assign(a.body.velocity,{x:0,y:0,z:0});a.body.state='standing';a.attackCooldown=1;heldActor=null;
+ }
+ clearGripVisual();
+}
+function leaveGalliumTrail(){/* Liquid Gallium extension and retraction are rendered by makeGalliumLimb. */}
 function riffStep(){if(!P||riftCooldown>0)return;riftCooldown=.65;const dir=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw));const launch=36;vel.x+=dir.x*launch;vel.z+=dir.z*launch;vel.y=Math.max(vel.y,6);const pos=P.o.position.clone();const crater=new THREE.Mesh(new THREE.CylinderGeometry(1.4,.9,.14,12),new THREE.MeshStandardMaterial({color:0x342847,emissive:0x4a1e80,emissiveIntensity:.6}));crater.position.set(pos.x,groundY-.08,pos.z);scene.add(crater);riftMarks.push({mesh:crater,life:3.5});toast('RIFFT STEP · RIGHT FOOT');}
 function updateGalliumPhysics(dt){
- for(let i=riftMarks.length-1;i>=0;i--){const mark=riftMarks[i];mark.life-=dt;if(mark.life<=0){scene.remove(mark.mesh);mark.mesh.geometry.dispose();mark.mesh.material.dispose();riftMarks.splice(i,1);}}
- if(structureGrip){const g=structureGrip;const dx=gripAxisX*dt*4,dy=-gripAxisY*dt*4;g.offset.x=THREE.MathUtils.clamp(g.offset.x+dx,-5,5);g.offset.y=THREE.MathUtils.clamp(g.offset.y+dy,-4,4);g.mesh.position.copy(g.base).add(g.offset);g.marker.position.copy(g.point).add(g.offset);g.mesh.rotation.z=THREE.MathUtils.clamp(-g.offset.x*.08,-.35,.35);g.mesh.rotation.x=THREE.MathUtils.clamp(g.offset.y*.07,-.28,.28);}
- 
- if(heldCitizen){const n=heldCitizen;if(!n.o.parent){heldCitizen=null;}else{const forward=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw)),side=new THREE.Vector3(-forward.z,0,forward.x);n.o.position.copy(P.o.position).addScaledVector(forward,3.5).addScaledVector(side,gripAxisX*3);n.o.position.y=Math.max(groundY+.3,P.o.position.y+1.6-gripAxisY*2);n.wait=.3;}}
- 
- if(heldCar&&gripTarget!==heldCar)showGalliumHand(heldCar);
+ for(let i=riftMarks.length-1;i>=0;i--){
+  const mark=riftMarks[i];mark.life-=dt;
+  if(mark.life<=0){scene.remove(mark.mesh);mark.mesh.geometry.dispose();mark.mesh.material.dispose();riftMarks.splice(i,1);}
+ }
+ if(structureGrip){
+  const g=structureGrip,next=stepStructureOffset(g.offset,gripAxisX,gripAxisY,dt);
+  if(next.x!==g.offset.x||next.y!==g.offset.y){
+   g.offset=next;g.body.mesh.position.copy(g.base).add(new THREE.Vector3(next.x,next.y,0));
+   syncGrippableStructure(g.body);g.marker.position.copy(g.point).add(new THREE.Vector3(next.x,next.y,0));
+  }
+ }
+ if(heldCitizen){
+  const n=heldCitizen;
+  if(!n.o.parent)heldCitizen=null;
+  else{const p=gripHeldPosition(P.o.position,camYaw,gripAxisX,gripAxisY,groundY);n.o.position.set(p.x,p.y,p.z);n.wait=.3;}
+ }
+ if(heldActor){
+  const a=heldActor,p=gripHeldPosition(P.o.position,camYaw,gripAxisX,gripAxisY,groundY);
+  a.root.position.set(p.x,p.y,p.z);a.home.copy(a.root.position);
+  Object.assign(a.body.position,{x:p.x,y:p.y,z:p.z});
+  Object.assign(a.body.velocity,{x:0,y:0,z:0});
+ }
+ if(gripFollow&&gripTarget){gripTarget.position.copy(gripFollow.position);gripTarget.position.y+=gripHeight;}
 }
 function galliumGrabWorld(){if(!P)return;
  const origin=P.o.position.clone().add(new THREE.Vector3(0,1.3,0));
  const direction=new THREE.Vector3(-Math.sin(camYaw+gripAxisX*.65),Math.max(-.6,Math.min(.6,-gripAxisY*.5)),-Math.cos(camYaw+gripAxisX*.65)).normalize();
  const ray=new THREE.Ray(origin,direction);const choices=[];
- for(const c of cars){if(c.userData.worldBody)continue;const v=c.position.clone().add(new THREE.Vector3(0,.7,0));const along=v.clone().sub(origin).dot(direction);if(along>0){const miss=ray.distanceSqToPoint(v);choices.push({object:c,point:v,along,score:miss/(1+along*.02),type:'car'});}}
+ for(const c of cars){if(c.userData.worldBody&&c.userData.worldBody.state!=='resting')continue;const v=c.position.clone().add(new THREE.Vector3(0,.7,0));const along=v.clone().sub(origin).dot(direction);if(along>0&&along<18){const miss=ray.distanceSqToPoint(v);choices.push({object:c,point:v,along,score:miss/(1+along*.02),type:'car'});}}
  for(const n of npcs){if(!n.o.visible)continue;const v=n.o.position.clone().add(new THREE.Vector3(0,.8,0)),along=v.clone().sub(origin).dot(direction);if(along>0)choices.push({object:n.o,point:v,along,score:ray.distanceSqToPoint(v)/(1+along*.02),type:'citizen'});}
  for(const a of factionActors){if(!a.root.visible)continue;const v=a.root.position.clone().add(new THREE.Vector3(0,1.2,0));const along=v.clone().sub(origin).dot(direction);if(along>0)choices.push({object:a.root,point:v,along,score:ray.distanceSqToPoint(v)/(1+along*.02),type:'actor'});}
  // Every registered solid building collider is an eligible Gallium anchor, not just cars.
- for(const b of colliders){if(!b.min||!b.max)continue;const box=new THREE.Box3(b.min,b.max);const hit=ray.intersectBox(box,new THREE.Vector3());if(hit){const along=hit.distanceTo(origin);if(along>0)choices.push({object:null,point:hit.clone(),along,score:0,type:'structure'});}}
- choices.sort((a,b)=>a.score-b.score||a.along-b.along);
- const chosen=choices.find(c=>c.type!=='structure'&&c.score<3&&c.along<28)||choices.find(c=>c.type==='structure'&&c.along<45)||null;
+ for(const b of colliders){const body=structureBodies.get(b);if(!body)continue;const hit=ray.intersectBox(b,new THREE.Vector3());if(hit){const along=hit.distanceTo(origin);if(along>0)choices.push({object:body.mesh,body,point:hit.clone(),along,score:0,type:'structure'});}}
+ const chosen=chooseGripTarget(choices);
  if(!chosen){const far=origin.clone().addScaledVector(direction,42);leaveGalliumTrail(origin,far);toast('GALAXY GALLIUM · FREEFORM ANCHOR');return;}
- if(chosen.type==='structure'){const marker={position:chosen.point.clone()};showGalliumHand(marker);const size=new THREE.Vector3(1,1,1);const box=colliders.find(b=>b.min&&b.max&&new THREE.Box3(b.min,b.max).containsPoint(chosen.point.clone().addScaledVector(direction,.08)));if(box)size.subVectors(box.max,box.min);size.clamp(new THREE.Vector3(.5,.5,.5),new THREE.Vector3(12,18,12));const mesh=new THREE.Mesh(new THREE.BoxGeometry(size.x,size.y,size.z),new THREE.MeshStandardMaterial({color:0x7664a0,transparent:true,opacity:.27,metalness:.8,emissive:0x6326aa,emissiveIntensity:.2,depthWrite:false}));mesh.position.copy(box?new THREE.Vector3().addVectors(box.min,box.max).multiplyScalar(.5):chosen.point);scene.add(mesh);structureGrip={mesh,marker,point:chosen.point.clone(),base:mesh.position.clone(),offset:new THREE.Vector3()};toast('KODA · STRUCTURE GRIPPED · RIGHT STICK TO BEND');return;}
- showGalliumHand(chosen.object);leaveGalliumTrail(origin,chosen.point);
+ if(chosen.type==='structure'){
+  const marker={position:chosen.point.clone()};showGalliumHand(marker);
+  structureGrip={body:chosen.body,marker,point:chosen.point.clone(),base:chosen.body.mesh.position.clone(),offset:{x:0,y:0}};
+  toast('GALAXY GALLIUM · REAL STRUCTURE HELD · RIGHT STICK TO MOVE');return;
+ }
+ showGalliumHand(chosen.object,chosen.type==='citizen'?.8:chosen.type==='actor'?1.2:.7);leaveGalliumTrail(origin,chosen.point);
  if(chosen.type==='car')grabCar(chosen.object);
  else if(chosen.type==='citizen'){heldCitizen=npcs.find(n=>n.o===chosen.object)||null;if(heldCitizen){heldCitizen.wait=1;toast('GALAXY GALLIUM · PERSON HELD · RIGHT STICK TO MOVE');}}
- else{const actor=factionActors.find(a=>a.root===chosen.object);if(actor){applyCombatHit(actor.body,{direction,impulse:180,vertical:60});toast('GALAXY GALLIUM · TARGET GRIPPED');}}
+ else{const actor=factionActors.find(a=>a.root===chosen.object);if(actor){heldActor=actor;actor.attackCooldown=1;toast('GALAXY GALLIUM · ENEMY HELD · RIGHT STICK TO MOVE');}}
 }
 
 const morrowMeshes=[];const factionActors=[];const metalBlasts=[];let combatBlastLatch=false;
@@ -857,7 +889,7 @@ function fireMetalBlast(){if(!P||st.gal<.12)return;st.gal-=.12;const d=blastDire
 function updateMetalBlasts(dt){for(let i=metalBlasts.length-1;i>=0;i--){const b=metalBlasts[i];b.life-=dt;b.mesh.position.addScaledVector(b.dir,dt*28);b.mesh.scale.setScalar(.65+Math.sin(b.life*25)*.18);for(const a of factionActors){if(a.root===morrow.reframerMesh&&!a.root.visible)continue;if(b.mesh.position.distanceTo(a.root.position.clone().add(new THREE.Vector3(0,1.2,0)))<2){if(!a.body)a.body=createCombatBody({x:a.root.position.x,y:a.root.position.y,z:a.root.position.z});applyCombatHit(a.body,{direction:b.dir,impulse:520,vertical:160});b.life=0;break;}}if(b.life<=0){scene.remove(b.mesh);b.mesh.geometry.dispose();b.mesh.material.dispose();metalBlasts.splice(i,1);}}}
 
 function factionActor(label,color,x,z,kind){const root=new THREE.Group();root.name=label;const mat=new THREE.MeshStandardMaterial({color,metalness:kind==='reframer'?.85:.25,roughness:.4});const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.43,.9,4,8),mat);torso.position.y=1.15;root.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),mat);head.position.y=2.08;root.add(head);if(kind==='reframer'){for(let j=0;j<6;j++){const a=j*Math.PI/3;const arm=new THREE.Mesh(new THREE.CylinderGeometry(.09,.16,2.4,6),mat);arm.position.set(Math.cos(a)*.95,1.2,Math.sin(a)*.95);arm.rotation.z=Math.cos(a)*.8;arm.rotation.x=Math.sin(a)*.8;root.add(arm);}}root.position.set(x,groundY,z);scene.add(root);factionActors.push({root,label,kind,home:root.position.clone(),phase:Math.random()*6.28,attackCooldown:1.2+Math.random()*1.5,body:createCombatBody({x,y:groundY,z})});return root;}
-function updateFactionActors(dt){if(!P)return;for(const a of factionActors){a.attackCooldown=Math.max(0,(a.attackCooldown||0)-dt);const hostile=a.kind==='framebreaker'||a.kind==='reframer'||a.kind==='slotta';const delta=P.o.position.clone().sub(a.root.position).setY(0);const range=delta.length();if(hostile&&a.root.visible&&range<17&&a.body.state==='standing'){if(range>3&&range>0.01){a.home.addScaledVector(delta.normalize(),dt*(a.kind==='reframer'?1.8:2.5));}else if(a.attackCooldown<=0){const dir=delta.lengthSq()>.01?delta.normalize():new THREE.Vector3(0,0,1);vel.addScaledVector(dir,5);vel.y=Math.max(vel.y,1.8);a.attackCooldown=a.kind==='reframer'?2.8:1.8;toast(a.kind==='reframer'?'REFRAMER · kinetic strike':'FRAMEBREAKER · counterattack');}}a.phase+=dt*(a.kind==='reframer'?1.4:.7);if(a.body.state!=='standing'){stepCombatBody(a.body,dt,groundY);a.root.position.set(a.body.position.x,a.body.position.y,a.body.position.z);a.root.rotation.z=Math.min(1.1,Math.hypot(a.body.velocity.x,a.body.velocity.z)*.07);if(a.body.state==='standing'){a.home.copy(a.root.position);a.root.rotation.z=0;}}else{a.root.position.x=a.home.x+Math.sin(a.phase)*2;a.root.position.z=a.home.z+Math.cos(a.phase)*2;a.root.rotation.y+=dt*.3;a.body.position.x=a.root.position.x;a.body.position.z=a.root.position.z;}}}
+function updateFactionActors(dt){if(!P)return;for(const a of factionActors){if(a===heldActor){a.attackCooldown=1;continue;}a.attackCooldown=Math.max(0,(a.attackCooldown||0)-dt);const hostile=a.kind==='framebreaker'||a.kind==='reframer'||a.kind==='slotta';const delta=P.o.position.clone().sub(a.root.position).setY(0);const range=delta.length();if(hostile&&a.root.visible&&range<17&&a.body.state==='standing'){if(range>3&&range>0.01){a.home.addScaledVector(delta.normalize(),dt*(a.kind==='reframer'?1.8:2.5));}else if(a.attackCooldown<=0){const dir=delta.lengthSq()>.01?delta.normalize():new THREE.Vector3(0,0,1);vel.addScaledVector(dir,5);vel.y=Math.max(vel.y,1.8);a.attackCooldown=a.kind==='reframer'?2.8:1.8;toast(a.kind==='reframer'?'REFRAMER · kinetic strike':'FRAMEBREAKER · counterattack');}}a.phase+=dt*(a.kind==='reframer'?1.4:.7);if(a.body.state!=='standing'){stepCombatBody(a.body,dt,groundY);a.root.position.set(a.body.position.x,a.body.position.y,a.body.position.z);a.root.rotation.z=Math.min(1.1,Math.hypot(a.body.velocity.x,a.body.velocity.z)*.07);if(a.body.state==='standing'){a.home.copy(a.root.position);a.root.rotation.z=0;}}else{a.root.position.x=a.home.x+Math.sin(a.phase)*2;a.root.position.z=a.home.z+Math.cos(a.phase)*2;a.root.rotation.y+=dt*.3;a.body.position.x=a.root.position.x;a.body.position.z=a.root.position.z;}}}
 
 // SLOTTA's backpack console: autonomous first-boss combat encounter.
 const slottaConsole=createSlottaLoadout(),slottaMinions=[];let slottaAttackClock=2,slottaSnare=0,slottaAnnounced=false,slottaTurn=0,slottaSwapClock=0;const slottaEffects=[];
