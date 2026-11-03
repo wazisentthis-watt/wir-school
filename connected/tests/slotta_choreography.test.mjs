@@ -61,3 +61,26 @@ test('serpent and clone model animations include distinct attack poses and segme
  assert.match(main,/slottaDashSweep\(/);
  assert.match(main,/slottaBlockedAt\(x,z/);
 });
+
+test('boss hit combos trigger distinct light/heavy reactions and cleanup dash interruption',()=>{
+ const main=readFileSync(new URL('../assets/main.js',import.meta.url),'utf8');
+ const poses=readFileSync(new URL('../assets/slotta_pose.js',import.meta.url),'utf8');
+ assert.match(main,/slottaCombat\.impactCount=Math\.min\(3,slottaCombat\.impactCount\+1\)/);
+ assert.match(main,/const heavy=damage>=18\|\|slottaCombat\.impactCount>=3/);
+ assert.match(main,/slottaHitSpark\(morrow\.slottaMesh,heavy\)/);
+ assert.match(main,/slottaPendingGame=null;slottaDash=null/);
+ assert.match(poses,/case 'hitLight'/);assert.match(poses,/case 'hitHeavy'/);
+ assert.match(poses,/rig\.pack\.rotation\.x=-\.20\*b/);
+});
+test('boss dash stops patrolling sine offsets from teleporting him after recovery',()=>{
+ const main=readFileSync(new URL('../assets/main.js',import.meta.url),'utf8');
+ assert.match(main,/const slottaSteady=a\.kind==='slotta'/);
+ assert.match(main,/a\.home\.x\+\(slottaSteady\?0:/);
+});
+test('SLOTTA Lab minion previews use same motion engine, timing, and hologram target as gameplay',()=>{
+ const src=readFileSync(new URL('../slotta-lab/index.html',import.meta.url),'utf8');
+ assert.match(src,/from '\.\.\/assets\/slotta_choreography\.js'/);
+ assert.match(src,/minionChoreographyStep\(motion,dt\*speed/);
+ assert.match(src,/targetDummy\.visible=kind!=='boss'/);
+ assert.match(src,/move\.telegraph/);
+});
