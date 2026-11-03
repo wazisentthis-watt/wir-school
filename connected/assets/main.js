@@ -920,8 +920,14 @@ function galliumGrabWorld(){if(!P)return;
 
 const morrowMeshes=[];const factionActors=[];const metalBlasts=[];let combatBlastLatch=false;
 // SLOTTA combat integrity: blast damage is independent of the existing tether/capture mission.
-const slottaCombat={maxHealth:100,health:100,defeated:false,hitCooldown:0};
-function hitSlotta(damage){if(!morrow.slottaMesh||slottaCombat.defeated||morrow.slotta.captured||morrow.slotta.escaped||slottaPhase>0||slottaCombat.hitCooldown>0)return false;slottaCombat.health=Math.max(0,slottaCombat.health-damage*(slottaArmor>0?.5:1));slottaCombat.hitCooldown=.18;slottaPendingGame=null;slottaDash=null;if(slottaCombat.health<=0){slottaCombat.defeated=true;startSlottaAction(slottaAnimator,'knockdown',{force:true});morrow.slottaMesh.visible=false;toast('SLOTTA DEFEATED · PHATOM ENGINE DISABLED');}else{startSlottaAction(slottaAnimator,damage>=12?'hitHeavy':'hitLight',{force:true});toast('SLOTTA · '+Math.ceil(slottaCombat.health)+'% CORE');}return true;}
+const slottaCombat={maxHealth:100,health:100,defeated:false,hitCooldown:0,impactWindow:0,impactCount:0};
+function hitSlotta(damage){if(!morrow.slottaMesh||slottaCombat.defeated||morrow.slotta.captured||morrow.slotta.escaped||slottaPhase>0||slottaCombat.hitCooldown>0)return false;slottaCombat.health=Math.max(0,slottaCombat.health-damage*(slottaArmor>0?.5:1));slottaCombat.hitCooldown=.18;slottaPendingGame=null;slottaDash=null;
+ if(slottaCombat.impactWindow<=0)slottaCombat.impactCount=0;
+ slottaCombat.impactCount=Math.min(3,slottaCombat.impactCount+1);
+ slottaCombat.impactWindow=2.2;
+ const heavy=damage>=18||slottaCombat.impactCount>=3;
+ slottaHitSpark(morrow.slottaMesh,heavy);
+ if(slottaCombat.health<=0){slottaCombat.defeated=true;startSlottaAction(slottaAnimator,'knockdown',{force:true});morrow.slottaMesh.visible=false;toast('SLOTTA DEFEATED · PHATOM ENGINE DISABLED');}else{startSlottaAction(slottaAnimator,heavy?'hitHeavy':'hitLight',{force:true});toast('SLOTTA · '+Math.ceil(slottaCombat.health)+'% CORE');}return true;}
 
 function fireMetalBlast(){if(!P||st.gal<.12)return;st.gal-=.12;const d=blastDirection(camYaw+Math.PI,Math.max(-.3,Math.min(.3,-camPitch*.35)));const p=P.o.position.clone().add(new THREE.Vector3(0,1.3,0));const ball=new THREE.Mesh(new THREE.SphereGeometry(.38,10,8),new THREE.MeshStandardMaterial({color:0xc5a3ff,emissive:0x873aff,emissiveIntensity:2,metalness:.9}));ball.position.copy(p);scene.add(ball);metalBlasts.push({mesh:ball,dir:new THREE.Vector3(d.x,d.y,d.z),life:1.3});toast('GALAXY GALLIUM · plasma-core discharge');}
 function updateMetalBlasts(dt){for(let i=metalBlasts.length-1;i>=0;i--){const b=metalBlasts[i];b.life-=dt;b.mesh.position.addScaledVector(b.dir,dt*28);b.mesh.scale.setScalar(.65+Math.sin(b.life*25)*.18);if(morrow.slottaMesh&&!slottaCombat.defeated&&morrow.slottaMesh.visible&&b.mesh.position.distanceTo(morrow.slottaMesh.position.clone().add(new THREE.Vector3(0,1.2,0)))<2){if(hitSlotta(12))b.life=0;}if(b.life>0)for(const a of factionActors){if(a.root===morrow.slottaMesh||!a.root.visible)continue;if(b.mesh.position.distanceTo(a.root.position.clone().add(new THREE.Vector3(0,1.2,0)))<2){if(!a.body)a.body=createCombatBody({x:a.root.position.x,y:a.root.position.y,z:a.root.position.z});applyCombatHit(a.body,{direction:b.dir,impulse:520,vertical:160});b.life=0;break;}}if(b.life<=0){scene.remove(b.mesh);b.mesh.geometry.dispose();b.mesh.material.dispose();metalBlasts.splice(i,1);}}}
@@ -975,6 +981,14 @@ function slottaEffect(kind,pos,radius=3,life=1.1){
   new THREE.MeshBasicMaterial({color:colors[kind]||0xffffff,transparent:true,opacity:.8,depthWrite:false}));
  mesh.rotation.x=Math.PI/2;mesh.position.copy(pos);mesh.position.y=groundY+.16;scene.add(mesh);
  slottaEffects.push({mesh,life,max:life});
+}
+function slottaHitSpark(boss,heavy){
+ // The damage event, not the render frame, owns this flash.
+ const mesh=new THREE.Mesh(new THREE.IcosahedronGeometry(heavy?.48:.31,1),
+  new THREE.MeshBasicMaterial({color:heavy?0xffbe89:0xb6baff,transparent:true,opacity:.82,depthWrite:false}));
+ mesh.position.copy(boss.position).add(new THREE.Vector3(0,1.35,0));
+ scene.add(mesh);slottaEffects.push({mesh,life:heavy?.38:.27,max:heavy?.38:.27});
+ slottaEffect(heavy?'strike':'shield',boss.position,heavy?1.85:1.15,heavy?.44:.28);
 }
 function slottaAfterimage(pos){
  const mesh=new THREE.Mesh(new THREE.CapsuleGeometry(.39,1.25,3,7),
@@ -1045,7 +1059,7 @@ function updateSlottaBoss(dt){
    slottaPendingGame=null;
   }
  }
- slottaCombat.hitCooldown=Math.max(0,slottaCombat.hitCooldown-dt);if(slottaCombat.defeated)return;tickSlotta(slottaConsole,dt);slottaSnare=Math.max(0,slottaSnare-dt);slottaPhase=Math.max(0,slottaPhase-dt);slottaArmor=Math.max(0,slottaArmor-dt);slottaArena=Math.max(0,slottaArena-dt);slottaGravity=Math.max(0,slottaGravity-dt);if(slottaGravity>0&&P.o.position.distanceTo(morrow.slottaMesh.position)<18){vel.x*=Math.max(.2,1-dt*2);vel.z*=Math.max(.2,1-dt*2);}morrow.slottaMesh.traverse(o=>{if(o.isMesh&&o.material){o.material.transparent=slottaPhase>0;o.material.opacity=slottaPhase>0?.35:1;}});
+ slottaCombat.hitCooldown=Math.max(0,slottaCombat.hitCooldown-dt);slottaCombat.impactWindow=Math.max(0,slottaCombat.impactWindow-dt);if(slottaCombat.defeated)return;tickSlotta(slottaConsole,dt);slottaSnare=Math.max(0,slottaSnare-dt);slottaPhase=Math.max(0,slottaPhase-dt);slottaArmor=Math.max(0,slottaArmor-dt);slottaArena=Math.max(0,slottaArena-dt);slottaGravity=Math.max(0,slottaGravity-dt);if(slottaGravity>0&&P.o.position.distanceTo(morrow.slottaMesh.position)<18){vel.x*=Math.max(.2,1-dt*2);vel.z*=Math.max(.2,1-dt*2);}morrow.slottaMesh.traverse(o=>{if(o.isMesh&&o.material){o.material.transparent=slottaPhase>0;o.material.opacity=slottaPhase>0?.35:1;}});
  const boss=morrow.slottaMesh,range=boss.position.distanceTo(P.o.position);
  updateSlottaDash(dt,boss);
  if(range<24&&!slottaAnnounced){slottaAnnounced=true;startSlottaAction(slottaAnimator,'intro');toast('BOSS: SLOTTA · PHATOM ENGINE · 3 ACTIVE / 5 STORED');}
