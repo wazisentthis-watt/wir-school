@@ -7,6 +7,7 @@ export class WorldBody {
  }
  grab(){this.state='held';this.velocity={x:0,y:0,z:0};}
  hold(x,y,z){if(this.state!=='held')return;this.position={x,y,z};}
+ release(){if(this.state!=='held')return false;this.velocity={x:0,y:0,z:0};this.state='free';return true;}
  throw(x,y,z){if(this.state!=='held')return false;this.velocity={x,y,z};this.state='thrown';return true;}
  step(dt,ground=0){
   if(this.state==='held'||!Number.isFinite(dt)||dt<=0)return;
