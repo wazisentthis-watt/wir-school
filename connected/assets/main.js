@@ -794,7 +794,7 @@ function updateCrownCharge(dt,gp){initCrownVisual();const lt=!!(gp?.buttons?.[6]
 const morrow=createEncounter();let morrowClock=0,morrowStatus='';
 
 // Galaxy Gallium remains as a hardenable ribbon. Visual hand is a five-digit construct, not a web.
-const galliumRibbons=[];let gripVisual=null,gripTarget=null,riftCooldown=0;const riftMarks=[];
+const galliumRibbons=[];let gripVisual=null,gripTarget=null,riftCooldown=0,riftPressTime=0;const riftMarks=[];
 const galliumMaterial=()=>new THREE.MeshStandardMaterial({color:0xbba2f5,emissive:0x6b2fd9,emissiveIntensity:.9,metalness:.95,roughness:.18,side:THREE.DoubleSide});
 function galliumSegment(a,b,r=.095){const d=b.clone().sub(a),mesh=new THREE.Mesh(new THREE.CylinderGeometry(r,r,d.length(),6),galliumMaterial());mesh.position.copy(a).addScaledVector(d,.5);mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());scene.add(mesh);return mesh;}
 function clearGripVisual(){if(!gripVisual)return;for(const m of gripVisual){scene.remove(m);m.geometry.dispose();m.material.dispose();}gripVisual=null;}
@@ -802,7 +802,22 @@ function showGalliumHand(target){clearGripVisual();if(!P||!target)return;const a
 function leaveGalliumTrail(a,b){if(a.distanceTo(b)<1)return;const mesh=galliumSegment(a,b,.16);mesh.userData.galliumRail=true;galliumRibbons.push({mesh,a:a.clone(),b:b.clone()});if(galliumRibbons.length>40){const old=galliumRibbons.shift();scene.remove(old.mesh);old.mesh.geometry.dispose();old.mesh.material.dispose();}}
 function riffStep(){if(!P||riftCooldown>0)return;riftCooldown=.65;const dir=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw));const launch=36;vel.x+=dir.x*launch;vel.z+=dir.z*launch;vel.y=Math.max(vel.y,6);const pos=P.o.position.clone();const crater=new THREE.Mesh(new THREE.CylinderGeometry(1.4,.9,.14,12),new THREE.MeshStandardMaterial({color:0x342847,emissive:0x4a1e80,emissiveIntensity:.6}));crater.position.set(pos.x,groundY-.08,pos.z);scene.add(crater);riftMarks.push({mesh:crater,life:3.5});toast('RIFFT STEP · RIGHT FOOT');}
 function updateGalliumPhysics(dt){for(let i=riftMarks.length-1;i>=0;i--){const mark=riftMarks[i];mark.life-=dt;if(mark.life<=0){scene.remove(mark.mesh);mark.mesh.geometry.dispose();mark.mesh.material.dispose();riftMarks.splice(i,1);}}if(gripTarget&&gripVisual){const start=P.o.position.clone().add(new THREE.Vector3(0,1.3,0)),end=gripTarget.position.clone().add(new THREE.Vector3(0,1,0));const m=gripVisual[0],d=end.clone().sub(start);m.position.copy(start).addScaledVector(d,.5);m.scale.y=d.length()/m.geometry.parameters.height;m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.normalize());}if(heldCar&&gripTarget!==heldCar)showGalliumHand(heldCar);}
-function galliumGrabWorld(){if(!P)return;const aim=new THREE.Vector3(-Math.sin(camYaw+gripAxisX*.65),0,-Math.cos(camYaw+gripAxisX*.65));const options=[...cars.filter(c=>!c.userData.worldBody),...factionActors.filter(a=>a.root.visible).map(a=>a.root)];const best=options.map(o=>({o,dist:o.position.distanceTo(P.o.position),dot:o.position.clone().sub(P.o.position).setY(0).normalize().dot(aim)})).filter(t=>t.dist<24&&t.dot>.45).sort((a,b)=>b.dot-a.dot+(a.dist-b.dist)*.02)[0];if(!best){toast('No target in Gallium reach');return;}const target=best.o;showGalliumHand(target);const start=P.o.position.clone().add(new THREE.Vector3(0,1.3,0)),end=target.position.clone().add(new THREE.Vector3(0,1,0));leaveGalliumTrail(start,end);if(cars.includes(target)){grabCar(target);}else{const actor=factionActors.find(a=>a.root===target);if(actor){applyCombatHit(actor.body,{direction:aim,impulse:180,vertical:60});toast('GALAXY GALLIUM · TARGET GRIPPED');}}}
+function galliumGrabWorld(){if(!P)return;
+ const origin=P.o.position.clone().add(new THREE.Vector3(0,1.3,0));
+ const direction=new THREE.Vector3(-Math.sin(camYaw+gripAxisX*.65),Math.max(-.6,Math.min(.6,-gripAxisY*.5)),-Math.cos(camYaw+gripAxisX*.65)).normalize();
+ const ray=new THREE.Ray(origin,direction);const choices=[];
+ for(const c of cars){if(c.userData.worldBody)continue;const v=c.position.clone().add(new THREE.Vector3(0,.7,0));const along=v.clone().sub(origin).dot(direction);if(along>0){const miss=ray.distanceSqToPoint(v);choices.push({object:c,point:v,along,score:miss/(1+along*.02),type:'car'});}}
+ for(const a of factionActors){if(!a.root.visible)continue;const v=a.root.position.clone().add(new THREE.Vector3(0,1.2,0));const along=v.clone().sub(origin).dot(direction);if(along>0)choices.push({object:a.root,point:v,along,score:ray.distanceSqToPoint(v)/(1+along*.02),type:'actor'});}
+ // Every registered solid building collider is an eligible Gallium anchor, not just cars.
+ for(const b of colliders){if(!b.min||!b.max)continue;const box=new THREE.Box3(b.min,b.max);const hit=ray.intersectBox(box,new THREE.Vector3());if(hit){const along=hit.distanceTo(origin);if(along>0)choices.push({object:null,point:hit.clone(),along,score:0,type:'structure'});}}
+ choices.sort((a,b)=>a.score-b.score||a.along-b.along);
+ const chosen=choices.find(c=>c.type==='structure'||c.score<3)||choices[0];
+ if(!chosen){const far=origin.clone().addScaledVector(direction,42);leaveGalliumTrail(origin,far);toast('GALAXY GALLIUM · FREEFORM ANCHOR');return;}
+ if(chosen.type==='structure'){const marker={position:chosen.point.clone().add(new THREE.Vector3(0,-1,0))};showGalliumHand(marker);leaveGalliumTrail(origin,chosen.point);toast('GALAXY GALLIUM · STRUCTURE ANCHORED');return;}
+ showGalliumHand(chosen.object);leaveGalliumTrail(origin,chosen.point);
+ if(chosen.type==='car')grabCar(chosen.object);
+ else{const actor=factionActors.find(a=>a.root===chosen.object);if(actor){applyCombatHit(actor.body,{direction,impulse:180,vertical:60});toast('GALAXY GALLIUM · TARGET GRIPPED');}}
+}
 
 const morrowMeshes=[];const factionActors=[];const metalBlasts=[];let combatBlastLatch=false;
 function fireMetalBlast(){if(!P||st.gal<.12)return;st.gal-=.12;const d=blastDirection(camYaw+Math.PI,Math.max(-.3,Math.min(.3,-camPitch*.35)));const p=P.o.position.clone().add(new THREE.Vector3(0,1.3,0));const ball=new THREE.Mesh(new THREE.SphereGeometry(.38,10,8),new THREE.MeshStandardMaterial({color:0xc5a3ff,emissive:0x873aff,emissiveIntensity:2,metalness:.9}));ball.position.copy(p);scene.add(ball);metalBlasts.push({mesh:ball,dir:new THREE.Vector3(d.x,d.y,d.z),life:1.3});toast('GALAXY GALLIUM · plasma-core discharge');}
@@ -893,8 +908,8 @@ function update(dt){
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
  const lt=!!(gpWorld?.buttons[6]?.pressed||gpWorld?.buttons[6]?.value>.35||gpWorld?.axes?.[4]>.35),lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!(gpWorld?.buttons[7]?.pressed||gpWorld?.buttons[7]?.value>.35);
  updateCrownCharge(dt,gpWorld);worldGripActive=lt&&!rt;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
- if(rt&&!lt&&!combatBlastLatch)riffStep();combatBlastLatch=rt&&!lt;if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
- if(rb&&!worldSwingLatch){if(slottaSnare>0)toast('Circuit Serpents: swing disabled');else{pressed.KeyQ=true;keys.KeyQ=true;}}if((!rb||lt)&&worldSwingLatch)keys.KeyQ=false;worldSwingLatch=rb&&!lt;
+ if(rt&&!lt){riftPressTime+=dt;if(riftPressTime>=.16&&!combatBlastLatch){riffStep();combatBlastLatch=true;}}else{riftPressTime=0;combatBlastLatch=false;}if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
+ if(rb&&!lt&&!worldSwingLatch){if(slottaSnare>0)toast('Circuit Serpents: swing disabled');else{pressed.KeyQ=true;keys.KeyQ=true;}}if((!rb||lt)&&worldSwingLatch)keys.KeyQ=false;worldSwingLatch=rb&&!lt;
  if((lt&&!rt&&!heldCar&&worldGripRetry<=0)||tap('KeyU')){if(slottaSnare>0)toast('Circuit Serpents disrupting Galaxy Gallium');else galliumGrabWorld();worldGripRetry=.4;}else worldGripRetry=Math.max(0,worldGripRetry-dt);
  if((lt&&lb&&!worldThrowLatch)||tap('KeyI')){slingCar();clearGripVisual();gripTarget=null;}
  if(!lt){worldGripWarned=false;worldGripRetry=0;}worldGrabLatch=lt;worldThrowLatch=lt&&lb;
