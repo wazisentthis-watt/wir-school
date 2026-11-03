@@ -34,3 +34,119 @@ Needs manual run on iPhone: actual WebGL rendering, Bluetooth controller, frame 
 ### Canon notes
 
 The character name is **SLOTTA** and the engine is **PHATOM**. Slither Master/Ninja Star are established legacy concepts for Circuit Serpents and clone attacks; the existing WIR Connected `slotta_slots.js` eight game IDs are preserved unchanged. No proprietary character/game content or third-party references are shipped as game assets.
+
+
+## Pre-rig animation and PHATOM expansion (2026-11-03)
+
+**Visual status: PROPOSAL / HOLD.** The owner-provided SLOTTA reference is a
+streetwear character (red hoodie, denim jacket, jeans, tan boots, high-top fade)
+with the PHATOM backpack. The temporary procedural model is an approximation,
+**not** owner-approved final canon or a weight-painted rig.
+
+### Three starting ports, five stored, three archived
+
+The 3 starting active worlds are:
+1. Slither Master, Circuit Serpents
+2. Ninja Star, Cyborg Clones
+3. Phantom Racer, Afterimage Dash
+
+The original five stored games remain Fleshcode, Phasebound, Shifting Department,
+Tenfold, and Elemental Outlaw. The formerly active Zero Sector, Nanoforge, and
+Gravity Children remain in the **archive**, available for future download/swap.
+There are 11 registered game IDs but **only eight installed PHATOM slots**.
+`signature_cartridges.svg` adds new original icons for the three signature games;
+the existing `cartridge_atlas.svg` remains an archive of the earlier eight icons.
+
+### Source responsibilities
+
+- `slotta_animation_machine.js`: deterministic time/priority state machine,
+  frame markers and clip-name manifest, no dependency on 3D renderer
+- `slotta_pose.js`: procedural character poses, cartridge ejection/insertion,
+  independently pulsing active and storage slot lights
+- `slotta_visuals.js`: streetwear-inspired blockout, sockets, articulated limbs,
+  procedural enemy models and the pose adapter
+- `slotta_rig_adapter.js`: non-destructive skeleton inspection and future glTF
+  AnimationMixer setup. Does **not** pretend the blockout is skinned.
+- `main.js`: attacks are queued at PHATOM selection and resolve when the
+  animation's **cast** frame arrives. Old boss AI, RPG encounters and legacy
+  eight powers remain; Phantom Racer moves the boss continuously through the
+  collision-aware world rather than teleporting Metal.
+- `slotta-lab/index.html`: interactive asset QA, animation picker, timeline
+  scrub, playback speed, pause, repeat, camera views, hitbox silhouette, attachment
+  socket markers and cast-frame rings. No save state is changed here.
+
+### Required sockets and external GLB contract
+
+Model in meter scale, Y up, +Z forward, feet at Y=0, skinned meshes and named
+bones Hips, Spine, Head, LeftHand, RightHand (common Mixamo aliases accepted).
+Recommended sockets:
+
+- `PHATOM_socket` near the shoulder blades
+- `SLOTTA_SERPENT_SPAWN` on the right wrist
+- `SLOTTA_CLONE_SPAWN` behind/around the hips
+- `SLOTTA_DASH_TRAIL` on the back/hips
+- `SLOTTA_LEFT_HAND` / `SLOTTA_RIGHT_HAND` for equipment and gestures
+
+Suggested clip names: Idle, Walk, Strafe, BossIntro, CartridgeSelect,
+CartridgeSwap, SlitherCast, NinjaSummon, PhantomDash, LegacyCast, HitLight,
+HitHeavy, GalliumHeld, Knockdown, GetUp, Taunt, Victory. They are
+**target clip names**. These animations have not yet been exported as a real
+skinned GLB.
+
+### Test and acceptance
+
+Run all local tests with:
+```sh
+node --check connected/assets/main.js
+node --check connected/assets/slotta_visuals.js
+node --check connected/assets/slotta_animation_machine.js
+node --check connected/assets/slotta_pose.js
+node --check connected/assets/slotta_rig_adapter.js
+node --test connected/tests/slotta_asset_contract.test.mjs connected/tests/slotta_animation_machine.test.mjs connected/tests/slotta_lab_preview.test.mjs
+```
+
+Manual QA on an iPhone with controller is **still required**:
+1. SLOTTA appears with visual PHATOM 3+5; no missing assets/runtime errors
+2. Slither Master casts at the tell, then two serpents move and disrupt Gallium
+3. Ninja Star casts at the tell, then two clones pursue Metal
+4. Phantom Racer shows moving afterimages and stops at solid building colliders
+5. Boss takes blast damage and performs appropriate hit reaction; does not
+   continue a canceled attack after an interrupt
+6. L1 Gallium grip halts the dash and displays held pose; release returns to
+   ground/recovery state
+7. All original legacy cartridges remain usable if swapped into active ports
+8. Lab controls work with touch and PC; check FPS and thermal/device behavior
+
+Do not merge/publish this visual redesign until owner approval of the
+appearance and review of manual iPhone results. 
+
+### Minion combat choreography pass 2 (2026-11-03)
+
+- `slotta_choreography.js` drives minions using pure deterministic spawn,
+  approach, orbit/flank, lunge, and recover states. Circuit Serpents use a
+  tighter/faster curve while Cyborg Clones flank farther and aim-lock before
+  the lunge. Their attack telegraph appears before damage can occur.
+- `slotta_visuals.js` supplies a nine-link articulated serpent with live
+  body undulation and distinct humanoid clone arm/leg/torso joint poses.
+- Minion movement respects building collider footprints; summons have
+  separate limits (8 serpents / 6 clones) to protect mobile performance.
+- Phantom Racer uses `slottaDashSweep` to move in small swept increments
+  with the same world collider data. End-of-dash recovery no longer introduces
+  a separate sine-orbit position offset for SLOTTA.
+- Damage reactions now distinguish light recoil and heavy stagger. The third
+  successful hit inside a 2.2-second combo window escalates to heavy stagger.
+  Damage still uses the existing boss health/cooldown contract.
+- Summons and temporary effects are disposed when SLOTTA is defeated,
+  captured, or escaped. This prevents frozen visual remnants.
+- SLOTTA Lab now previews the same minion choreography against a transparent
+  target dummy, allowing comparison of approach, telegraph, lunge, and
+  recovery before importing a real skinned rig.
+
+Automated scope: `connected/tests/slotta_choreography.test.mjs` covers
+materialization, flanks, telegraphs, building blocking, swept dash motion,
+combo hit reactions, dash recovery, and lab source integration.
+
+**Remaining manual gates:** browser render, device frame rate, iPhone touch,
+Bluetooth gamepad, VFX performance, boss collision feel, attack fairness.
+All new visuals remain **PROPOSAL/HOLD** until owner review and a real-device
+smoke test. Draft PR #9 is intentionally not merged.

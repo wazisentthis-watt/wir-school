@@ -7,9 +7,11 @@ test('SLOTTA PHATOM backpack contract has three active and five stored games',()
  const loadout=createSlottaLoadout();
  assert.equal(loadout.active.length,3);
  assert.equal(loadout.stored.length,5);
- assert.equal(SLOTTA_GAMES.length,8);
+ assert.equal(SLOTTA_GAMES.length,11);
  assert.equal(new Set([...loadout.active,...loadout.stored]).size,8);
- assert.deepEqual(new Set([...loadout.active,...loadout.stored]),new Set(SLOTTA_GAMES.map(game=>game.id)));
+ assert.deepEqual(loadout.active,['slither-master','ninja-star','phantom-racer']);
+ assert.equal(loadout.archive.length,3);
+ assert.deepEqual(new Set([...loadout.active,...loadout.stored,...loadout.archive]),new Set(SLOTTA_GAMES.map(game=>game.id)));
 });
 
 test('PHATOM swap retains all eight game IDs and can activate its new cartridge',()=>{
@@ -29,16 +31,18 @@ test('boss visuals preserve named active and storage ports and animation hooks',
   assert.match(src,new RegExp('export function '+api+'\\('));
 });
 
-test('cartridge atlas has all eight exact game IDs',()=>{
+test('the legacy cartridge atlas retains the original eight game IDs',()=>{
  const src=readFileSync(new URL('../assets/slotta_assets/cartridge_atlas.svg',import.meta.url),'utf8');
- for(const game of SLOTTA_GAMES)assert.ok(src.includes('id="'+game.id+'"'),game.id);
+ for(const game of SLOTTA_GAMES.filter(g=>!['slither-master','ninja-star','phantom-racer'].includes(g.id)))assert.ok(src.includes('id="'+game.id+'"'),game.id);
+ const newAtlas=readFileSync(new URL('../assets/slotta_assets/signature_cartridges.svg',import.meta.url),'utf8');
+ for(const id of ['slither-master','ninja-star','phantom-racer'])assert.ok(newAtlas.includes('id="'+id+'"'),id);
 });
 
 test('game uses live SLOTTA visual module while keeping boss attacks',()=>{
  const src=readFileSync(new URL('../assets/main.js',import.meta.url),'utf8');
  assert.match(src,/from '\.\/slotta_visuals\.js'/);
  assert.match(src,/kind==='slotta'\?createSlottaBossAsset\(\)/);
- assert.match(src,/animateSlottaMinionAsset\(m\.root,m\.phase\)/);
+ assert.match(src,/animateSlottaMinionAsset\(m\.root,m\.phase,move\.stage,m\.motion\.side\)/);
  assert.match(src,/function slottaUseGame\(/);
  assert.match(src,/function updateSlottaBoss\(/);
 });
