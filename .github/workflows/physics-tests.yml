@@ -24,6 +24,7 @@ jobs:
           node --check connected/assets/slotta_visuals.js
           node --check connected/assets/slotta_slots.js
           node --check connected/assets/slotta_animation_machine.js
+          node --check connected/assets/slotta_choreography.js
           node --check connected/assets/slotta_pose.js
           node --check connected/assets/slotta_rig_adapter.js
           node --check connected/assets/world_body.js
@@ -31,4 +32,4 @@ jobs:
           node --check connected/assets/gallium_limb.js
           node --check connected/assets/structure_conservation.js
       - name: Physics unit tests
-        run: node --test connected/tests/body_machine.test.mjs connected/tests/world_body.test.mjs connected/tests/physics_telemetry.test.mjs connected/tests/physics_analysis.test.mjs connected/tests/structure_conservation.test.mjs connected/tests/gallium_grip_core.test.mjs connected/tests/slotta_asset_contract.test.mjs connected/tests/slotta_animation_machine.test.mjs connected/tests/slotta_lab_preview.test.mjs
+        run: node --test connected/tests/body_machine.test.mjs connected/tests/world_body.test.mjs connected/tests/physics_telemetry.test.mjs connected/tests/physics_analysis.test.mjs connected/tests/structure_conservation.test.mjs connected/tests/gallium_grip_core.test.mjs connected/tests/slotta_asset_contract.test.mjs connected/tests/slotta_animation_machine.test.mjs connected/tests/slotta_lab_preview.test.mjs connected/tests/slotta_choreography.test.mjs
