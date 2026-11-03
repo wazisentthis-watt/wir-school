@@ -1,0 +1,60 @@
+name: Metal first-mission recovery QA
+on:
+  push:
+    paths:
+      - 'connected/index.html'
+      - 'connected/assets/main.js'
+      - 'connected/assets/boot_recovery.js'
+      - 'connected/assets/mission_asset_recovery.js'
+      - 'connected/tests/mission_load_browser_playwright.mjs'
+      - 'connected/tests/mission_asset_recovery.test.mjs'
+      - '.github/workflows/mission-load-qa.yml'
+  pull_request:
+    paths:
+      - 'connected/index.html'
+      - 'connected/assets/main.js'
+      - 'connected/assets/boot_recovery.js'
+      - 'connected/assets/mission_asset_recovery.js'
+      - 'connected/tests/mission_load_browser_playwright.mjs'
+      - 'connected/tests/mission_asset_recovery.test.mjs'
+      - '.github/workflows/mission-load-qa.yml'
+  workflow_dispatch:
+jobs:
+  first-mission:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Mission startup source validation
+        run: |
+          node --check connected/assets/main.js
+          node --check connected/assets/boot_recovery.js
+          node --check connected/assets/mission_asset_recovery.js
+          node --check connected/tests/mission_load_browser_playwright.mjs
+          node --test connected/tests/mission_asset_recovery.test.mjs
+      - name: Install isolated Chromium QA dependencies
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Serve real WIR Connected source
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/wir-mission-load-http.log 2>&1 &
+          echo $! > /tmp/wir-mission-load-http.pid
+          sleep 2
+          curl -fsS http://127.0.0.1:8765/connected/ > /dev/null
+      - name: First mission and recovery fault-injection tests
+        env:
+          METAL_BOOT_BASE: http://127.0.0.1:8765
+        run: node connected/tests/mission_load_browser_playwright.mjs
+      - name: Preserve recovery evidence on pass or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metal-mission-recovery-evidence
+          path: |
+            test-results/
+          retention-days: 7
+          if-no-files-found: warn
