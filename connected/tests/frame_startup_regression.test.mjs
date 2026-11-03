@@ -26,9 +26,9 @@ test('one gamepad poll, movement vector, physics step and Morrow update per fram
 });
 
 test('only one mission boot exists and recovery-aware loading stays authoritative',()=>{
- assert.equal((source.match(/\\(async\\(\\)=>\\{const msg=/g)||[]).length,1,
+ assert.equal((source.match(/\(async\(\)=>\{const msg=/g)||[]).length,1,
   'Legacy orphaned startup can cause Unexpected end of input in Chromium');
- assert.doesNotMatch(source,/robotGLTF=await loadG\\('assets\\/models\\/RobotExpressive\\.glb'\\)/,
+ assert.doesNotMatch(source,/robotGLTF=await loadG\('assets\/models\/RobotExpressive\.glb'\)/,
   'Obsolete direct loader bypasses mission fallback and boot status');
- assert.match(source,/robotGLTF=await missionAsset\\('assets\\/models\\/RobotExpressive\\.glb'/);
+ assert.match(source,/robotGLTF=await missionAsset\('assets\/models\/RobotExpressive\.glb'/);
 });
