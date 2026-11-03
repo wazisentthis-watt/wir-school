@@ -242,7 +242,7 @@ document.querySelectorAll('#tbtn button').forEach(b=>{b.addEventListener('pointe
 let controllerLegend=null,controllerSeen=false;
 function showControllerLegend(){
  if(!controllerLegend){controllerLegend=document.createElement('div');controllerLegend.id='controllerLegend';
- controllerLegend.style.cssText='position:fixed;right:12px;top:62px;z-index:20;max-width:280px;background:#10131fee;color:#f4f1ff;border:1px solid #9876e8;border-radius:12px;padding:12px;font:12px/1.6 system-ui;box-shadow:0 4px 20px #0008';
+ controllerLegend.style.cssText='position:fixed;right:12px;top:62px;z-index:20;max-width:240px;background:#10131fee;color:#f4f1ff;border:1px solid #9876e8;border-radius:12px;padding:12px;font:12px/1.6 system-ui;box-shadow:0 4px 20px #0008';
  controllerLegend.innerHTML='<b>🎮 METAL · CONTROLLER</b><br>Left stick: move · Right stick: camera<br>A: jump / recover · B: dodge / combat<br>X: left combat action · Y: right combat action<br>LB: Gallium (Q) · RB: action (F)<br>LT: modifier · RT: mapped action<br><b>LT + LB:</b> grapple nearby car<br><b>LT + RT:</b> throw held car<br>D-pad: actions · Menu: profile<br><small>H: hide/show this guide · Keyboard U/I: car grab/throw</small>';
  document.body.append(controllerLegend);}
  controllerLegend.style.display=controllerLegend.style.display==='none'?'block':'none';
@@ -823,7 +823,7 @@ function update(dt){
  bodyMachine.position.y=Math.max(0,P.o.position.y-floorAt(P.o.position));
  if(FG.inFight&&!st.board&&pressed.KeyB){pressed.KeyB=false;FG.wantDodge=true;}
  const pad=pollPad();
- if(pad&&!controllerSeen){controllerSeen=true;showControllerLegend();}
+ if(pad&&!controllerSeen){controllerSeen=true;/* guide available on H, not forced over gameplay */}
  tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);
  // Xbox-style chord: hold LT + LB to grapple a nearby vehicle, LT + RT to sling it.
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
