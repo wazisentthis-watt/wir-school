@@ -42,7 +42,7 @@ test('game uses live SLOTTA visual module while keeping boss attacks',()=>{
  const src=readFileSync(new URL('../assets/main.js',import.meta.url),'utf8');
  assert.match(src,/from '\.\/slotta_visuals\.js'/);
  assert.match(src,/kind==='slotta'\?createSlottaBossAsset\(\)/);
- assert.match(src,/animateSlottaMinionAsset\(m\.root,m\.phase\)/);
+ assert.match(src,/animateSlottaMinionAsset\(m\.root,m\.phase,move\.stage,m\.motion\.side\)/);
  assert.match(src,/function slottaUseGame\(/);
  assert.match(src,/function updateSlottaBoss\(/);
 });
