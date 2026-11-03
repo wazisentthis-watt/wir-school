@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>WIR · SLOTTA Boss Browser QA</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#0d1020;color:#f3ecff}
+*{box-sizing:border-box}body{margin:0;padding:18px;max-width:1320px;margin-inline:auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-size:clamp(1.3rem,4vw,2rem);margin:0}h2{font-size:1.12rem;margin:.25rem 0}
+p{line-height:1.5;color:#c1c9df;margin:.6rem 0}
+.meta{font:700 .76rem ui-monospace,monospace;letter-spacing:.07em;color:#ffca7d}
+.layout{display:grid;grid-template-columns:minmax(300px,1fr) minmax(260px,380px);gap:16px;margin-top:16px}
+@media(max-width:780px){.layout{grid-template-columns:1fr}body{padding:12px}}
+.panel{background:#151a2e;border:1px solid #343d59;border-radius:14px;padding:15px}
+#stage{position:relative;min-height:340px;aspect-ratio:16/10;border-radius:10px;overflow:hidden;background:#080e1a}
+iframe{display:block;width:100%;height:100%;border:0}
+#loadingCover{position:absolute;inset:0;display:grid;place-items:center;padding:20px;text-align:center;background:#111827e8;font-size:1rem;pointer-events:none}
+#loadingCover[hidden]{display:none}
+button,a.link{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;min-height:42px;padding:10px 13px;border:1px solid #7b71c6;border-radius:9px;background:#292744;color:#fff;font-size:14px;text-decoration:none;cursor:pointer}
+button:hover{background:#40345d}button.primary{background:#6c42ab;border-color:#cba6ff;font-weight:700}
+button:disabled{opacity:.55;cursor:wait}
+.actions{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0}
+#cases{display:grid;gap:8px}
+.check{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid #303a54;padding:9px 10px;border-radius:9px;background:#10172b}
+.check b{font-size:14px}.check small{display:block;color:#aebad6;margin-top:3px}
+.check button{padding:7px 10px;min-height:34px;white-space:nowrap}
+.marker{display:inline-block;font-size:12px;border:1px solid #7182a4;color:#d6e2ff;border-radius:20px;padding:2px 8px;margin-left:8px}
+.pass{color:#87edc5;border-color:#36866e}.fail{color:#ffa2a2;border-color:#90444b}
+#qa-state{font:600 13px ui-monospace,monospace;color:#a8cbf8}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0b1323;border-radius:10px;padding:13px;font:12px/1.5 ui-monospace,monospace;max-height:230px;overflow:auto}
+footer{margin-top:12px;color:#b2b9d6;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+ <div><div class="meta">WHAT IS REALITY · INTERNAL TEST STATION</div><h1>SLOTTA Boss Encounter QA</h1></div>
+ <span class="marker">PROPOSAL / HOLD</span>
+</header>
+<p>Loads the <strong>actual WIR: Connected 3D mission</strong> in an isolated QA iframe and exercises the real boss handlers. The harness uses a temporary distant test arena, restores actor state, and never publishes a game build. Browser tests do <strong>not</strong> certify iPhone or Bluetooth-controller behavior.</p>
+<div class="layout">
+ <section class="panel" aria-label="Live 3D game window">
+  <h2>Live game renderer</h2>
+  <div id="stage"><iframe id="game" title="WIR Connected QA mission" src="../?slotta_qa=1&amp;lite=1" allow="fullscreen"></iframe>
+   <div id="loadingCover">Loading the actual 3D mission and SLOTTA boss…</div></div>
+  <div class="actions">
+   <button class="primary" id="runAll" disabled>Run all 8 browser checks</button>
+   <button id="reset">Reload test mission</button>
+   <a class="link" href="../" target="_blank" rel="noopener">Open normal game</a>
+  </div>
+  <div id="qa-state" data-state="loading" aria-live="polite">MISSION LOADING…</div>
+  <p id="statusDetail">Waiting for the original game to report a ready scene and SLOTTA QA hooks.</p>
+ </section>
+ <section class="panel" aria-label="QA results">
+  <h2>Combat checks</h2><div id="cases" aria-live="polite"></div>
+  <div class="actions"><button id="copy">Copy JSON report</button><button id="export">Save JSON report</button></div>
+  <h2>Test evidence</h2><pre id="evidence">No tests have run yet.</pre>
+ </section>
+</div>
+<footer>All new SLOTTA visuals remain PROPOSAL/HOLD. Manual iPhone FPS, gamepad, physical gameplay, and owner art approval are separate acceptance gates. This page does not merge or publish assets.</footer>
+<script type="module">
+const $=id=>document.getElementById(id);
+const iframe=$('game'),run=$('runAll'),state=$('qa-state'),detail=$('statusDetail'),cover=$('loadingCover'),casesEl=$('cases');
+let report=null,ready=false,loadingToken=0;
+const names=[['mission','First mission loads'],['serpent','Circuit Serpents execute'],['clone','Cyborg Clones execute'],['cooldown','Interrupt preserves cooldown'],['reactions','Hit reactions animate'],['grip','Real Gallium grab and release'],['dash','Phantom Racer stops at walls'],['errors','Runtime error capture']];
+const rowFor=new Map();
+function drawCases(){
+ casesEl.replaceChildren();rowFor.clear();
+ for(const [id,label] of names){
+  const row=document.createElement('div');row.className='check';row.dataset.case=id;
+  const info=document.createElement('div');const title=document.createElement('b');title.textContent=label;
+  const msg=document.createElement('small');msg.textContent='Not run';info.append(title,msg);
+  const b=document.createElement('button');b.textContent='Test';b.disabled=!ready;b.addEventListener('click',()=>runSingle(id));
+  row.append(info,b);casesEl.append(row);rowFor.set(id,{row,msg,b});
+ }
+}
+drawCases();
+function mark(id,result){
+ const r=rowFor.get(id);if(!r)return;
+ r.row.classList.toggle('pass',!!result.ok);
+ r.row.classList.toggle('fail',!result.ok);
+ r.msg.textContent=result.ok?'PASS · '+JSON.stringify(result.details||{}):'FAIL · '+(result.message||'Unknown test failure');
+ r.b.textContent=result.ok?'Retest':'Retry';
+}
+function setState(value,message){
+ state.dataset.state=value;state.textContent=value.toUpperCase();detail.textContent=message;
+}
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function getApi(){try{return iframe.contentWindow?.__slottaQA||null}catch{return null}}
+async function waitForReady(){
+ const token=++loadingToken;ready=false;run.disabled=true;cover.hidden=false;
+ document.querySelectorAll('.check button').forEach(b=>b.disabled=true);
+ setState('loading','Waiting for WebGL, the first mission, player, SLOTTA and QA hooks.');
+ for(let n=0;n<300;n++){
+  if(token!==loadingToken)return;
+  const qa=getApi();
+  if(qa?.snapshot()?.ready){
+   ready=true;run.disabled=false;cover.hidden=true;
+   document.querySelectorAll('.check button').forEach(b=>b.disabled=false);
+   setState('ready','Actual game loaded. Click Run all or choose an individual check.');
+   return;
+  }
+  const error=iframe.contentWindow?.__errors||[];
+  if(error.length&&n>10){setState('loading','Load messages: '+error.slice(-2).join('; '));}
+  await wait(250);
+ }
+ setState('failed','Mission timed out before the QA interface became available.');
+ cover.textContent='Could not load the 3D mission. See the load message in the iframe.';
+}
+iframe.addEventListener('load',waitForReady);if(iframe.contentDocument?.readyState==='complete')waitForReady();
+function display(reportData){
+ report=reportData;$('evidence').textContent=JSON.stringify(report,null,2);
+ for(const result of report.cases||[])mark(result.id,result);
+ const all=report.cases?.every(t=>t.ok)??false;
+ setState(all?'passed':'failed',all?'All checks passed in the actual browser game. Device-specific testing remains open.':'One or more checks failed. See the evidence and investigate before merging.');
+}
+async function runAll(){
+ if(!ready||!getApi())return;
+ run.disabled=true;setState('running','Exercising the live game’s boss combat, collisions and reactions.');
+ await new Promise(requestAnimationFrame);
+ try{display(getApi().runAll());}catch(error){
+  display({allPassed:false,cases:[{id:'errors',ok:false,message:String(error)}],status:'PROPOSAL/HOLD'});
+ }finally{run.disabled=false;}
+}
+function runSingle(id){
+ const qa=getApi();if(!ready||!qa)return;
+ try{
+  const result=qa.runOne(id);
+  const previous=report?.cases||[];const cases=[...previous.filter(x=>x.id!==id),result];
+  report={status:'PROPOSAL/HOLD',gameReady:true,cases,allPassed:cases.length===names.length&&cases.every(x=>x.ok),time:new Date().toISOString()};
+  mark(id,result);$('evidence').textContent=JSON.stringify(report,null,2);
+  setState(result.ok?'ready':'failed',result.ok?id+' passed. Run all for full evidence.':result.message);
+ }catch(e){mark(id,{id,ok:false,message:String(e)});setState('failed',String(e));}
+}
+$('runAll').addEventListener('click',runAll);
+$('reset').addEventListener('click',()=>{report=null;drawCases();iframe.src='../?slotta_qa=1&lite=1&reload='+Date.now();});
+$('copy').addEventListener('click',async()=>{
+ if(!report)return;try{await navigator.clipboard.writeText(JSON.stringify(report,null,2));}catch{
+  const input=document.createElement('textarea');input.value=JSON.stringify(report,null,2);
+  document.body.append(input);input.select();document.execCommand('copy');input.remove();
+ }
+});
+$('export').addEventListener('click',()=>{
+ if(!report)return;const blob=new Blob([JSON.stringify(report,null,2)],{type:'application/json'});
+ const url=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=url;a.download='slotta-browser-qa.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),2500);
+});
+window.__slottaQAConsole={runAll,report:()=>report,ready:()=>ready};
+</script>
+</body>
+</html>

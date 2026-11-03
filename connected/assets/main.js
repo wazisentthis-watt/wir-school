@@ -31,6 +31,9 @@ import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 const $=id=>document.getElementById(id);
 const VIOLET=0x9b5cff, GUN=0x4a4f57;
 const LITE=/lite/.test(location.search);
+// Opt-in, isolated browser QA only. Normal gameplay never exposes this interface.
+const SLOTTA_BROWSER_QA=new URLSearchParams(location.search).get('slotta_qa')==='1';
+if(SLOTTA_BROWSER_QA)window.__testHold=true;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch)document.body.classList.add('touch');
 window.__errors=[];window.addEventListener('error',e=>window.__errors.push(String(e.message)));
@@ -38,7 +41,7 @@ window.__errors=[];window.addEventListener('error',e=>window.__errors.push(Strin
 // ---------- WIR Valence Profile (shared, localStorage). Logs only; never refills meters. ----------
 const PKEY='wir_valence_profile_v1';
 const profile=JSON.parse(localStorage.getItem(PKEY)||'null')||{created:Date.now(),decisions:[],achievements:[],discoveries:[],log:[]};
-function plog(kind,text){const arr=profile[kind]||profile.log; if(kind!=='log'&&arr.includes(text))return; arr.push(text); profile.log.push(new Date().toLocaleTimeString()+' · '+text); if(profile.log.length>200)profile.log.shift(); localStorage.setItem(PKEY,JSON.stringify(profile)); if(kind!=='log')toast(text);}
+function plog(kind,text){const arr=profile[kind]||profile.log; if(kind!=='log'&&arr.includes(text))return; arr.push(text); profile.log.push(new Date().toLocaleTimeString()+' · '+text); if(profile.log.length>200)profile.log.shift(); if(!SLOTTA_BROWSER_QA)localStorage.setItem(PKEY,JSON.stringify(profile)); if(kind!=='log')toast(text);}
 let toastT=0;function toast(t){$('toast').innerHTML=t;$('toast').style.opacity=1;toastT=2.6;}
 
 // ---------- renderer / scene ----------
@@ -823,7 +826,7 @@ const morrow=createEncounter();let morrowClock=0,morrowStatus='';
 const metalStory=readMetalCheckpoint(localStorage);
 let metalStoryReady=false,metalStoryClock=0,metalStoryMessage='';
 function saveMetalStory(reason='manual'){
- if(!P||!metalStoryReady)return false;
+ if(SLOTTA_BROWSER_QA||!P||!metalStoryReady)return false;
  const ok=writeMetalCheckpoint(localStorage,metalStory,P.o.position,reason);
  toast(ok?'CHECKPOINT SAVED · '+metalStoryChapter(metalStory).title:'SAVE UNAVAILABLE · storage blocked');
  return ok;
@@ -1320,6 +1323,176 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  physicsTime+=dt;
  physicsTelemetry.sample({time:physicsTime,dt,position:P.o.position,velocity:vel,grounded:onGround,board:st.board,wall:st.wall,swing:st.swing,flying:st.flying,body:bodyMachine});
 }
+// Private-in-query browser QA. Operates on actual loaded entities and combat methods,
+// not mocked DOM values; state is restored after each test. PROPOSAL/HOLD.
+function installSlottaBrowserQA(){
+ const boss=morrow.slottaMesh,actor=factionActors.find(a=>a.root===boss);
+ const assert=(value,reason)=>{if(!value)throw Error(reason);};
+ const caseNames=[
+  ['mission','First-mission and 3D boss loading'],
+  ['serpent','Slither Master cast and live summons'],
+  ['clone','Ninja Star cast and live summons'],
+  ['cooldown','Interrupt before cast conserves cooldown'],
+  ['reactions','Light and heavy damage animations'],
+  ['grip','Real Gallium target grab and release'],
+  ['dash','Phantom Racer swept building collision'],
+  ['errors','No captured runtime exceptions']
+ ];
+ function snapshot(){
+  return {ready:!!window.__ready,mission:metalStoryChapter(metalStory)?.title||null,
+   bossPresent:!!boss&&boss.parent===scene,bossVisible:!!boss?.visible,
+   bossHealth:slottaCombat.health,bossState:slottaAnimator.state,
+   active:[...slottaConsole.active],stored:[...slottaConsole.stored],
+   queued:slottaPendingGame?.id||null,minions:slottaMinions.length,
+   effects:slottaEffects.length,errors:[...(window.__errors||[])],
+   canvas:!!renderer?.domElement?.isConnected,holdingSlotta:heldActor?.root===boss};
+ }
+ function begin(){
+  const old={player:P.o.position.clone(),boss:boss.position.clone(),home:actor.home.clone(),
+   body:{...actor.body.position},yaw:camYaw,pitch:camPitch,vel:vel.clone(),
+   anim:{...slottaAnimator},combat:{...slottaCombat},cooldowns:{...slottaConsole.cooldowns},
+   pending:slottaPendingGame,dash:slottaDash,attackClock:slottaAttackClock,
+   swapClock:slottaSwapClock,turn:slottaTurn,announced:slottaAnnounced,
+   snare:slottaSnare,phase:slottaPhase,armor:slottaArmor,arena:slottaArena,
+   gravity:slottaGravity,held:heldActor,fx:new Set(slottaEffects),summons:new Set(slottaMinions),
+   selected:boss.userData.slottaRig?.selectedSlot,previousGrip:gripTarget};
+  if(heldActor)releaseGrip();
+  boss.position.set(10000,groundY,10000);actor.home.copy(boss.position);
+  actor.body.position.x=boss.position.x;actor.body.position.y=groundY;actor.body.position.z=boss.position.z;
+  P.o.position.set(10000,groundY,10006);
+  vel.set(0,0,0);camYaw=0;camPitch=0;slottaPhase=0;slottaArmor=0;
+  slottaAnnounced=true;slottaAttackClock=1000;slottaSwapClock=1000;slottaTurn=0;
+  slottaPendingGame=null;slottaDash=null;slottaSnare=0;slottaArena=0;slottaGravity=0;
+  slottaAnimator.state='idle';slottaAnimator.time=0;slottaAnimator.revision++;
+  slottaCombat.health=100;slottaCombat.hitCooldown=0;slottaCombat.impactCount=0;
+  slottaCombat.impactWindow=0;slottaCombat.defeated=false;slottaConsole.cooldowns={};
+  return old;
+ }
+ function end(old){
+  if(heldActor&&heldActor!==old.held)releaseGrip();
+  for(let i=slottaMinions.length-1;i>=0;i--){
+   const m=slottaMinions[i];if(old.summons.has(m))continue;
+   scene.remove(m.root);m.root.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});
+   slottaMinions.splice(i,1);
+  }
+  for(let i=slottaEffects.length-1;i>=0;i--){
+   const fx=slottaEffects[i];if(old.fx.has(fx))continue;
+   scene.remove(fx.mesh);fx.mesh.geometry.dispose();fx.mesh.material.dispose();
+   slottaEffects.splice(i,1);
+  }
+  P.o.position.copy(old.player);boss.position.copy(old.boss);actor.home.copy(old.home);
+  Object.assign(actor.body.position,old.body);vel.copy(old.vel);camYaw=old.yaw;camPitch=old.pitch;
+  Object.assign(slottaAnimator,old.anim);Object.assign(slottaCombat,old.combat);
+  slottaConsole.cooldowns=old.cooldowns;slottaPendingGame=old.pending;slottaDash=old.dash;
+  slottaAttackClock=old.attackClock;slottaSwapClock=old.swapClock;slottaTurn=old.turn;
+  slottaAnnounced=old.announced;slottaSnare=old.snare;slottaPhase=old.phase;
+  slottaArmor=old.armor;slottaArena=old.arena;slottaGravity=old.gravity;
+  if(boss.userData.slottaRig)boss.userData.slottaRig.selectedSlot=old.selected;
+  heldActor=old.held;clearGripVisual();
+ }
+ function start(index){
+  const pending=queueSlottaAttack(slottaConsole,slottaAnimator,index);
+  assert(!!pending,'PHATOM could not select active cartridge '+index);
+  slottaPendingGame=pending;
+  if(boss.userData.slottaRig)boss.userData.slottaRig.selectedSlot=index;
+  return pending;
+ }
+ function step(n=35){
+  for(let i=0;i<n;i++)updateSlottaBoss(.05);
+ }
+ const tests={
+  mission(){
+   assert(window.__ready&&P?.o&&boss,'Mission actors missing');
+   assert(boss.parent===scene&&boss.visible,'SLOTTA missing from active 3D scene');
+   assert(actor&&factionActors.length>=3,'Faction actors missing');
+   assert(slottaConsole.active.join(',')==='slither-master,ninja-star,phantom-racer','Wrong starting games');
+   assert(slottaConsole.stored.length===5,'PHATOM storage size mismatch');
+   assert(renderer?.domElement?.isConnected,'WebGL canvas missing');
+   assert($('load')?.style.display==='none','Load overlay still shown');
+   return {mission:metalStoryChapter(metalStory)?.title,actors:factionActors.length,
+    meshCount:(()=>{let n=0;boss.traverse(o=>{if(o.isMesh)n++;});return n;})()};
+  },
+  serpent(){
+   start(0);assert(!slottaConsole.cooldowns['slither-master'],'Cooldown started at selection');
+   step(35);
+   assert((slottaConsole.cooldowns['slither-master']||0)>0,'Slither Master never cast');
+   assert(slottaMinions.some(m=>m.kind==='serpent'),'No Circuit Serpent actually spawned');
+   return {serpents:slottaMinions.filter(m=>m.kind==='serpent').length,
+    cooldown:slottaConsole.cooldowns['slither-master']};
+  },
+  clone(){
+   start(1);step(38);
+   assert((slottaConsole.cooldowns['ninja-star']||0)>0,'Ninja Star never cast');
+   assert(slottaMinions.some(m=>m.kind==='clone'),'No Cyborg Clone actually spawned');
+   return {clones:slottaMinions.filter(m=>m.kind==='clone').length,
+    cooldown:slottaConsole.cooldowns['ninja-star']};
+  },
+  cooldown(){
+   start(0);step(5);
+   assert(!slottaConsole.cooldowns['slither-master'],'Spent cooldown before cast');
+   assert(hitSlotta(5),'Real hit handler rejected interrupt');
+   assert(slottaPendingGame===null,'Interrupted queued attack survived');
+   step(34);
+   assert(!slottaConsole.cooldowns['slither-master'],'Interrupted cast spent cooldown');
+   assert(!slottaMinions.some(m=>m.kind==='serpent'),'Interrupted cast spawned a serpent');
+   return {hitAnimation:slottaAnimator.state,cooldown:0};
+  },
+  reactions(){
+   assert(hitSlotta(5),'Light hit not registered');
+   assert(slottaAnimator.state==='hitLight','Light hit animation not triggered');
+   slottaCombat.hitCooldown=0;
+   assert(hitSlotta(20),'Heavy hit not registered');
+   assert(slottaAnimator.state==='hitHeavy','Heavy stagger animation not triggered');
+   assert(slottaCombat.health===75,'Boss health did not reflect both hits');
+   return {health:slottaCombat.health,animation:slottaAnimator.state};
+  },
+  grip(){
+   // Empty isolated arena ensures the REAL Gallium ray selects SLOTTA, not nearby cars.
+   P.o.position.set(10000,groundY,10005);camYaw=0;gripAxisX=0;gripAxisY=0;
+   galliumGrabWorld();
+   assert(heldActor?.root===boss,'Actual Gallium ray did not grab SLOTTA');
+   assert(slottaAnimator.state==='galliumHeld','Held animation not triggered');
+   releaseGrip();
+   assert(!heldActor&&slottaAnimator.state==='getUp','Release did not start recovery');
+   return {grabbed:true,recovery:slottaAnimator.state};
+  },
+  dash(){
+   const blocker=new THREE.Box3(new THREE.Vector3(10002.5,groundY-.5,9998),
+     new THREE.Vector3(10004,groundY+3,10002));
+   colliders.push(blocker);
+   try{
+    slottaDash={direction:new THREE.Vector3(1,0,0),remaining:8.5,hit:false};
+    let frames=0;
+    while(slottaDash&&frames++<12)updateSlottaDash(.05,boss);
+    assert(boss.position.x>10000.1,'Dash failed to advance at all');
+    assert(boss.position.x<=10002.5-.52+.02,'Dash penetrated the test wall');
+    assert(!slottaDash,'Dash did not stop after collider contact');
+    return {advanced:+(boss.position.x-10000).toFixed(3),stoppedBeforeWall:true,frames};
+   }finally{const i=colliders.indexOf(blocker);if(i>=0)colliders.splice(i,1);}
+  },
+  errors(){
+   assert((window.__errors||[]).length===0,'Runtime errors: '+window.__errors.join('; ').slice(0,230));
+   return {capturedErrors:0};
+  }
+ };
+ const runOne=id=>{
+  const started=performance.now();
+  if(!tests[id])return {id,ok:false,message:'Unknown browser QA case'};
+  let old=null;try{
+   if(id!=='mission'&&id!=='errors')old=begin();
+   const details=tests[id]();
+   return {id,ok:true,label:caseNames.find(x=>x[0]===id)?.[1],details,
+    elapsedMs:Math.round(performance.now()-started)};
+  }catch(e){return {id,ok:false,label:caseNames.find(x=>x[0]===id)?.[1],
+   message:String(e.message||e),elapsedMs:Math.round(performance.now()-started)};
+  }finally{if(old)end(old);}
+ };
+ window.__slottaQA={version:'1.0.0',mode:'TEST ONLY • PROPOSAL/HOLD',
+  names:caseNames,snapshot,runOne,runAll:()=>{const cases=caseNames.map(([id])=>runOne(id));
+   return {allPassed:cases.every(c=>c.ok),cases,build:'SLOTTA browser encounter QA',status:'PROPOSAL/HOLD',
+    gameReady:!!window.__ready,time:new Date().toISOString()};}};
+}
+
 let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());if(window.__testHold){if(LITE)renderer.render(scene,camera);else composer.render();return;}try{update(fgTime(dt));window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<12){console.error(e);window.__errors.push(String(e));toast('Runtime error: '+String(e.message||e).slice(0,80));}}if(LITE)renderer.render(scene,camera);else composer.render();}
 
 (async()=>{const msg=t=>$('loadmsg').textContent=t;
@@ -1330,4 +1503,4 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
   window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
-  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;initMetalStory();loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
+  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;initMetalStory();if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();

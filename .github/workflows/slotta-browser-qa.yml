@@ -1,0 +1,54 @@
+name: SLOTTA Browser Encounter QA
+on:
+  push:
+    paths:
+      - 'connected/assets/main.js'
+      - 'connected/assets/slotta_*.js'
+      - 'connected/slotta-qa/**'
+      - 'connected/tests/slotta_browser_*.mjs'
+      - '.github/workflows/slotta-browser-qa.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/main.js'
+      - 'connected/assets/slotta_*.js'
+      - 'connected/slotta-qa/**'
+      - 'connected/tests/slotta_browser_*.mjs'
+      - '.github/workflows/slotta-browser-qa.yml'
+  workflow_dispatch:
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Browser test script syntax
+        run: |
+          node --check connected/assets/main.js
+          node --check connected/tests/slotta_browser_playwright.mjs
+      - name: Install Chromium browser and driver
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Start the actual local WIR Connected game
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/wir-sandbox-qa-http.log 2>&1 &
+          echo $! > /tmp/wir-sandbox-qa-http.pid
+          sleep 2
+          curl -fsS http://127.0.0.1:8765/connected/slotta-qa/ > /dev/null
+      - name: Chromium end-to-end SLOTTA boss QA
+        env:
+          SLOTTA_QA_BASE: http://127.0.0.1:8765
+        run: node connected/tests/slotta_browser_playwright.mjs
+      - name: Store browser evidence on success or failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slotta-browser-qa-evidence
+          path: |
+            test-results/
+            /tmp/wir-sandbox-qa-http.log
+          if-no-files-found: warn
+          retention-days: 7
