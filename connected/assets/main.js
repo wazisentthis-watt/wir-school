@@ -801,19 +801,13 @@ function galliumSegment(a,b,r=.095){const d=b.clone().sub(a),mesh=new THREE.Mesh
 function clearGripVisual(){if(gripConduit){scene.remove(gripConduit);gripConduit.geometry.dispose();gripConduit.material.dispose();gripConduit=null;}if(structureGrip){scene.remove(structureGrip.mesh);structureGrip.mesh.geometry.dispose();structureGrip.mesh.material.dispose();structureGrip=null;}if(!gripVisual)return;for(const m of gripVisual){scene.remove(m);m.geometry.dispose();m.material.dispose();}gripVisual=null;}
 // Galaxy Gallium grip is contact-local, not a web, rope, or beam.
 // Keep only a brief metallic contact shell on the grabbed object.
-function showGalliumHand(target){
- clearGripVisual();gripTarget=target||null;
- if(!target)return;
- const shell=new THREE.Mesh(new THREE.IcosahedronGeometry(.34,1),galliumMaterial());
- gripConduit=new THREE.Mesh(new THREE.CylinderGeometry(.075,.13,1,9),galliumMaterial());scene.add(gripConduit);
- shell.userData.galliumContact=true;scene.add(shell);gripVisual=[shell];
-}
+function showGalliumHand(target){clearGripVisual();gripTarget=target||null;/* Shared R1 liquid limb renders this L1 grip. */}
 function leaveGalliumTrail(){/* No persistent grapple trails. */}
 function riffStep(){if(!P||riftCooldown>0)return;riftCooldown=.65;const dir=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw));const launch=36;vel.x+=dir.x*launch;vel.z+=dir.z*launch;vel.y=Math.max(vel.y,6);const pos=P.o.position.clone();const crater=new THREE.Mesh(new THREE.CylinderGeometry(1.4,.9,.14,12),new THREE.MeshStandardMaterial({color:0x342847,emissive:0x4a1e80,emissiveIntensity:.6}));crater.position.set(pos.x,groundY-.08,pos.z);scene.add(crater);riftMarks.push({mesh:crater,life:3.5});toast('RIFFT STEP · RIGHT FOOT');}
 function updateGalliumPhysics(dt){
  for(let i=riftMarks.length-1;i>=0;i--){const mark=riftMarks[i];mark.life-=dt;if(mark.life<=0){scene.remove(mark.mesh);mark.mesh.geometry.dispose();mark.mesh.material.dispose();riftMarks.splice(i,1);}}
  if(structureGrip){const g=structureGrip;g.strain=Math.min(1,g.strain+dt*(Math.abs(gripAxisX)+Math.abs(gripAxisY))*.32);g.mesh.rotation.z=gripAxisX*g.strain*.24;g.mesh.rotation.x=gripAxisY*g.strain*.24;g.mesh.scale.y=1-g.strain*.16;g.mesh.material.emissiveIntensity=.2+g.strain*1.6;}
- if(gripTarget&&gripConduit&&P){const a=P.o.position.clone().add(new THREE.Vector3(0,1.3,0)),b=gripTarget.position.clone().add(new THREE.Vector3(0,.9,0)),d=b.clone().sub(a);if(d.lengthSq()>.0001){gripConduit.position.copy(a).addScaledVector(d,.5);gripConduit.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),d.clone().normalize());gripConduit.scale.y=d.length();}}
+ 
  if(heldCitizen){const n=heldCitizen;if(!n.o.parent){heldCitizen=null;}else{const forward=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw)),side=new THREE.Vector3(-forward.z,0,forward.x);n.o.position.copy(P.o.position).addScaledVector(forward,3.5).addScaledVector(side,gripAxisX*3);n.o.position.y=Math.max(groundY+.3,P.o.position.y+1.6-gripAxisY*2);n.wait=.3;}}
  if(gripTarget&&gripVisual?.length){
   gripVisual[0].position.copy(gripTarget.position).add(new THREE.Vector3(0,.9,0));
@@ -833,7 +827,7 @@ function galliumGrabWorld(){if(!P)return;
  choices.sort((a,b)=>a.score-b.score||a.along-b.along);
  const chosen=choices.find(c=>c.type!=='structure'&&c.score<3&&c.along<28)||choices.find(c=>c.type==='structure')||choices[0];
  if(!chosen){const far=origin.clone().addScaledVector(direction,42);leaveGalliumTrail(origin,far);toast('GALAXY GALLIUM · FREEFORM ANCHOR');return;}
- if(chosen.type==='structure'){const marker={position:chosen.point.clone().add(new THREE.Vector3(0,-1,0))};showGalliumHand(marker);const size=new THREE.Vector3(1,1,1);const box=colliders.find(b=>b.min&&b.max&&new THREE.Box3(b.min,b.max).containsPoint(chosen.point.clone().addScaledVector(direction,.08)));if(box)size.subVectors(box.max,box.min);size.clamp(new THREE.Vector3(.5,.5,.5),new THREE.Vector3(12,18,12));const mesh=new THREE.Mesh(new THREE.BoxGeometry(size.x,size.y,size.z),new THREE.MeshStandardMaterial({color:0x7664a0,transparent:true,opacity:.27,metalness:.8,emissive:0x6326aa,emissiveIntensity:.2,depthWrite:false}));mesh.position.copy(box?new THREE.Vector3().addVectors(box.min,box.max).multiplyScalar(.5):chosen.point);scene.add(mesh);structureGrip={mesh,strain:0};toast('KODA · STRUCTURE GRIPPED · RIGHT STICK TO BEND');return;}
+ if(chosen.type==='structure'){const marker={position:chosen.point.clone()};showGalliumHand(marker);const size=new THREE.Vector3(1,1,1);const box=colliders.find(b=>b.min&&b.max&&new THREE.Box3(b.min,b.max).containsPoint(chosen.point.clone().addScaledVector(direction,.08)));if(box)size.subVectors(box.max,box.min);size.clamp(new THREE.Vector3(.5,.5,.5),new THREE.Vector3(12,18,12));const mesh=new THREE.Mesh(new THREE.BoxGeometry(size.x,size.y,size.z),new THREE.MeshStandardMaterial({color:0x7664a0,transparent:true,opacity:.27,metalness:.8,emissive:0x6326aa,emissiveIntensity:.2,depthWrite:false}));mesh.position.copy(box?new THREE.Vector3().addVectors(box.min,box.max).multiplyScalar(.5):chosen.point);scene.add(mesh);structureGrip={mesh,strain:0};toast('KODA · STRUCTURE GRIPPED · RIGHT STICK TO BEND');return;}
  showGalliumHand(chosen.object);leaveGalliumTrail(origin,chosen.point);
  if(chosen.type==='car')grabCar(chosen.object);
  else if(chosen.type==='citizen'){heldCitizen=npcs.find(n=>n.o===chosen.object)||null;if(heldCitizen){heldCitizen.wait=1;toast('GALAXY GALLIUM · PERSON HELD · RIGHT STICK TO MOVE');}}
@@ -1009,7 +1003,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  if(!st.board)boardOnBack();
  // violet decays (only on active moves)
  for(const mt of seamMats)mt.emissiveIntensity=Math.max(0,mt.emissiveIntensity-dt*3);
- if(galLimb){const hb=P.handBone;if(hb){hb.updateMatrixWorld(true);hb.getWorldPosition(_hand);}else _hand.copy(P.o.position).setY(P.o.position.y+1.2);galLimb.tick(dt,{swing:st.swing,hand:_hand,model:P.model,st,groundY,playerPos:P.o.position});} // PROPOSAL Gallium limb visuals
+ if(galLimb){const hb=P.handBone;if(hb){hb.updateMatrixWorld(true);hb.getWorldPosition(_hand);}else _hand.copy(P.o.position).setY(P.o.position.y+1.2);galLimb.tick(dt,{swing:st.swing,grip:worldGripActive&&gripTarget?gripTarget:null,hand:_hand,model:P.model,st,groundY,playerPos:P.o.position});} // PROPOSAL Gallium limb visuals
  // systems
  fightTick(dt);blastTick(dt);doStrings(dt);doFootball(dt);
  for(const s of slabs){if(s.t<1){s.t+=dt;s.m.position.y=Math.min(.8,s.m.position.y+s.vy*dt);}else if(s.t<6)s.t+=dt;else{s.m.position.y-=dt;if(s.m.position.y<-1){scene.remove(s.m);s.dead=true;}}}
