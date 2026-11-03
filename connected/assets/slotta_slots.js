@@ -1,18 +1,19 @@
 // WIR Connected: SLOTTA's original game-cartridge combat system.
 // Eight installed games: three active ports, five backpack USB storage ports.
 // All abilities and titles are original WIR concepts.
+// Original WIR cartridge worlds; media references are inspiration, not copied assets.
 export const SLOTTA_GAMES=[
- {id:'slither-master',name:'Slither Master',move:'Circuit Serpents',role:'suppress',cooldown:6},
- {id:'ninja-star',name:'Ninja Star',move:'Cyborg Clone',role:'summon',cooldown:9},
- {id:'phantom-racer',name:'Phantom Racer',move:'Afterimage Dash',role:'evade',cooldown:5},
- {id:'iron-arena',name:'Iron Arena',move:'Impact Gauntlet',role:'strike',cooldown:7},
- {id:'ghost-frequency',name:'Ghost Frequency',move:'Signal Jam',role:'jam',cooldown:8},
- {id:'beast-byte',name:'Beast Byte',move:'Predator Drone',role:'summon',cooldown:11},
- {id:'gravity-jam',name:'Gravity Jam',move:'Gravity Pulse',role:'control',cooldown:10},
- {id:'tower-zero',name:'Tower Zero',move:'Shield Tower',role:'defend',cooldown:12}
+ {id:'zero-sector',name:'Zero Sector',move:'Reality Grid',role:'arena',cooldown:9},
+ {id:'fleshcode',name:'Fleshcode',move:'Adaptive Blades',role:'strike',cooldown:7},
+ {id:'phasebound',name:'Phasebound',move:'Phase Shift',role:'evade',cooldown:8},
+ {id:'shifting-department',name:'Shifting Department',move:'Telekinetic Launch',role:'control',cooldown:7},
+ {id:'nanoforge',name:'Nanoforge',move:'Forge Drones',role:'summon',cooldown:10},
+ {id:'gravity-children',name:'Gravity Children',move:'Gravity Well',role:'control',cooldown:9},
+ {id:'tenfold',name:'Tenfold',move:'Beast Form',role:'transform',cooldown:12},
+ {id:'elemental-outlaw',name:'Elemental Outlaw',move:'Energy Burst',role:'strike',cooldown:8}
 ];
 export function createSlottaLoadout(){
- return {active:['slither-master','ninja-star','phantom-racer'],stored:['iron-arena','ghost-frequency','beast-byte','gravity-jam','tower-zero'],download:null,cooldowns:{},time:0};
+ return {active:['zero-sector','nanoforge','gravity-children'],stored:['fleshcode','phasebound','shifting-department','tenfold','elemental-outlaw'],download:null,cooldowns:{},time:0};
 }
 export function swapSlot(loadout,activeIndex,storedIndex){
  if(!Number.isInteger(activeIndex)||activeIndex<0||activeIndex>=3||!Number.isInteger(storedIndex)||storedIndex<0||storedIndex>=5)return false;
