@@ -21,7 +21,9 @@ jobs:
       - name: Test fail-closed merge and release decisions
         run: |
           node --check governance/wir-hold-gate.mjs
-          node --test governance/wir-hold-gate.test.mjs
+          node --check governance/wir-publication-audit.mjs
+          node --test governance/wir-hold-gate.test.mjs governance/wir-publication-audit.test.mjs
+          node governance/wir-publication-audit.mjs
 
   merge-authorization:
     name: WIR HOLD - required merge authorization
