@@ -5,6 +5,7 @@ import {createCombatBody,applyCombatHit,stepCombatBody,blastDirection} from './m
 import * as THREE from 'three';
 import {STORY_ENEMIES} from './story_enemies.js';
 import {createEncounter,stepEncounter} from './morrow_encounters.js';
+import {createSlottaLoadout,tickSlotta,activateSlot} from './slotta_slots.js';
 import {createDirector,tickDirector,finishEncounter,witness,createImpactState,impactStructure,stepImpact} from './city_combat_director.js';
 import {BodyMachine} from './body_machine.js';
 import {WorldBody} from './world_body.js';
@@ -793,6 +794,37 @@ function updateMetalBlasts(dt){for(let i=metalBlasts.length-1;i>=0;i--){const b=
 function factionActor(label,color,x,z,kind){const root=new THREE.Group();root.name=label;const mat=new THREE.MeshStandardMaterial({color,metalness:kind==='reframer'?.85:.25,roughness:.4});const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.43,.9,4,8),mat);torso.position.y=1.15;root.add(torso);const head=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),mat);head.position.y=2.08;root.add(head);if(kind==='reframer'){for(let j=0;j<6;j++){const a=j*Math.PI/3;const arm=new THREE.Mesh(new THREE.CylinderGeometry(.09,.16,2.4,6),mat);arm.position.set(Math.cos(a)*.95,1.2,Math.sin(a)*.95);arm.rotation.z=Math.cos(a)*.8;arm.rotation.x=Math.sin(a)*.8;root.add(arm);}}root.position.set(x,groundY,z);scene.add(root);factionActors.push({root,label,kind,home:root.position.clone(),phase:Math.random()*6.28,body:createCombatBody({x,y:groundY,z})});return root;}
 function updateFactionActors(dt){if(!P)return;for(const a of factionActors){a.phase+=dt*(a.kind==='reframer'?1.4:.7);if(a.body.state!=='standing'){stepCombatBody(a.body,dt,groundY);a.root.position.set(a.body.position.x,a.body.position.y,a.body.position.z);a.root.rotation.z=Math.min(1.1,Math.hypot(a.body.velocity.x,a.body.velocity.z)*.07);if(a.body.state==='standing'){a.home.copy(a.root.position);a.root.rotation.z=0;}}else{a.root.position.x=a.home.x+Math.sin(a.phase)*2;a.root.position.z=a.home.z+Math.cos(a.phase)*2;a.root.rotation.y+=dt*.3;a.body.position.x=a.root.position.x;a.body.position.z=a.root.position.z;}}}
 
+// SLOTTA's backpack console: autonomous first-boss combat encounter.
+const slottaConsole=createSlottaLoadout(),slottaMinions=[];let slottaAttackClock=2,slottaSnare=0,slottaAnnounced=false;
+function spawnSlottaMinion(kind,origin){
+ const color=kind==='serpent'?0x7a34e5:0x58d5ef;
+ const root=new THREE.Group(),body=new THREE.Mesh(new THREE.CapsuleGeometry(kind==='serpent'?.17:.33,kind==='serpent'?.9:1.1,4,7),new THREE.MeshStandardMaterial({color,metalness:.85,roughness:.28,emissive:color,emissiveIntensity:.28}));
+ body.position.y=kind==='serpent'?.55:1.05;root.add(body);
+ if(kind==='serpent'){for(let j=0;j<3;j++){const bead=new THREE.Mesh(new THREE.SphereGeometry(.14,6,6),body.material);bead.position.set(0,.3+j*.3,.13*j);root.add(bead);}}
+ root.position.copy(origin).add(new THREE.Vector3((Math.random()-.5)*2,0,(Math.random()-.5)*2));scene.add(root);
+ slottaMinions.push({root,kind,life:kind==='serpent'?11:18,hit:false,phase:Math.random()*6.28});
+}
+function updateSlottaBoss(dt){
+ if(!P||!morrow.slottaMesh)return;
+ tickSlotta(slottaConsole,dt);slottaSnare=Math.max(0,slottaSnare-dt);
+ const boss=morrow.slottaMesh,range=boss.position.distanceTo(P.o.position);
+ if(range<24&&!slottaAnnounced){slottaAnnounced=true;toast('BOSS: SLOTTA · SLITHER MASTER + NINJA STAR');}
+ if(range<25&&!morrow.slotta.captured&&!morrow.slotta.escaped){
+  slottaAttackClock-=dt;
+  if(slottaAttackClock<=0){const idx=slottaConsole.cooldowns['slither-master']<=0?0:1;const game=activateSlot(slottaConsole,idx);
+   if(game){if(game.id==='slither-master'){for(let j=0;j<2;j++)spawnSlottaMinion('serpent',boss.position);toast('SLOTTA: CIRCUIT SERPENTS');}
+   else if(game.id==='ninja-star'){for(let j=0;j<2;j++)spawnSlottaMinion('clone',boss.position);toast('SLOTTA: CYBORG CLONES');}}
+   slottaAttackClock=2.8;
+  }
+ }
+ for(let i=slottaMinions.length-1;i>=0;i--){const m=slottaMinions[i];m.life-=dt;m.phase+=dt*7;
+  const delta=P.o.position.clone().sub(m.root.position).setY(0),distance=delta.length();
+  if(distance>.15){m.root.position.addScaledVector(delta.normalize(),Math.min(distance,dt*(m.kind==='serpent'?5:3.2)));}
+  m.root.rotation.y+=dt*3;m.root.position.y=groundY+Math.sin(m.phase)*.14;
+  if(distance<1.5&&!m.hit){m.hit=true;if(m.kind==='serpent'){slottaSnare=Math.max(slottaSnare,4);toast('CIRCUIT SERPENT · Gallium jammed for 4s');}else{vel.x*=.45;vel.z*=.45;toast('CYBORG CLONE · impact');}}
+  if(m.life<=0||m.hit){scene.remove(m.root);m.root.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});slottaMinions.splice(i,1);}
+ }
+}
 function initMorrow(){
  const home=SPOTS.home.c;const mk=(color,x,z,h=1.7)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(.85,h,.85),new THREE.MeshStandardMaterial({color,metalness:.55,roughness:.38}));o.position.set(home.x+x,groundY+h/2,home.z+z);scene.add(o);morrowMeshes.push(o);return o;};
  morrow.slottaMesh=factionActor('SLOTTA',0xd65d36,home.x+10,home.z+3,'slotta');morrow.reframerMesh=factionActor('ReFramer',0x546b81,home.x+17,home.z+3,'reframer');morrow.constructMesh=mk(0x858a99,14,3,2.4);
@@ -839,14 +871,14 @@ function update(dt){
  if(FG.inFight&&!st.board&&pressed.KeyB){pressed.KeyB=false;FG.wantDodge=true;}
  const pad=pollPad();
  if(pad&&!controllerSeen){controllerSeen=true;/* guide available on H, not forced over gameplay */}
- tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);updateMetalBlasts(dt);
+ tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);updateMetalBlasts(dt);updateSlottaBoss(dt);
  // Xbox-style chord: hold LT + LB to grapple a nearby vehicle, LT + RT to sling it.
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
  const lt=!!(gpWorld?.buttons[6]?.pressed||gpWorld?.buttons[6]?.value>.35||gpWorld?.axes?.[4]>.35),lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!(gpWorld?.buttons[7]?.pressed||gpWorld?.buttons[7]?.value>.35);
  worldGripActive=lt;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
  if(rt&&!combatBlastLatch)riffStep();combatBlastLatch=rt;if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
- if(rb&&!worldSwingLatch){pressed.KeyQ=true;keys.KeyQ=true;}if(!rb&&worldSwingLatch)keys.KeyQ=false;worldSwingLatch=rb;
- if((lt&&!heldCar&&worldGripRetry<=0)||tap('KeyU')){galliumGrabWorld();worldGripRetry=.4;}else worldGripRetry=Math.max(0,worldGripRetry-dt);
+ if(rb&&!worldSwingLatch){if(slottaSnare>0)toast('Circuit Serpents: swing disabled');else{pressed.KeyQ=true;keys.KeyQ=true;}}if(!rb&&worldSwingLatch)keys.KeyQ=false;worldSwingLatch=rb;
+ if((lt&&!heldCar&&worldGripRetry<=0)||tap('KeyU')){if(slottaSnare>0)toast('Circuit Serpents disrupting Galaxy Gallium');else galliumGrabWorld();worldGripRetry=.4;}else worldGripRetry=Math.max(0,worldGripRetry-dt);
  if((lt&&lb&&!worldThrowLatch)||tap('KeyI')){slingCar();clearGripVisual();}
  if(!lt){worldGripWarned=false;worldGripRetry=0;}worldGrabLatch=lt;worldThrowLatch=lt&&lb;
  let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
