@@ -243,7 +243,7 @@ let controllerLegend=null,controllerSeen=false;
 function showControllerLegend(){
  if(!controllerLegend){controllerLegend=document.createElement('div');controllerLegend.id='controllerLegend';
  controllerLegend.style.cssText='position:fixed;right:12px;top:62px;z-index:20;max-width:280px;background:#10131fee;color:#f4f1ff;border:1px solid #9876e8;border-radius:12px;padding:12px;font:12px/1.6 system-ui;box-shadow:0 4px 20px #0008';
- controllerLegend.innerHTML='<b>🎮 METAL · CONTROLLER</b><br>Left stick: move · Right stick: camera<br>A: jump / recover · B: dodge / combat<br>X: strike · Y: ability<br>LB: Gallium action · RB: interaction<br>LT: modifier · RT: attack/action<br><b>LT + LB:</b> grapple nearby car<br><b>LT + RT:</b> throw held car<br>D-pad: actions · Menu: profile<br><small>H: hide/show this guide · Keyboard U/I: car grab/throw</small>';
+ controllerLegend.innerHTML='<b>🎮 METAL · CONTROLLER</b><br>Left stick: move · Right stick: camera<br>A: jump / recover · B: dodge / combat<br>X: left combat action · Y: right combat action<br>LB: Gallium (Q) · RB: action (F)<br>LT: modifier · RT: mapped action<br><b>LT + LB:</b> grapple nearby car<br><b>LT + RT:</b> throw held car<br>D-pad: actions · Menu: profile<br><small>H: hide/show this guide · Keyboard U/I: car grab/throw</small>';
  document.body.append(controllerLegend);}
  controllerLegend.style.display=controllerLegend.style.display==='none'?'block':'none';
 }
