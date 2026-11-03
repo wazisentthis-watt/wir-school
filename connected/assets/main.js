@@ -213,8 +213,8 @@ const merkaba=new THREE.Mesh(new THREE.OctahedronGeometry(.9,0),new THREE.MeshSt
 // NPCs with routines [S3 living city]; traffic (Kenney cars)
 const npcs=[];const cars=[];let rival,rivalSt;
 let heldCar=null;const thrownCars=[];
-function grabCar(){if(heldCar)return;const car=cars.filter(c=>!c.userData.worldBody).sort((a,b)=>a.position.distanceTo(P.o.position)-b.position.distanceTo(P.o.position))[0];if(!car||car.position.distanceTo(P.o.position)>9){toast('No car in grapple range');return;}const u=car.userData;u.worldBody=new WorldBody({mass:1500,radius:2.3});u.worldBody.grab();heldCar=car;u.occupantExited=true;const passenger=makeChar(0xd6aa7d);passenger.o.position.copy(car.position).add(new THREE.Vector3(2.5,.3,0));scene.add(passenger.o);passenger.target=passenger.o.position.clone().add(new THREE.Vector3(8,0,8));passenger.speed=3;passenger.wait=0;passenger.role='evacuating driver';npcs.push(passenger);toast('Driver evacuated · CAR GRAPPLED');}
-function slingCar(){if(!heldCar)return;const car=heldCar,b=car.userData.worldBody;const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));b.hold(car.position.x,car.position.y,car.position.z);b.throw(f.x*24,12,f.z*24);thrownCars.push(car);heldCar=null;toast('CAR SLING');}
+function grabCar(){if(heldCar)return;const car=cars.filter(c=>!c.userData.worldBody).sort((a,b)=>a.position.distanceTo(P.o.position)-b.position.distanceTo(P.o.position))[0];if(!car||car.position.distanceTo(P.o.position)>9){toast('No car in grapple range');return;}const u=car.userData;u.worldBody=new WorldBody({mass:1500,radius:2.3});u.worldBody.grab();heldCar=car;u.occupantExited=true;u.occupantCount=0;const passenger=makeChar(0xd6aa7d);passenger.o.position.copy(car.position).add(new THREE.Vector3(2.5,.3,0));scene.add(passenger.o);passenger.target=passenger.o.position.clone().add(new THREE.Vector3(8,0,8));passenger.speed=3;passenger.wait=0;passenger.role='evacuating driver';npcs.push(passenger);toast('Driver evacuated · CAR GRAPPLED');}
+function slingCar(){if(!heldCar)return;const car=heldCar,b=car.userData.worldBody;if(!car.userData.occupantExited||car.userData.occupantCount>0){toast('Cannot throw an occupied vehicle');return;}const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));b.hold(car.position.x,car.position.y,car.position.z);b.throw(f.x*24,12,f.z*24);thrownCars.push(car);heldCar=null;toast('CAR SLING');}
 function updateCarBodies(dt){if(heldCar){const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));const target=P.o.position.clone().addScaledVector(f,3.5);target.y+=2.8;heldCar.userData.worldBody.hold(target.x,target.y,target.z);heldCar.position.copy(target);heldCar.rotation.y+=dt*.6;}for(const c of thrownCars){const b=c.userData.worldBody;if(!b)continue;b.step(dt,.05);c.position.set(b.position.x,b.position.y,b.position.z);c.rotation.z+=dt*Math.hypot(b.velocity.x,b.velocity.z)*.045;}}
 function wp(){const i=Math.floor(Math.random()*7)-3,j=Math.floor(Math.random()*7)-3;const c=lotCenter(i,j);const e=BLOCK/2+2;return new THREE.Vector3(c.x+(Math.random()<.5?-e:e),0.25,c.z+(Math.random()-.5)*BLOCK);}
 async function spawnLife(){const tints=[0xd9a066,0x5ea1d6,0xc85a5a,0x7bc47f,0xe0c35a,0xa07ad6,0xeeeeee,0x444444];
@@ -224,7 +224,7 @@ async function spawnLife(){const tints=[0xd9a066,0x5ea1d6,0xc85a5a,0x7bc47f,0xe0
  for(let i=0;i<3;i++){const d=makeChar(0xb02a3a);d.o.position.copy(fieldC).add(new THREE.Vector3(8+i*3,0.26,(i-1)*5));d.home=d.o.position.clone();scene.add(d.o);defenders.push(d);}
  const cm=['taxi','sedan','suv','van','police','delivery','truck'];const mods=await Promise.all(cm.map(n=>loadG('assets/models/cars/'+n+'.glb').then(g=>g.scene).catch(()=>null)));
  for(let i=0;i<(isTouch?8:14);i++){const m=mods[i%mods.length];if(!m)continue;const c=m.clone();c.scale.setScalar(2.2);c.traverse(o=>{if(o.isMesh)o.castShadow=true;});
-  const axis=i%2,lane=(Math.floor(Math.random()*6)-3+.5)*(BLOCK+ROAD),dir=Math.random()<.5?1:-1;c.userData={axis,lane:lane+dir*2.8,dir,t:(Math.random()-.5)*400,spd:9+Math.random()*5};scene.add(c);cars.push(c);}
+  const axis=i%2,lane=(Math.floor(Math.random()*6)-3+.5)*(BLOCK+ROAD),dir=Math.random()<.5?1:-1;c.userData={axis,lane:lane+dir*2.8,dir,t:(Math.random()-.5)*400,spd:9+Math.random()*5,occupantCount:1,occupantExited:false};scene.add(c);cars.push(c);}
 }
 
 // ---------- input: keyboard, touch, gamepad (one scheme for the whole world) ----------
@@ -815,8 +815,8 @@ function update(dt){
  // Xbox-style chord: hold LT + LB to grapple a nearby vehicle, LT + RT to sling it.
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
  const lt=!!gpWorld?.buttons[6]?.pressed,lb=!!gpWorld?.buttons[4]?.pressed,rt=!!gpWorld?.buttons[7]?.pressed;
- if((lt&&lb&&!worldGrabLatch)||tap('KeyG'))grabCar();
- if((lt&&rt&&!worldThrowLatch)||tap('KeyT'))slingCar();
+ if((lt&&lb&&!worldGrabLatch)||tap('KeyU'))grabCar();
+ if((lt&&rt&&!worldThrowLatch)||tap('KeyI'))slingCar();
  worldGrabLatch=lt&&lb;worldThrowLatch=lt&&rt;
  let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
  if(bodyMachine.mode==='fallen'&&(pressed.Space||pressed.KeyE)){bodyMachine.recover();pressed.Space=false;pressed.KeyE=false;}
