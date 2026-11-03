@@ -1,0 +1,47 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>WIR Connected · SLOTTA Lab v1</title>
+<script type="importmap">{"imports":{"three":"../assets/lib/three.module.min.js"}}</script>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif}*{box-sizing:border-box}body{margin:0;background:#080c16;color:#e9eaff}
+header{padding:16px 20px;background:#19172b;border-bottom:2px solid #8a4fee}h1{font-size:22px;letter-spacing:.09em;margin:0}small{color:#9ecbe6}
+main{display:grid;grid-template-columns:1fr minmax(245px,330px);height:calc(100dvh - 77px)}canvas{display:block;width:100%;height:100%;touch-action:none}
+aside{border-left:1px solid #48375d;padding:18px;background:#111524;overflow:auto}
+button{background:#32234d;color:#f0ebfa;border:1px solid #8453bb;border-radius:9px;padding:11px 13px;cursor:pointer;font-size:14px;font-weight:700;margin:4px 3px 4px 0}
+button[aria-pressed="true"]{background:#693cb5}p{line-height:1.5;font-size:13px;color:#b5b4cd}
+.icons{width:100%;border-radius:8px;background:#090a17}.stage{position:relative;min-height:320px}
+.hint{position:absolute;left:14px;bottom:12px;color:#b5dce9;background:#0b0e18ba;padding:8px;border-radius:8px;font-size:12px;pointer-events:none}
+@media(max-width:720px){main{display:flex;flex-direction:column;height:auto}.stage{height:55dvh}aside{border-left:0;border-top:1px solid #48375d}header{padding:12px}h1{font-size:19px}}
+</style></head><body>
+<header><h1>SLOTTA LAB <small>WIR: CONNECTED / ASSET PACK v1</small></h1></header>
+<main><section class="stage" id="stage"><div class="hint">Drag to rotate · Pinch or scroll to zoom · PROPOSAL visual</div></section>
+<aside><h2>3D prototype preview</h2><button data-kind="boss" aria-pressed="true">SLOTTA</button><button data-kind="serpent" aria-pressed="false">Circuit Serpent</button><button data-kind="clone" aria-pressed="false">Cyborg Clone</button>
+<p>These are original, modular Three.js meshes with animated pivots. The downloadable GLB blockouts are separate static exports. Neither is a fully skinned/weight-painted character rig.</p>
+<h3>PHATOM System</h3><p><b>3 active game ports</b><br><b>5 stored cartridge bays</b><br><b>1 orange remote-retrieval interface</b></p>
+<img class="icons" src="../assets/slotta_assets/cartridge_atlas.svg" alt="Eight original game cartridges" />
+<p>Game names and ability definitions come from the existing <code>slotta_slots.js</code> module. This preview does not alter saves or combat progression.</p>
+<a style="color:#c6a6ff" href="../">Return to WIR Connected</a>
+</aside></main>
+<script type="module">
+import * as THREE from 'three';
+import {createSlottaBossAsset,animateSlottaBossAsset,createSlottaMinionAsset,animateSlottaMinionAsset} from '../assets/slotta_visuals.js';
+const stage=document.getElementById('stage'),renderer=new THREE.WebGLRenderer({antialias:!('ontouchstart' in window),alpha:false,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));renderer.setSize(stage.clientWidth,stage.clientHeight);renderer.setClearColor(0x0d1320);
+renderer.toneMapping=THREE.ACESFilmicToneMapping;stage.prepend(renderer.domElement);
+const scene=new THREE.Scene();scene.fog=new THREE.Fog(0x0d1320,8,20);
+scene.add(new THREE.HemisphereLight(0xbddcfc,0x453047,1.7));
+const lamp=new THREE.DirectionalLight(0xffffff,2.5);lamp.position.set(3,7,5);scene.add(lamp);
+const back=new THREE.PointLight(0x9b5cff,16,11);back.position.set(-2,3,-2);scene.add(back);
+const ground=new THREE.Mesh(new THREE.CircleGeometry(3.4,48),new THREE.MeshStandardMaterial({color:0x222238,roughness:.8,metalness:.3}));ground.rotation.x=-Math.PI/2;ground.position.y=-.015;scene.add(ground);
+const camera=new THREE.PerspectiveCamera(46,1,.05,100);let yaw=.38,pitch=.23,dist=5.6,dragging=false,px=0,py=0;
+const model={boss:createSlottaBossAsset(),serpent:createSlottaMinionAsset('serpent'),clone:createSlottaMinionAsset('clone')};for(const m of Object.values(model)){scene.add(m);m.visible=false;}
+let kind='boss',clock=0;function select(next){kind=next;Object.entries(model).forEach(([key,val])=>val.visible=key===kind);document.querySelectorAll('button[data-kind]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.kind===kind)));}
+document.querySelectorAll('button[data-kind]').forEach(b=>b.addEventListener('click',()=>select(b.dataset.kind)));select('boss');
+const el=renderer.domElement;el.addEventListener('pointerdown',e=>{dragging=true;px=e.clientX;py=e.clientY;el.setPointerCapture(e.pointerId);});
+el.addEventListener('pointerup',()=>{dragging=false});el.addEventListener('pointermove',e=>{if(!dragging)return;yaw+=(e.clientX-px)*.009;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-py)*.006,-.5,1.1);px=e.clientX;py=e.clientY;});
+el.addEventListener('wheel',e=>{e.preventDefault();dist=THREE.MathUtils.clamp(dist+e.deltaY*.008,3.2,10);},{passive:false});
+function resize(){const w=stage.clientWidth,h=stage.clientHeight;if(w&&h){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}}addEventListener('resize',resize);resize();
+let last=performance.now();function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;clock+=dt;
+ const height=kind==='boss'?1.15:.95;camera.position.set(Math.sin(yaw)*Math.cos(pitch)*dist,Math.sin(pitch)*dist+height,Math.cos(yaw)*Math.cos(pitch)*dist);camera.lookAt(0,height,0);
+ if(kind==='boss')animateSlottaBossAsset(model.boss,dt);else animateSlottaMinionAsset(model[kind],clock*3.2);
+ renderer.render(scene,camera);}requestAnimationFrame(frame);
+</script></body></html>
