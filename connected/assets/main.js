@@ -849,25 +849,26 @@ function spawnSlottaMinion(kind,origin){
  slottaMinions.push({root,kind,life:kind==='serpent'?11:18,hit:false,phase:Math.random()*6.28});
 }
 function slottaEffect(kind,pos,radius=3,life=1.1){const colors={pulse:0x7b75ff,shield:0x47d3e5,jam:0xd448ed,strike:0xff8a49};const mesh=new THREE.Mesh(new THREE.TorusGeometry(radius,.09,6,32),new THREE.MeshBasicMaterial({color:colors[kind]||0xffffff,transparent:true,opacity:.8}));mesh.rotation.x=Math.PI/2;mesh.position.copy(pos);mesh.position.y=groundY+.16;scene.add(mesh);slottaEffects.push({mesh,life,max:life});}
+let slottaPhase=0,slottaArmor=0,slottaArena=0,slottaGravity=0;
 function slottaUseGame(game,boss,range){
- const toward=P.o.position.clone().sub(boss.position).setY(0).normalize();
+ const toward=P.o.position.clone().sub(boss.position).setY(0);if(toward.lengthSq()>.001)toward.normalize();
  switch(game.id){
- case 'slither-master':for(let j=0;j<2;j++)spawnSlottaMinion('serpent',boss.position);break;
- case 'ninja-star':for(let j=0;j<2;j++)spawnSlottaMinion('clone',boss.position);break;
- case 'phantom-racer':boss.position.addScaledVector(toward,-Math.min(8,range*.45));break;
- case 'iron-arena':slottaEffect('strike',boss.position,3);if(range<5){vel.addScaledVector(toward,8);vel.y=Math.max(vel.y,2);}break;
- case 'ghost-frequency':slottaEffect('jam',boss.position,6);if(range<12)slottaSnare=Math.max(slottaSnare,2.5);break;
- case 'beast-byte':spawnSlottaMinion('clone',boss.position);break;
- case 'gravity-jam':slottaEffect('pulse',boss.position,8);if(range<9){vel.x*=.3;vel.z*=.3;vel.y=Math.min(vel.y,1);}break;
- case 'tower-zero':slottaEffect('shield',boss.position,3,2.5);break;
+ case 'zero-sector':slottaArena=6;slottaEffect('jam',boss.position,9,6);break;
+ case 'fleshcode':slottaArmor=4;slottaEffect('strike',boss.position,4);if(range<5){vel.addScaledVector(toward,7);vel.y=Math.max(vel.y,2);}break;
+ case 'phasebound':slottaPhase=3;slottaEffect('shield',boss.position,2,3);break;
+ case 'shifting-department':slottaEffect('pulse',P.o.position,3);if(range<16){vel.addScaledVector(toward,10);vel.y=Math.max(vel.y,3);}break;
+ case 'nanoforge':for(let j=0;j<2;j++)spawnSlottaMinion('clone',boss.position);break;
+ case 'gravity-children':slottaGravity=4;slottaEffect('pulse',P.o.position,7,4);break;
+ case 'tenfold':slottaArmor=7;slottaEffect('shield',boss.position,3,7);spawnSlottaMinion('serpent',boss.position);break;
+ case 'elemental-outlaw':slottaEffect('strike',boss.position,7);if(range<8){vel.addScaledVector(toward,9);slottaSnare=Math.max(slottaSnare,1.2);}break;
  }
  toast('SLOTTA · '+game.name.toUpperCase()+' · '+game.move.toUpperCase());
 }
 function updateSlottaBoss(dt){
  if(!P||!morrow.slottaMesh)return;
- tickSlotta(slottaConsole,dt);slottaSnare=Math.max(0,slottaSnare-dt);
+ tickSlotta(slottaConsole,dt);slottaSnare=Math.max(0,slottaSnare-dt);slottaPhase=Math.max(0,slottaPhase-dt);slottaArmor=Math.max(0,slottaArmor-dt);slottaArena=Math.max(0,slottaArena-dt);slottaGravity=Math.max(0,slottaGravity-dt);if(slottaGravity>0&&P.o.position.distanceTo(morrow.slottaMesh.position)<18){vel.x*=Math.max(.2,1-dt*2);vel.z*=Math.max(.2,1-dt*2);}morrow.slottaMesh.traverse(o=>{if(o.isMesh&&o.material){o.material.transparent=slottaPhase>0;o.material.opacity=slottaPhase>0?.35:1;}});
  const boss=morrow.slottaMesh,range=boss.position.distanceTo(P.o.position);
- if(range<24&&!slottaAnnounced){slottaAnnounced=true;toast('BOSS: SLOTTA · SLITHER MASTER + NINJA STAR');}
+ if(range<24&&!slottaAnnounced){slottaAnnounced=true;toast('BOSS: SLOTTA · PHANTOM CROSSOVER · 8 GAME WORLDS');}
  for(let i=slottaEffects.length-1;i>=0;i--){const fx=slottaEffects[i];fx.life-=dt;fx.mesh.material.opacity=Math.max(0,fx.life/fx.max)*.8;fx.mesh.scale.setScalar(1+(1-fx.life/fx.max)*.45);if(fx.life<=0){scene.remove(fx.mesh);fx.mesh.geometry.dispose();fx.mesh.material.dispose();slottaEffects.splice(i,1);}}
  if(range<25&&!morrow.slotta.captured&&!morrow.slotta.escaped){
   slottaAttackClock-=dt;slottaSwapClock-=dt;
