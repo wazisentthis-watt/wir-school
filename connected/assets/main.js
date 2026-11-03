@@ -952,11 +952,61 @@ function spawnSlottaMinion(kind,origin){
  scene.add(root);
  slottaMinions.push({root,kind,life:kind==='serpent'?11:18,hit:false,phase:Math.random()*6.28});
 }
-function slottaEffect(kind,pos,radius=3,life=1.1){const colors={pulse:0x7b75ff,shield:0x47d3e5,jam:0xd448ed,strike:0xff8a49};const mesh=new THREE.Mesh(new THREE.TorusGeometry(radius,.09,6,32),new THREE.MeshBasicMaterial({color:colors[kind]||0xffffff,transparent:true,opacity:.8}));mesh.rotation.x=Math.PI/2;mesh.position.copy(pos);mesh.position.y=groundY+.16;scene.add(mesh);slottaEffects.push({mesh,life,max:life});}
+function slottaEffect(kind,pos,radius=3,life=1.1){
+ const colors={pulse:0x7b75ff,shield:0x47d3e5,jam:0xd448ed,strike:0xff8a49,
+  serpent:0xa15bff,clone:0x5cd7ff,dash:0x77c7ff,select:0xf6a14e,telegraph:0xeebeff};
+ const mesh=new THREE.Mesh(new THREE.TorusGeometry(radius,.09,6,32),
+  new THREE.MeshBasicMaterial({color:colors[kind]||0xffffff,transparent:true,opacity:.8,depthWrite:false}));
+ mesh.rotation.x=Math.PI/2;mesh.position.copy(pos);mesh.position.y=groundY+.16;scene.add(mesh);
+ slottaEffects.push({mesh,life,max:life});
+}
+function slottaAfterimage(pos){
+ const mesh=new THREE.Mesh(new THREE.CapsuleGeometry(.39,1.25,3,7),
+  new THREE.MeshBasicMaterial({color:0x886aff,transparent:true,opacity:.54,depthWrite:false}));
+ mesh.position.copy(pos).add(new THREE.Vector3(0,1.18,0));scene.add(mesh);
+ slottaEffects.push({mesh,life:.43,max:.43});
+}
+function updateSlottaDash(dt,boss){
+ if(!slottaDash||!boss)return;
+ const step=Math.min(slottaDash.remaining,Math.min(dt,.05)*25);
+ const actor=factionActors.find(a=>a.root===boss);
+ if(!actor){slottaDash=null;return;}
+ // Keep the dash fast but collision-aware; no teleport or Metal movement.
+ const count=Math.max(1,Math.ceil(step/.45)),part=step/count;
+ for(let i=0;i<count;i++){
+  const next=boss.position.clone().addScaledVector(slottaDash.direction,part);
+  const probe=next.clone().setY(groundY+1.1);
+  if(colliders.some(c=>c.containsPoint(probe))){slottaDash=null;break;}
+  boss.position.copy(next);actor.home.copy(next);
+  actor.body.position.x=next.x;actor.body.position.z=next.z;
+  if(!slottaDash)break;
+  slottaDash.remaining-=part;
+ }
+ if(!slottaDash)return;
+ slottaDashGhostClock-=dt;
+ if(slottaDashGhostClock<=0){slottaAfterimage(boss.position);slottaDashGhostClock=.085;}
+ if(!slottaDash.hit&&boss.position.distanceTo(P.o.position)<1.7){
+  const d=slottaDash.direction;vel.x+=d.x*6;vel.z+=d.z*6;vel.y=Math.max(vel.y,1.1);
+  slottaDash.hit=true;slottaEffect('dash',boss.position,1.5,.5);
+ }
+ if(slottaDash.remaining<=0)slottaDash=null;
+}
 let slottaPhase=0,slottaArmor=0,slottaArena=0,slottaGravity=0;
 function slottaUseGame(game,boss,range){
  const toward=P.o.position.clone().sub(boss.position).setY(0);if(toward.lengthSq()>.001)toward.normalize();
  switch(game.id){
+ case 'slither-master':
+  slottaEffect('serpent',boss.position,3,1);
+  for(let i=0;i<2;i++)spawnSlottaMinion('serpent',boss.position);break;
+ case 'ninja-star':
+  slottaEffect('clone',boss.position,3.2,1.2);
+  for(let i=0;i<2;i++)spawnSlottaMinion('clone',boss.position);break;
+ case 'phantom-racer':
+  if(toward.lengthSq()>.001){
+   slottaDash={direction:toward.clone(),remaining:8.5,hit:false};
+   slottaDashGhostClock=0;
+   slottaEffect('dash',boss.position,2,.6);
+  }break;
  case 'zero-sector':slottaArena=6;slottaEffect('jam',boss.position,9,6);break;
  case 'fleshcode':slottaArmor=4;slottaEffect('strike',boss.position,4);if(range<5){vel.addScaledVector(toward,7);vel.y=Math.max(vel.y,2);}break;
  case 'phasebound':slottaPhase=3;slottaEffect('shield',boss.position,2,3);break;
@@ -970,17 +1020,46 @@ function slottaUseGame(game,boss,range){
 }
 function updateSlottaBoss(dt){
  if(!P||!morrow.slottaMesh)return;
+ const events=tickSlottaAnimator(slottaAnimator,dt);
+ for(const event of events){
+  if(event.type==='telegraph')slottaEffect('telegraph',morrow.slottaMesh.position,1.2,.42);
+  if(event.type==='cartridge-select')slottaEffect('select',morrow.slottaMesh.position,1.05,.52);
+  if(event.type==='complete'&&event.state==='select'&&slottaPendingGame)
+   startSlottaAction(slottaAnimator,slottaAnimationForGame(slottaPendingGame.id),{force:true});
+  if(event.type==='cast'&&slottaPendingGame){
+   slottaUseGame(slottaPendingGame,morrow.slottaMesh,morrow.slottaMesh.position.distanceTo(P.o.position));
+   slottaPendingGame=null;
+  }
+ }
  slottaCombat.hitCooldown=Math.max(0,slottaCombat.hitCooldown-dt);if(slottaCombat.defeated)return;tickSlotta(slottaConsole,dt);slottaSnare=Math.max(0,slottaSnare-dt);slottaPhase=Math.max(0,slottaPhase-dt);slottaArmor=Math.max(0,slottaArmor-dt);slottaArena=Math.max(0,slottaArena-dt);slottaGravity=Math.max(0,slottaGravity-dt);if(slottaGravity>0&&P.o.position.distanceTo(morrow.slottaMesh.position)<18){vel.x*=Math.max(.2,1-dt*2);vel.z*=Math.max(.2,1-dt*2);}morrow.slottaMesh.traverse(o=>{if(o.isMesh&&o.material){o.material.transparent=slottaPhase>0;o.material.opacity=slottaPhase>0?.35:1;}});
  const boss=morrow.slottaMesh,range=boss.position.distanceTo(P.o.position);
- if(range<24&&!slottaAnnounced){slottaAnnounced=true;toast('BOSS: SLOTTA · PHATOM ENGINE · 8 GAME WORLDS');}
+ updateSlottaDash(dt,boss);
+ if(range<24&&!slottaAnnounced){slottaAnnounced=true;startSlottaAction(slottaAnimator,'intro');toast('BOSS: SLOTTA · PHATOM ENGINE · 3 ACTIVE / 5 STORED');}
  for(let i=slottaEffects.length-1;i>=0;i--){const fx=slottaEffects[i];fx.life-=dt;fx.mesh.material.opacity=Math.max(0,fx.life/fx.max)*.8;fx.mesh.scale.setScalar(1+(1-fx.life/fx.max)*.45);if(fx.life<=0){scene.remove(fx.mesh);fx.mesh.geometry.dispose();fx.mesh.material.dispose();slottaEffects.splice(i,1);}}
  if(range<25&&!morrow.slotta.captured&&!morrow.slotta.escaped){
   slottaAttackClock-=dt;slottaSwapClock-=dt;
-  if(slottaAttackClock<=0){
-   let game=null;for(let n=0;n<3;n++){const idx=(slottaTurn+n)%3;game=activateSlot(slottaConsole,idx);if(game){slottaTurn=(idx+1)%3;break;}}
-   if(game)slottaUseGame(game,boss,range);
-   else if(slottaSwapClock<=0){const stored=slottaConsole.stored.findIndex(id=>id&&SLOTTA_GAMES.some(g=>g.id===id));if(stored>=0&&swapSlot(slottaConsole,slottaTurn,stored)){slottaSwapClock=2.5;toast('SLOTTA · PHATOM BACKPACK · SWITCHING GAME');}}
-   slottaAttackClock=game?2.8:1.1;
+  const ready=!slottaPendingGame&&canStartSlottaAction(slottaAnimator,'select');
+  if(slottaAttackClock<=0&&ready){
+   let game=null,idx=-1;
+   for(let n=0;n<3;n++){
+    const k=(slottaTurn+n)%3;
+    game=activateSlot(slottaConsole,k);
+    if(game){idx=k;slottaTurn=(k+1)%3;break;}
+   }
+   if(game&&startSlottaAction(slottaAnimator,'select')){
+    slottaPendingGame=game;slottaSelectedSlot=idx;
+    const visual=boss.userData.slottaRig;if(visual)visual.selectedSlot=idx;
+    slottaEffect('select',boss.position,1.7,.65);
+    slottaAttackClock=2.8;
+   }else if(!game&&slottaSwapClock<=0){
+    const stored=slottaConsole.stored.findIndex(id=>id&&SLOTTA_GAMES.some(g=>g.id===id));
+    if(stored>=0&&swapSlot(slottaConsole,slottaTurn,stored)){
+     slottaSwapClock=2.5;
+     startSlottaAction(slottaAnimator,'swap');
+     toast('SLOTTA · PHATOM BACKPACK · SWITCHING GAME');
+    }
+    slottaAttackClock=1.1;
+   }
   }
  }
  for(let i=slottaMinions.length-1;i>=0;i--){const m=slottaMinions[i];m.life-=dt;m.phase+=dt*7;
@@ -1195,4 +1274,4 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
   window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
-  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;initMetalStory();loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
+  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;initMetalStory();loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
