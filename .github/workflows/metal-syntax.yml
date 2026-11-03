@@ -1,0 +1,34 @@
+name: WIR Metal JavaScript syntax gate
+on:
+  push:
+    paths:
+      - 'connected/**'
+      - '.github/workflows/metal-syntax.yml'
+  pull_request:
+    paths:
+      - 'connected/**'
+      - '.github/workflows/metal-syntax.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check all Connected game JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=0
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+            count=$((count + 1))
+          done < <(find connected -type f \( -name '*.js' -o -name '*.mjs' \) -print0)
+          test "$count" -gt 0
+          echo "Syntax checked $count JavaScript files"
