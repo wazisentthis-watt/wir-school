@@ -63,7 +63,8 @@ try{
  assert.equal(degraded.saved,checkpoint,'Recovery changed the saved Metal checkpoint');
  assert.equal(degraded.fallbackMetal,'metal','Metal was not replaced with the fallback mesh');
  assert.ok(degraded.warnings.length>=4,'Not all missing model warnings were captured');
- assert.equal(degraded.errors.length,0,'Fallback startup logged game runtime errors');
+ console.log('DEGRADED BOOT CAPTURED ERRORS',JSON.stringify(degraded.errors));
+ assert.equal(degraded.errors.length,0,'Fallback startup logged game runtime errors: '+JSON.stringify(degraded.errors));
  for(const name of missing)assert.ok(aborted.includes(name),'Missing asset route was not exercised: '+name);
  outcomes.push({scenario:'missing-models',pass:true,missing:aborted,warnings:degraded.warnings.map(w=>w.asset),
   fallback:degraded.fallbackMetal});
