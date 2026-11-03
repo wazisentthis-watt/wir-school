@@ -119,3 +119,34 @@ Manual QA on an iPhone with controller is **still required**:
 
 Do not merge/publish this visual redesign until owner approval of the
 appearance and review of manual iPhone results. 
+
+### Minion combat choreography pass 2 (2026-11-03)
+
+- `slotta_choreography.js` drives minions using pure deterministic spawn,
+  approach, orbit/flank, lunge, and recover states. Circuit Serpents use a
+  tighter/faster curve while Cyborg Clones flank farther and aim-lock before
+  the lunge. Their attack telegraph appears before damage can occur.
+- `slotta_visuals.js` supplies a nine-link articulated serpent with live
+  body undulation and distinct humanoid clone arm/leg/torso joint poses.
+- Minion movement respects building collider footprints; summons have
+  separate limits (8 serpents / 6 clones) to protect mobile performance.
+- Phantom Racer uses `slottaDashSweep` to move in small swept increments
+  with the same world collider data. End-of-dash recovery no longer introduces
+  a separate sine-orbit position offset for SLOTTA.
+- Damage reactions now distinguish light recoil and heavy stagger. The third
+  successful hit inside a 2.2-second combo window escalates to heavy stagger.
+  Damage still uses the existing boss health/cooldown contract.
+- Summons and temporary effects are disposed when SLOTTA is defeated,
+  captured, or escaped. This prevents frozen visual remnants.
+- SLOTTA Lab now previews the same minion choreography against a transparent
+  target dummy, allowing comparison of approach, telegraph, lunge, and
+  recovery before importing a real skinned rig.
+
+Automated scope: `connected/tests/slotta_choreography.test.mjs` covers
+materialization, flanks, telegraphs, building blocking, swept dash motion,
+combo hit reactions, dash recovery, and lab source integration.
+
+**Remaining manual gates:** browser render, device frame rate, iPhone touch,
+Bluetooth gamepad, VFX performance, boss collision feel, attack fairness.
+All new visuals remain **PROPOSAL/HOLD** until owner review and a real-device
+smoke test. Draft PR #9 is intentionally not merged.
