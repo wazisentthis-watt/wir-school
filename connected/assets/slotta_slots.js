@@ -1,5 +1,6 @@
 // WIR Connected: SLOTTA's original game-cartridge combat system.
-// Eight installed games: three active ports, five backpack USB storage ports.\n// Three earlier active cartridges are retained in the unlockable library (not lost).
+// Eight installed games: three active ports, five backpack USB storage ports.
+// Three earlier active cartridges are retained in the unlockable library (not lost).
 // All abilities and titles are original WIR concepts.
 // Original WIR cartridge worlds; media references are inspiration, not copied assets.
 export const SLOTTA_GAMES=[
@@ -34,6 +35,18 @@ export function tickSlotta(loadout,dt){
  if(!Number.isFinite(dt)||dt<=0)return;loadout.time+=dt;
  for(const id of Object.keys(loadout.cooldowns))loadout.cooldowns[id]=Math.max(0,loadout.cooldowns[id]-dt);
  if(loadout.download){loadout.download.remaining-=dt;if(loadout.download.remaining<=0){loadout.stored[loadout.download.index]=loadout.download.id;loadout.download=null;}}
+}
+// Non-mutating candidate lookup: selecting a cartridge does NOT consume its cooldown.
+// A charge is consumed only at the actual animation CAST marker.
+export function peekReadySlot(loadout,startIndex=0){
+ if(!loadout||!Array.isArray(loadout.active))return null;
+ const start=Number.isInteger(startIndex)?((startIndex%3)+3)%3:0;
+ for(let n=0;n<3;n++){
+  const index=(start+n)%3,id=loadout.active[index];
+  const game=SLOTTA_GAMES.find(item=>item.id===id);
+  if(game&&!(Number(loadout.cooldowns?.[id])>0))return {game,index};
+ }
+ return null;
 }
 export function activateSlot(loadout,activeIndex){
  const id=loadout.active[activeIndex],game=SLOTTA_GAMES.find(g=>g.id===id);

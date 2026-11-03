@@ -150,3 +150,37 @@ combo hit reactions, dash recovery, and lab source integration.
 Bluetooth gamepad, VFX performance, boss collision feel, attack fairness.
 All new visuals remain **PROPOSAL/HOLD** until owner review and a real-device
 smoke test. Draft PR #9 is intentionally not merged.
+
+
+### Encounter-cast reliability gate (2026-11-03)
+
+**Source:** `slotta_encounter_guard.js`, `slotta_slots.js`,
+`slotta_animation_machine.js`, `main.js`.
+**Status:** PROPOSAL / HOLD, draft integration only. No additional model is required.
+
+1. PHATOM selection now uses the non-mutating `peekReadySlot`.
+2. A queued slot has `id`, `index`, `selectRevision`, and `castRevision`.
+   Stale animation markers cannot execute a different or interrupted cartridge.
+3. The cooldown is committed via `activateSlot` **at the actual cast event**.
+   An interrupted, held, out-of-range, or resolved cast consumes no cooldown.
+4. Defeated/captured/escaped boss checks run **before** animation events; no
+   post-resolution power spawn or dash.
+5. Phantom Racer telegraph-to-cast lead time was extended from 0.14 seconds
+   to **0.36 seconds** for a more readable evasive window.
+6. Corrected an escaped literal backslash-n hiding the normal SLOTTA transform
+   update behind a JavaScript line comment.
+7. The existing `window.__game.slottaAttack()` diagnostic now reports the
+   current action, queued ID, selected slot, active game IDs and cooldowns,
+   without allowing new attacks or mutating the loadout.
+
+**Regression coverage:** `connected/tests/slotta_encounter_guard.test.mjs`
+checks select-without-charge, commit-on-cast, stale markers, interruption,
+grip/range gates, cooldown round-robin, encounter termination ordering, and
+the runtime transform comment.
+
+**Manual acceptance gate:** Open WIR: Connected on iPhone after review,
+attempt to interrupt each game before cast, dash out of the boss radius,
+grab/release SLOTTA using Gallium, defeat/capture him, and verify there are no
+unexpected attacks or animation errors. Confirm Metal's existing camera,
+movement, combat and controller behavior remains unaffected. **Do not merge**
+this branch or approve final character visuals until that review is complete.
