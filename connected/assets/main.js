@@ -1,4 +1,5 @@
 import {createCharge,stepCharge} from './merkabah_charge.js';
+import {readMetalCheckpoint,writeMetalCheckpoint,advanceMetalStory,metalStoryChapter} from './metal_story_engine.js';
 import {createCombatBody,applyCombatHit,stepCombatBody,blastDirection} from './metal_combat_physics.js';
 // WIR: Connected — unified open-world prototype (HTML/JS per Coach's decisions; Godot later).
 // Sources: [S1] Metal InDa RIFFT, [S3] Valence Life, [S4] Retro Bowl, [S5] Stay On Page, attunement packet.
@@ -815,6 +816,36 @@ function updateCrownCharge(dt,gp){initCrownVisual();const lt=!!(gp?.buttons?.[6]
 }
 
 const morrow=createEncounter();let morrowClock=0,morrowStatus='';
+const metalStory=readMetalCheckpoint(localStorage);
+let metalStoryReady=false,metalStoryClock=0,metalStoryMessage='';
+function saveMetalStory(reason='manual'){
+ if(!P||!metalStoryReady)return false;
+ const ok=writeMetalCheckpoint(localStorage,metalStory,P.o.position,reason);
+ toast(ok?'CHECKPOINT SAVED · '+metalStoryChapter(metalStory).title:'SAVE UNAVAILABLE · storage blocked');
+ return ok;
+}
+function updateMetalStory(dt){
+ if(!P||!metalStoryReady)return;
+ metalStoryClock+=dt;if(metalStoryClock<.35)return;metalStoryClock=0;
+ const p=P.o.position;
+ const skate=SPOTS.skate.c,home=SPOTS.home.c;
+ const near=(v,r)=>v&&Math.hypot(p.x-v.x,p.z-v.z)<r;
+ let event=null,reason='';
+ if(metalStory.chapter===0&&near(skate,15)){event='skate_reached';reason='Skatepark arrival';}
+ else if(metalStory.chapter===1&&(slottaCombat.defeated||morrow.slotta.captured)){event='slotta_resolved';reason='SLOTTA encounter resolved';}
+ else if(metalStory.chapter===2&&near(home,12)){event='home_returned';reason='Safehouse return';}
+ if(event&&advanceMetalStory(metalStory,event)){saveMetalStory(reason);toast('STORY · '+metalStoryChapter(metalStory).title+' · '+metalStoryChapter(metalStory).objective);}
+ if(morrow.panel)morrow.panel.dataset.story=metalStoryChapter(metalStory).title+' · '+metalStoryChapter(metalStory).objective;
+}
+function initMetalStory(){
+ if(metalStory.checkpoint?.position){const q=metalStory.checkpoint.position;if([q.x,q.y,q.z].every(Number.isFinite)){P.o.position.set(q.x,q.y,q.z);vel.set(0,0,0);toast('CHECKPOINT RESTORED · '+metalStoryChapter(metalStory).title);}}
+ metalStoryReady=true;
+ const button=document.createElement('button');button.type='button';button.textContent='SAVE · METAL';button.title='Save Metal story checkpoint';
+ Object.assign(button.style,{position:'fixed',bottom:'76px',right:'12px',zIndex:'9999',padding:'10px 13px',borderRadius:'10px',border:'1px solid #ad91ee',background:'#221b36',color:'#f5eaff',fontWeight:'bold',fontSize:'12px',opacity:'.86'});
+ button.addEventListener('click',()=>saveMetalStory('manual'));document.body.append(button);
+ document.addEventListener('keydown',e=>{if(e.code==='F9'){e.preventDefault();saveMetalStory('manual');}});
+}
+
 
 // R1 and L1 share the fluid-metal renderer, with entirely separate physics.
 const galliumRibbons=[];let gripTarget=null,gripFollow=null,gripHeight=0,riftCooldown=0,riftPressTime=0;
@@ -992,7 +1023,7 @@ function update(dt){
  if(FG.inFight&&!st.board&&pressed.KeyB){pressed.KeyB=false;FG.wantDodge=true;}
  const pad=pollPad();
  if(pad&&!controllerSeen){controllerSeen=true;/* guide available on H, not forced over gameplay */}
- tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);updateMetalBlasts(dt);updateGalliumPhysics(dt);updateSlottaBoss(dt);
+ tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);updateMetalBlasts(dt);updateGalliumPhysics(dt);updateSlottaBoss(dt);updateMetalStory(dt);
  // Controller contract: LB grabs, RB swings, LT charges, RT RIFFT Steps; LB+RT throws a held car.
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
  const lt=!!(gpWorld?.buttons[6]?.pressed||gpWorld?.buttons[6]?.value>.35||gpWorld?.axes?.[4]>.35),lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!(gpWorld?.buttons[7]?.pressed||gpWorld?.buttons[7]?.value>.35);
@@ -1148,4 +1179,4 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
   window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
-  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
+  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;initMetalStory();loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
