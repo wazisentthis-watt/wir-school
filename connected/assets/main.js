@@ -214,7 +214,7 @@ const merkaba=new THREE.Mesh(new THREE.OctahedronGeometry(.9,0),new THREE.MeshSt
 // NPCs with routines [S3 living city]; traffic (Kenney cars)
 const npcs=[];const cars=[];let rival,rivalSt;
 let heldCar=null;const thrownCars=[];
-function grabCar(){if(heldCar)return;const aim=new THREE.Vector3(Math.sin(camYaw+gripAxisX*.7),0,Math.cos(camYaw+gripAxisX*.7));const car=cars.filter(c=>!c.userData.worldBody).map(c=>({c,d:c.position.distanceTo(P.o.position),dot:c.position.clone().sub(P.o.position).setY(0).normalize().dot(aim)})).filter(v=>v.d<13&&v.dot>.05).sort((a,b)=>(b.dot-a.dot)*5+a.d-b.d)[0]?.c;if(!car||car.position.distanceTo(P.o.position)>13){toast('No car in grapple range');return;}const u=car.userData;u.worldBody=new WorldBody({mass:1500,radius:2.3});u.worldBody.grab();u.worldBody.hold(car.position.x,car.position.y,car.position.z);heldCar=car;u.occupantExited=true;u.occupantCount=0;const passenger=makeChar(0xd6aa7d);passenger.o.position.copy(car.position).add(new THREE.Vector3(2.5,.3,0));scene.add(passenger.o);passenger.target=passenger.o.position.clone().add(new THREE.Vector3(8,0,8));passenger.speed=3;passenger.wait=0;passenger.role='evacuating driver';npcs.push(passenger);toast('Driver evacuated · CAR GRAPPLED');}
+function grabCar(){if(heldCar)return;const aim=new THREE.Vector3(Math.sin(camYaw+gripAxisX*.7),0,Math.cos(camYaw+gripAxisX*.7));const car=cars.filter(c=>!c.userData.worldBody).map(c=>({c,d:c.position.distanceTo(P.o.position),dot:c.position.clone().sub(P.o.position).setY(0).normalize().dot(aim)})).filter(v=>v.d<13&&v.dot>.05).sort((a,b)=>(b.dot-a.dot)*5+a.d-b.d)[0]?.c;if(!car||car.position.distanceTo(P.o.position)>13){if(!worldGripWarned){toast('L2 active · move closer and aim right stick at a car');worldGripWarned=true;}return;}worldGripWarned=false;const u=car.userData;u.worldBody=new WorldBody({mass:1500,radius:2.3});u.worldBody.grab();u.worldBody.hold(car.position.x,car.position.y,car.position.z);heldCar=car;u.occupantExited=true;u.occupantCount=0;const passenger=makeChar(0xd6aa7d);passenger.o.position.copy(car.position).add(new THREE.Vector3(2.5,.3,0));scene.add(passenger.o);passenger.target=passenger.o.position.clone().add(new THREE.Vector3(8,0,8));passenger.speed=3;passenger.wait=0;passenger.role='evacuating driver';npcs.push(passenger);toast('Driver evacuated · CAR GRAPPLED');}
 function slingCar(){if(!heldCar)return;const car=heldCar,b=car.userData.worldBody;if(!car.userData.occupantExited||car.userData.occupantCount>0){toast('Cannot throw an occupied vehicle');return;}const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));b.hold(car.position.x,car.position.y,car.position.z);b.throw(f.x*24,12,f.z*24);thrownCars.push(car);heldCar=null;toast('CAR SLING');}
 function updateCarBodies(dt){if(heldCar){const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));const right=new THREE.Vector3(f.z,0,-f.x);const target=P.o.position.clone().addScaledVector(f,3.5+Math.max(0,-gripAxisY)*2).addScaledVector(right,gripAxisX*4);target.y+=2.8-gripAxisY*2;heldCar.userData.worldBody.hold(target.x,target.y,target.z);heldCar.position.copy(target);heldCar.rotation.y+=dt*.6;}for(const c of thrownCars){const b=c.userData.worldBody;if(!b)continue;b.step(dt,.05);c.position.set(b.position.x,b.position.y,b.position.z);c.rotation.z+=dt*Math.hypot(b.velocity.x,b.velocity.z)*.045;}}
 function wp(){const i=Math.floor(Math.random()*7)-3,j=Math.floor(Math.random()*7)-3;const c=lotCenter(i,j);const e=BLOCK/2+2;return new THREE.Vector3(c.x+(Math.random()<.5?-e:e),0.25,c.z+(Math.random()-.5)*BLOCK);}
@@ -819,7 +819,7 @@ function tickCitySystems(dt){if(!P)return;const p=P.o.position;
  if(structureImpact.mode==='embedded'||structureImpact.mode==='recovering'){vel.multiplyScalar(Math.exp(-10*dt));}
  directorHudClock+=dt;if(directorHudClock>.3){directorHudClock=0;if(morrow.panel){const detail=cityDirector.active?cityDirector.active.type+' '+Math.round(Math.hypot(cityDirector.active.pos.x-p.x,cityDirector.active.pos.z-p.z))+'m':'quiet';morrow.panel.dataset.director='MORROW '+detail+' · HEAT '+Math.round(cityDirector.heat*100)+'% · IMPACT '+structureImpact.mode;}}
 }
-let worldSwingLatch=false,worldGrabLatch=false,worldThrowLatch=false,worldGripActive=false,gripAxisX=0,gripAxisY=0;
+let worldGripWarned=false,worldGripRetry=0,worldSwingLatch=false,worldGrabLatch=false,worldThrowLatch=false,worldGripActive=false,gripAxisX=0,gripAxisY=0;
 function update(dt){
  st.grinding=false;
  bodyMachine.step(dt,0,true);
@@ -831,13 +831,13 @@ function update(dt){
  tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);updateMetalBlasts(dt);
  // Xbox-style chord: hold LT + LB to grapple a nearby vehicle, LT + RT to sling it.
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
- const lt=!!gpWorld?.buttons[6]?.pressed,lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!gpWorld?.buttons[7]?.pressed;
+ const lt=!!(gpWorld?.buttons[6]?.pressed||gpWorld?.buttons[6]?.value>.35||gpWorld?.axes?.[4]>.35),lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!(gpWorld?.buttons[7]?.pressed||gpWorld?.buttons[7]?.value>.35);
  worldGripActive=lt;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
  if(rt&&!lt&&!combatBlastLatch)fireMetalBlast();combatBlastLatch=rt&&!lt;if(tap('KeyZ'))fireMetalBlast();
  if(rb&&!worldSwingLatch){pressed.KeyQ=true;keys.KeyQ=true;}if(!rb&&worldSwingLatch)keys.KeyQ=false;worldSwingLatch=rb;
- if((lt&&!worldGrabLatch)||tap('KeyU'))grabCar();
+ if((lt&&!heldCar&&worldGripRetry<=0)||tap('KeyU')){grabCar();worldGripRetry=.4;}else worldGripRetry=Math.max(0,worldGripRetry-dt);
  if((lt&&rt&&!worldThrowLatch)||tap('KeyI'))slingCar();
- worldGrabLatch=lt;worldThrowLatch=lt&&rt;
+ if(!lt){worldGripWarned=false;worldGripRetry=0;}worldGrabLatch=lt;worldThrowLatch=lt&&rt;
  let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
  if(bodyMachine.mode==='fallen'&&(pressed.Space||pressed.KeyE)){bodyMachine.velocity.x=0;bodyMachine.velocity.z=0;bodyMachine.recover();pressed.Space=false;pressed.KeyE=false;}
  if(bodyMachine.mode==='fallen'||bodyMachine.mode==='recovering'){ix=0;iz=0;vel.x*=Math.exp(-8*dt);vel.z*=Math.exp(-8*dt);}
