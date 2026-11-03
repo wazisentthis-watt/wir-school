@@ -13,3 +13,11 @@ test('gravity and ground collision do not tunnel through ground',()=>{
  assert.ok(b.position.y>=0);assert.ok(Math.abs(b.velocity.y)<.5);
 });
 test('cannot throw a free body',()=>{const b=new WorldBody();assert.equal(b.throw(5,5,5),false);});
+
+test('L1 release drops an unthrown car and lets it settle',()=>{
+ const b=new WorldBody();b.grab();b.hold(2,4,1);
+ assert.equal(b.release(),true);assert.equal(b.state,'free');
+ assert.equal(b.release(),false);
+ for(let i=0;i<180;i++)b.step(1/60,0);
+ assert.equal(b.state,'resting');assert.equal(b.position.y,0);
+});
