@@ -3,14 +3,17 @@
 // Static GLBs and transparent FX sprite sheets are provided in the separate pack ZIP.
 // This runtime model is jointed with Object3D pivots, NOT a skinned skeletal GLB.
 import * as THREE from 'three';
+import {applySlottaPose,slottaPoseName} from './slotta_pose.js';
 
-const PALETTE=Object.freeze({coat:0x221b37,armor:0x353c4f,gun:0x151b29,
+const PALETTE=Object.freeze({coat:0x365778,armor:0x365778,gun:0x26394f,
+ hoodie:0x9c2632,boots:0xad8553,hair:0x16151b,
  skin:0x80523e,purple:0x9b5cff,purpleDim:0x51267b,cyan:0x48d6ef,
  orange:0xf37e39,silver:0xb4c2d0,gold:0xdab361});
 const materials=()=>{
  const mat=(color,{metalness=.42,roughness=.48,emissive=0,emissiveIntensity=0}={})=>
   new THREE.MeshStandardMaterial({color,metalness,roughness,emissive,emissiveIntensity});
- return {coat:mat(PALETTE.coat,{roughness:.83}),armor:mat(PALETTE.armor,{metalness:.8}),
+ return {coat:mat(PALETTE.coat,{roughness:.89}),armor:mat(PALETTE.armor,{metalness:.46}),
+  hoodie:mat(PALETTE.hoodie,{roughness:.91}),boots:mat(PALETTE.boots,{roughness:.84}),hair:mat(PALETTE.hair,{roughness:.96}),
   gun:mat(PALETTE.gun,{metalness:.82}),skin:mat(PALETTE.skin,{roughness:.82}),
   purple:mat(PALETTE.purple,{metalness:.45,emissive:PALETTE.purple,emissiveIntensity:.52}),
   purpleDim:mat(PALETTE.purpleDim,{metalness:.52,emissiveIntensity:.15,emissive:PALETTE.purple}),
@@ -51,9 +54,11 @@ export function createSlottaBossAsset(){
  root.userData.slottaAssetVersion='1.0.0';
  // Feet at Y=0, chest at ~1.4, head top ~2.45.
  const body=new THREE.Group();body.name='torso_pivot';root.add(body);
- box(body,'long_coat',.84,1.02,.47,m.coat,0,1.42,-.05);
- box(body,'breastplate',.71,.49,.14,m.armor,0,1.64,.232);
- box(body,'retrieval_chest_lock',.32,.21,.077,m.orange,0,1.58,.338);
+ box(body,'red_hoodie',.79,.99,.44,m.hoodie,0,1.42,-.04);
+ box(body,'denim_back_panel',.77,.94,.10,m.coat,0,1.42,-.31);
+ for(const side of [-1,1])box(body,'denim_jacket_front_'+side,.17,.87,.10,m.coat,side*.32,1.46,.215);
+ box(body,'red_hoodie_chest',.36,.48,.13,m.hoodie,0,1.65,.238);
+ box(body,'hoodie_front_pocket',.38,.15,.04,m.hoodie,0,1.18,.233);
  box(body,'hip_belt',.83,.13,.5,m.gun,0,.99,.025);
  const coatTails=[];
  for(const side of [-1,1])coatTails.push(box(body,'coat_tail_'+side,.3,.66,.18,m.coat,
@@ -61,14 +66,12 @@ export function createSlottaBossAsset(){
  const neck=box(body,'neck',.18,.16,.18,m.skin,0,2.04,.01);
  const head=new THREE.Group();head.name='head_pivot';head.position.y=2.13;body.add(head);
  const skull=sphere(head,'face',.265,m.skin,0,.035,.034);skull.scale.set(.82,1,.91);
- const visor=box(head,'signal_visor',.42,.083,.08,m.purple,0,.09,.248);
- box(head,'jaw_plate',.28,.09,.11,m.gun,0,-.16,.18);
- const locs=[];
- for(let i=0;i<9;i++){
-  const x=(i-4)*.049;
-  locs.push(tube(head,'circuit_loc_'+(i+1),[[x,.28,-.04],[x+Math.sin(i*2)*.022,.14,-.08],
-   [x+.03*Math.cos(i),-.10-.06*(i%3),-.14]],.032,i%3===0?m.purpleDim:m.gun));
- }
+ const visor=box(head,'eyes_and_brow',.36,.045,.045,m.gun,0,.07,.249);
+ box(head,'mouth',.22,.025,.03,m.gun,0,-.135,.259);
+ // High-top fade blockout, matching the latest owner reference sheet.
+ const locs=[];const fade=box(head,'high_top_fade',.39,.25,.35,m.hair,0,.28,-.015);
+ box(head,'fade_left_temple',.08,.08,.25,m.hair,-.18,.18,.015);
+ box(head,'fade_right_temple',.08,.08,.25,m.hair,.18,.18,.015);
  const arms=[],legs=[];
  for(const side of [-1,1]){
   const shoulder=new THREE.Group();shoulder.name='arm_joint_'+side;
@@ -79,17 +82,26 @@ export function createSlottaBossAsset(){
   arms.push(shoulder);
   const hip=new THREE.Group();hip.name='leg_joint_'+side;hip.position.set(side*.235,.98,0);root.add(hip);
   box(hip,'trouser_leg_'+side,.285,.78,.3,m.gun,0,-.42,0);
-  box(hip,'boot_'+side,.34,.24,.45,m.armor,0,-.84,.085);
+  box(hip,'tan_work_boot_'+side,.34,.24,.45,m.boots,0,-.84,.085);
   legs.push(hip);
  }
  const pack=backpack(body,m);
- root.userData.slottaRig={body,head,arms,legs,coatTails,pack,locs,clock:0};
+ const socket=(parent,name,x,y,z)=>{const n=new THREE.Object3D();n.name=name;n.position.set(x,y,z);parent.add(n);return n;};
+ const sockets={
+  leftHand:socket(arms[0],'SLOTTA_LEFT_HAND',0,-.75,.10),
+  rightHand:socket(arms[1],'SLOTTA_RIGHT_HAND',0,-.75,.10),
+  phatomRoot:socket(pack,'PHATOM_socket',0,0,-.32),
+  serpentSpawn:socket(arms[1],'SLOTTA_SERPENT_SPAWN',0,-.75,.25),
+  cloneSpawn:socket(root,'SLOTTA_CLONE_SPAWN',0,.10,-.65),
+  dashTrail:socket(root,'SLOTTA_DASH_TRAIL',0,.92,-.35)
+ };
+ root.userData.slottaRig={body,head,arms,legs,coatTails,pack,locs,sockets,clock:0,selectedSlot:0};
  return root;
 }
 export function animateSlottaBossAsset(root,dt,mode='idle'){
  const rig=root?.userData?.slottaRig;if(!rig)return;
  rig.clock+=Math.max(0,Math.min(Number(dt)||0,.05));
- const t=rig.clock,walk=mode==='walking'?1:.5;
+ const state=slottaPoseName(mode),t=rig.clock,walk=state==='walking'?1:.5;
  rig.body.rotation.z=Math.sin(t*1.1)*.035;
  rig.head.rotation.y=Math.sin(t*.77)*.19;
  rig.arms[0].rotation.x=Math.sin(t*3.5)*.19*walk-.11;
@@ -98,6 +110,7 @@ export function animateSlottaBossAsset(root,dt,mode='idle'){
  rig.legs[1].rotation.x=-Math.sin(t*3.5)*.20*walk;
  rig.coatTails.forEach((p,i)=>{p.rotation.x=Math.sin(t*2.2+i*2)*.06;});
  rig.pack.rotation.z=Math.sin(t*1.6)*.024;
+ applySlottaPose(rig,typeof mode==='string'?{state,progress:0}:mode);
 }
 export function createSlottaMinionAsset(kind){
  const m=materials(),root=new THREE.Group();root.name=kind==='serpent'?'Circuit Serpent':'Cyborg Clone';
