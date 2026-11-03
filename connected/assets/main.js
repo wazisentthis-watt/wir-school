@@ -10,6 +10,7 @@ import {createSlottaLoadout,tickSlotta,activateSlot,swapSlot,SLOTTA_GAMES} from 
 import {createDirector,tickDirector,finishEncounter,witness,createImpactState,impactStructure,stepImpact} from './city_combat_director.js';
 import {BodyMachine} from './body_machine.js';
 import {WorldBody} from './world_body.js';
+import {chooseGripTarget,stepStructureOffset,gripHeldPosition} from './gallium_grip_core.js';
 import {PhysicsTelemetry} from './physics_telemetry.js';
 import {analyzePhysics} from './physics_analysis.js';
 import {makeGalliumLimb,galliumLiquidMat,GU} from './gallium_limb.js';
@@ -55,7 +56,20 @@ function rep(t,r){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(r,r);t.color
 
 // ---------- city layout: Savannah [S3 start city]. Grid streets PROPOSAL. ----------
 const BLOCK=44,ROAD=12,N=3; // blocks -N..N
-const colliders=[];const anchors=[];
+const colliders=[];const anchors=[];const structureBodies=new Map();
+function registerGrippableStructure(mesh){
+ const box=new THREE.Box3().setFromObject(mesh);
+ colliders.push(box);
+ const corners=[[box.min.x,box.min.z],[box.max.x,box.max.z],[box.min.x,box.max.z],[box.max.x,box.min.z]];
+ const anchorRefs=corners.map(([x,z])=>new THREE.Vector3(x,box.max.y,z));anchors.push(...anchorRefs);
+ const body={mesh,box,anchorRefs};structureBodies.set(box,body);return body;
+}
+function syncGrippableStructure(body){
+ body.box.setFromObject(body.mesh);
+ const b=body.box;const corners=[[b.min.x,b.min.z],[b.max.x,b.max.z],[b.min.x,b.max.z],[b.max.x,b.min.z]];
+ body.anchorRefs.forEach((a,i)=>a.set(corners[i][0],b.max.y,corners[i][1]));
+ swingAnchors=null; // rope attachment points must follow moved collision geometry
+}
 const SPOTS={ // special lots (PROPOSAL placements)
  skate:{bx:-1,by:0,name:'Skatepark',src:'[S1] Metal skate + grapple'},
  field:{bx:1,by:0,name:'Pickup Field',src:'[S4] Retro Bowl'},
@@ -93,8 +107,7 @@ async function buildWorld(setMsg){
    const b=m.clone();const s=7+rnd()*3;b.scale.setScalar(s);
    b.position.set(c.x+ox*BLOCK/4.3,0.25,c.z+oz*BLOCK/4.3);b.rotation.y=Math.floor(rnd()*4)*Math.PI/2;
    b.traverse(o=>{if(o.isMesh){o.castShadow=o.receiveShadow=true;}});scene.add(b);
-   const box=new THREE.Box3().setFromObject(b);colliders.push(box);
-   for(const [x,z] of [[box.min.x,box.min.z],[box.max.x,box.max.z],[box.min.x,box.max.z],[box.max.x,box.min.z]])anchors.push(new THREE.Vector3(x,box.max.y,z));
+   registerGrippableStructure(b);
   }
  }
  // street lamps (night hook) + grapple anchors on lamps
