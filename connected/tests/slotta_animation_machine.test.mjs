@@ -76,3 +76,26 @@ test('real boss JS dispatches attack effects on timeline markers, not animation 
  assert.match(main,/updateSlottaDash\(dt,boss\)/);
  assert.match(main,/startSlottaAction\(slottaAnimator,damage>=12\?'hitHeavy'/);
 });
+
+test('same-priority selects do not interrupt a boss intro',()=>{
+ const a=createSlottaAnimator();
+ startSlottaAction(a,'intro');
+ assert.equal(startSlottaAction(a,'select'),false);
+ for(let i=0;i<7;i++)tickSlottaAnimator(a,.2);
+ assert.equal(a.state,'idle');
+ assert.equal(startSlottaAction(a,'select'),true);
+});
+test('rig adapter provisions optional PHATOM sockets when uploaded skeleton has essential bones',()=>{
+ class Node {
+  constructor(name){this.name=name;this.children=[];this.position={set(...xyz){this.xyz=xyz}};}
+  add(n){this.children.push(n);}
+  traverse(cb){cb(this);for(const c of this.children)c.traverse(cb);}
+ }
+ const root=new Node('root');
+ for(const name of ['Hips','Spine','Head','LeftHand','RightHand'])root.add(new Node(name));
+ const skin=new Node('skin');skin.isSkinnedMesh=true;skin.isMesh=true;root.add(skin);
+ class MockMixer {constructor(r){this.root=r;}clipAction(){return {}}}
+ const a=createSlottaGLBAdapter({scene:root,animations:[]},{Object3D:Node,AnimationMixer:MockMixer});
+ assert.equal(a.ok,true);assert.equal(a.inspection.ready,true);
+ for(const key of ['phatomRoot','serpentSpawn','cloneSpawn','dashTrail'])assert.ok(a.socket(key));
+});
