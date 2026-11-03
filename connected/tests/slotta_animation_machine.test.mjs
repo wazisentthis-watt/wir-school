@@ -74,7 +74,7 @@ test('real boss JS dispatches attack effects on timeline markers, not animation 
  assert.match(main,/event\.type==='cast'&&slottaPendingGame/);
  assert.match(main,/slottaUseGame\(slottaPendingGame/);
  assert.match(main,/updateSlottaDash\(dt,boss\)/);
- assert.match(main,/startSlottaAction\(slottaAnimator,damage>=12\?'hitHeavy'/);
+ assert.match(main,/startSlottaAction\(slottaAnimator,heavy\?'hitHeavy'/);
 });
 
 test('same-priority selects do not interrupt a boss intro',()=>{
