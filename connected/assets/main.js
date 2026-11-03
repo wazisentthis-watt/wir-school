@@ -807,7 +807,7 @@ function update(dt){
  tickCitySystems(dt);
  updateMorrow(dt);
  st.grinding=false;
- bodyMachine.step(dt,0);
+ bodyMachine.step(dt,0,true);
  bodyMachine.position.x=P.o.position.x;bodyMachine.position.z=P.o.position.z;
  bodyMachine.position.y=Math.max(0,P.o.position.y-floorAt(P.o.position));
  if(FG.inFight&&!st.board&&pressed.KeyB){pressed.KeyB=false;FG.wantDodge=true;}
