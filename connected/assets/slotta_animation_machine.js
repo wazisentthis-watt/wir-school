@@ -9,7 +9,7 @@ export const SLOTTA_ACTIONS=Object.freeze({
  swap:{duration:.86,priority:2,markers:[{at:.42,type:'cartridge-swap'}]},
  slitherCast:{duration:1.05,priority:4,markers:[{at:.19,type:'telegraph'},{at:.58,type:'cast'}]},
  ninjaSummon:{duration:1.13,priority:4,markers:[{at:.19,type:'telegraph'},{at:.65,type:'cast'}]},
- phantomDash:{duration:.66,priority:5,markers:[{at:.12,type:'telegraph'},{at:.26,type:'cast'},{at:.49,type:'dash-end'}]},
+ phantomDash:{duration:.94,priority:5,markers:[{at:.16,type:'telegraph'},{at:.52,type:'cast'},{at:.76,type:'dash-end'}]},
  legacyCast:{duration:.78,priority:3,markers:[{at:.2,type:'telegraph'},{at:.47,type:'cast'}]},
  hitLight:{duration:.37,priority:7,markers:[]},
  hitHeavy:{duration:.70,priority:8,markers:[]},
