@@ -1,4 +1,5 @@
 import {createCharge,stepCharge} from './merkabah_charge.js';
+import {loadMissionAsset,createMissionFallback,MISSION_ASSET_TIMEOUTS} from './mission_asset_recovery.js';
 import {readMetalCheckpoint,writeMetalCheckpoint,advanceMetalStory,metalStoryChapter} from './metal_story_engine.js';
 import {createCombatBody,applyCombatHit,stepCombatBody,blastDirection} from './metal_combat_physics.js';
 // WIR: Connected — unified open-world prototype (HTML/JS per Coach's decisions; Godot later).
@@ -34,14 +35,16 @@ const LITE=/lite/.test(location.search);
 // Opt-in, isolated browser QA only. Normal gameplay never exposes this interface.
 const SLOTTA_BROWSER_QA=new URLSearchParams(location.search).get('slotta_qa')==='1';
 if(SLOTTA_BROWSER_QA)window.__testHold=true;
+const boot=window.__bootRecovery||{stage:()=>{},warning:()=>{},failed:()=>{},ready:()=>{},getStatus:()=>({warnings:[]})};
+const safeStorage=(()=>{try{return window.localStorage}catch(e){boot.warning({asset:'localStorage',reason:String(e)});return {getItem:()=>null,setItem:()=>{throw Error('Storage is unavailable')}};}})();
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch)document.body.classList.add('touch');
 window.__errors=[];window.addEventListener('error',e=>window.__errors.push(String(e.message)));
 
 // ---------- WIR Valence Profile (shared, localStorage). Logs only; never refills meters. ----------
 const PKEY='wir_valence_profile_v1';
-const profile=JSON.parse(localStorage.getItem(PKEY)||'null')||{created:Date.now(),decisions:[],achievements:[],discoveries:[],log:[]};
-function plog(kind,text){const arr=profile[kind]||profile.log; if(kind!=='log'&&arr.includes(text))return; arr.push(text); profile.log.push(new Date().toLocaleTimeString()+' · '+text); if(profile.log.length>200)profile.log.shift(); if(!SLOTTA_BROWSER_QA)localStorage.setItem(PKEY,JSON.stringify(profile)); if(kind!=='log')toast(text);}
+const profile=(()=>{try{return JSON.parse(safeStorage.getItem(PKEY)||'null')}catch(e){boot.warning({asset:PKEY,reason:'Unreadable previous profile: '+String(e)});return null;}})()||{created:Date.now(),decisions:[],achievements:[],discoveries:[],log:[]};
+function plog(kind,text){const arr=profile[kind]||profile.log; if(kind!=='log'&&arr.includes(text))return; arr.push(text); profile.log.push(new Date().toLocaleTimeString()+' · '+text); if(profile.log.length>200)profile.log.shift(); if(!SLOTTA_BROWSER_QA){try{safeStorage.setItem(PKEY,JSON.stringify(profile))}catch(e){boot.warning({asset:PKEY,reason:'Profile save unavailable: '+String(e)})}} if(kind!=='log')toast(text);}
 let toastT=0;function toast(t){$('toast').innerHTML=t;$('toast').style.opacity=1;toastT=2.6;}
 
 // ---------- renderer / scene ----------
@@ -60,6 +63,11 @@ Object.assign(sun.shadow.camera,{left:-70,right:70,top:70,bottom:-70,near:1,far:
 
 const tl=new THREE.TextureLoader(),gl=new GLTFLoader();
 const loadG=u=>new Promise((res,rej)=>gl.load(u,res,undefined,rej));
+const missionAsset=(u,type,critical=false)=>loadMissionAsset(loadG,u,{
+ timeout:critical?MISSION_ASSET_TIMEOUTS.critical:MISSION_ASSET_TIMEOUTS.optional,
+ fallback:()=>createMissionFallback(THREE,type),
+ onWarning:w=>boot.warning(w)
+});
 function rep(t,r){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(r,r);t.colorSpace=THREE.SRGBColorSpace;return t;}
 
 // ---------- city layout: Savannah [S3 start city]. Grid streets PROPOSAL. ----------
@@ -102,7 +110,7 @@ async function buildWorld(setMsg){
  }
  setMsg('Kenney city kit…');
  const names='abcdefghij'.split('').map(c=>'building-'+c).concat(['building-skyscraper-a','building-skyscraper-b','building-skyscraper-c']);
- const bmods=await Promise.all(names.map(n=>loadG('assets/models/city/'+n+'.glb').then(g=>g.scene).catch(()=>null)));
+ const bmods=await Promise.all(names.map(n=>missionAsset('assets/models/city/'+n+'.glb','city').then(g=>g.scene)));
  const special=Object.values(SPOTS);let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
  for(let bx=-N;bx<=N;bx++)for(let by=-N;by<=N;by++){
   const c=lotCenter(bx,by);
@@ -195,7 +203,7 @@ function makeMetal(){const root=new THREE.Group();const o=metalGLTF.scene;root.a
  const bb=new THREE.Box3().setFromObject(o,true);ch.footY=-bb.min.y;o.position.y=ch.footY; // feet at y=0 of the root
  const h=bb.max.y-bb.min.y;if(h>0.5){o.scale.setScalar(1.78/h);o.position.y=ch.footY*1.78/h;ch.footY=o.position.y;} // 1.78 m PLACEHOLDER height
  ch.feet=[];o.traverse(b=>{if(b.isBone&&/^(DEF-?(toe|foot)|Foot)\.?_?[LR]$/i.test(b.name))ch.feet.push(b);});root.updateMatrixWorld(true);
- ch.soleGap=Math.min(...ch.feet.map(b=>b.getWorldPosition(new THREE.Vector3()).y))-root.position.y; // foot-bone height above sole in idle
+ ch.soleGap=ch.feet.length?Math.min(...ch.feet.map(b=>b.getWorldPosition(new THREE.Vector3()).y))-root.position.y:0; // foot-bone height above sole in idle
  setMask(0,ch);return ch;}
 
 // ---------- Metal S1–S4 forms (rigged by Metal's Bot, PROPOSAL; compressed for web) ----------
@@ -255,7 +263,7 @@ async function spawnLife(){const tints=[0xd9a066,0x5ea1d6,0xc85a5a,0x7bc47f,0xe0
  const n=isTouch?10:18;for(let i=0;i<n;i++){const ch=makeChar(tints[i%tints.length]);ch.o.position.copy(wp());ch.target=wp();ch.speed=1.3+Math.random()*.6;ch.wait=0;ch.role=['commuter','vendor','student','jogger'][i%4];scene.add(ch.o);play(ch,'Walking');npcs.push(ch);}
  rival=makeRival();rival.o.position.copy(fightC).add(new THREE.Vector3(3,0.55,0));scene.add(rival.o);rivalSt={stance:1,charge:0,cd:0,active:false};
  for(let i=0;i<3;i++){const d=makeChar(0xb02a3a);d.o.position.copy(fieldC).add(new THREE.Vector3(8+i*3,0.26,(i-1)*5));d.home=d.o.position.clone();scene.add(d.o);defenders.push(d);}
- const cm=['taxi','sedan','suv','van','police','delivery','truck'];const mods=await Promise.all(cm.map(n=>loadG('assets/models/cars/'+n+'.glb').then(g=>g.scene).catch(()=>null)));
+ const cm=['taxi','sedan','suv','van','police','delivery','truck'];const mods=await Promise.all(cm.map(n=>missionAsset('assets/models/cars/'+n+'.glb','car').then(g=>g.scene)));
  for(let i=0;i<(isTouch?8:14);i++){const m=mods[i%mods.length];if(!m)continue;const c=m.clone();c.scale.setScalar(2.2);c.traverse(o=>{if(o.isMesh)o.castShadow=true;});
   const axis=i%2,lane=(Math.floor(Math.random()*6)-3+.5)*(BLOCK+ROAD),dir=Math.random()<.5?1:-1;c.userData={axis,lane:lane+dir*2.8,dir,t:(Math.random()-.5)*400,spd:9+Math.random()*5,occupantCount:1,occupantExited:false};scene.add(c);cars.push(c);}
 }
@@ -823,11 +831,11 @@ function updateCrownCharge(dt,gp){initCrownVisual();const lt=!!(gp?.buttons?.[6]
 }
 
 const morrow=createEncounter();let morrowClock=0,morrowStatus='';
-const metalStory=readMetalCheckpoint(localStorage);
+const metalStory=readMetalCheckpoint(safeStorage);
 let metalStoryReady=false,metalStoryClock=0,metalStoryMessage='';
 function saveMetalStory(reason='manual'){
  if(SLOTTA_BROWSER_QA||!P||!metalStoryReady)return false;
- const ok=writeMetalCheckpoint(localStorage,metalStory,P.o.position,reason);
+ const ok=writeMetalCheckpoint(safeStorage,metalStory,P.o.position,reason);
  toast(ok?'CHECKPOINT SAVED · '+metalStoryChapter(metalStory).title:'SAVE UNAVAILABLE · storage blocked');
  return ok;
 }
