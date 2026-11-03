@@ -199,7 +199,7 @@ function makeMetal(){const root=new THREE.Group();const o=metalGLTF.scene;root.a
  const mixer=new THREE.AnimationMixer(o);mixers.push(mixer);const acts={};for(const c of metalGLTF.animations)acts[c.name]=mixer.clipAction(c);
  for(const [k,v] of Object.entries(PMAP))if(acts[v])acts[k]=acts[v];
  for(const [k,v] of Object.entries(P6MAP))if(!acts[k]&&acts[v])acts[k]=acts[v];
- const ch={o:root,model:o,mixer,acts,cur:null,mats:{},footY:0};play(ch,'Idle');mixer.update(0.01);root.updateMatrixWorld(true);
+ const ch={o:root,model:o,mixer,acts,cur:null,mats:{},footY:0,p6:false,rotWalk:0,rotBoard:-1.35,legs:null};play(ch,'Idle');mixer.update(0.01);root.updateMatrixWorld(true);
  const bb=new THREE.Box3().setFromObject(o,true);ch.footY=-bb.min.y;o.position.y=ch.footY; // feet at y=0 of the root
  const h=bb.max.y-bb.min.y;if(h>0.5){o.scale.setScalar(1.78/h);o.position.y=ch.footY*1.78/h;ch.footY=o.position.y;} // 1.78 m PLACEHOLDER height
  ch.feet=[];o.traverse(b=>{if(b.isBone&&/^(DEF-?(toe|foot)|Foot)\.?_?[LR]$/i.test(b.name))ch.feet.push(b);});root.updateMatrixWorld(true);
@@ -220,7 +220,11 @@ function buildFormModel(gltf,i){const o=gltf.scene;o.traverse(m=>{if(!m.isMesh)r
   o.traverse(m=>{if(!m.isMesh)return;const mt=m.material;if(mt.name==='seam'){mt.emissive=new THREE.Color(VIOLET);mt.emissiveIntensity=0;seamMats.push(mt);}if(mt.name==='trace')traceMats.push(mt);});} // canon: violet only on active seams; the trace flashes through the denim on load/land
  return {model:o,mixer,acts};}
 const bandMats=[];
-async function setForm(i){if(!P||i<0||i>3)return;let g=formGLTF[i];if(!g){try{g=formGLTF[i]=await loadG(FORM_FILES[i]);}catch(e){toast('Form load failed');return;}}
+async function setForm(i){if(!P||i<0||i>3)return;
+ if(i===0&&metalGLTF?.userData?.missionFallback){toast('Metal fallback active · original rig still available when restored');return;}
+ let g=formGLTF[i];if(!g){try{
+  g=formGLTF[i]=await loadMissionAsset(loadG,FORM_FILES[i],{timeout:MISSION_ASSET_TIMEOUTS.critical,onWarning:w=>boot.warning(w)});
+ }catch(e){toast('Form unavailable · original form retained');return;}}
  if(!g.__built)g.__built=buildFormModel(g,i);const f=g.__built;
  P.o.remove(P.model);const mi=mixers.indexOf(P.mixer);if(mi>=0)mixers.splice(mi,1);
  P.o.add(f.model);P.model=f.model;P.mixer=f.mixer;P.acts=f.acts;P.cur=null;mixers.push(f.mixer);f.model.scale.setScalar(1);f.model.position.set(0,0,0);
@@ -1503,12 +1507,31 @@ function installSlottaBrowserQA(){
 
 let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());if(window.__testHold){if(LITE)renderer.render(scene,camera);else composer.render();return;}try{update(fgTime(dt));window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<12){console.error(e);window.__errors.push(String(e));toast('Runtime error: '+String(e.message||e).slice(0,80));}}if(LITE)renderer.render(scene,camera);else composer.render();}
 
-(async()=>{const msg=t=>$('loadmsg').textContent=t;
- try{await buildWorld(msg);msg('Characters (Quaternius CC0)…');robotGLTF=await loadG('assets/models/RobotExpressive.glb');msg('Sparring rival…');rivalGLTF=await loadG('assets/models/rival_sparring_hero.glb').catch(()=>null);crewFemGLTF=await loadG('assets/models/crew_female.glb').catch(()=>null);msg('3D Metal…');metalGLTF=await loadG('assets/models/metal/metal_phase6_fight.glb');boardGLTF=await loadG('assets/models/metal/metal_skateboard_4wheel_PLACEHOLDER.glb');
+(async()=>{const msg=t=>{boot.stage(t);$('loadmsg').textContent=t;};
+ try{
+  await buildWorld(msg);
+  msg('Characters (Quaternius CC0)…');
+  robotGLTF=await missionAsset('assets/models/RobotExpressive.glb','robot',true);
+  msg('Sparring rival…');
+  const optionalCharacter=u=>loadMissionAsset(loadG,u,{
+   timeout:MISSION_ASSET_TIMEOUTS.optional,fallback:()=>null,onWarning:w=>boot.warning(w)});
+  [rivalGLTF,crewFemGLTF]=await Promise.all([
+   optionalCharacter('assets/models/rival_sparring_hero.glb'),
+   optionalCharacter('assets/models/crew_female.glb')
+  ]);
+  msg('3D Metal & four-wheel board…');
+  [metalGLTF,boardGLTF]=await Promise.all([
+   missionAsset('assets/models/metal/metal_phase6_fight.glb','metal',true),
+   missionAsset('assets/models/metal/metal_skateboard_4wheel_PLACEHOLDER.glb','board',true)
+  ]);
   P=makeMetal();scene.add(P.o);initMorrow();P.o.position.copy(SPOTS.home.c).add(new THREE.Vector3(0,groundY,8));camPos.copy(P.o.position).add(new THREE.Vector3(0,4,8));
   board=new THREE.Group();board.add(boardGLTF.scene);boardGLTF.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;if(/Wheel/i.test(m.material.name)){m.material.color=new THREE.Color(0xC9A979);if(m.material.emissive)m.material.emissiveIntensity=0;m.material.map=null;m.material.needsUpdate=true;}}});board.visible=false;board.scale.setScalar(BOARD_S);scene.add(board,tether,merkaba);galLimb=makeGalliumLimb(scene);P.handBone=P.o.getObjectByName('DEF-handR')||P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearmR');/* three.js strips '.' from node names */
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
+  boot.ready();
+  if(boot.getStatus().warnings.length)toast('Mission running with '+boot.getStatus().warnings.length+' art fallbacks · PROPOSAL');
   window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
-  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;initMetalStory();if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(0);}catch(e){msg('Load error: '+e.message);window.__errors.push(String(e));}})();
+  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;window.__game.bootReport=()=>boot.getStatus();initMetalStory();
+  if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(0);
+ }catch(e){boot.failed(e);window.__errors.push(String(e));}})();
