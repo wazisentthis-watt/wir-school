@@ -240,7 +240,7 @@ document.querySelectorAll('#tbtn button').forEach(b=>{b.addEventListener('pointe
 // Xbox layout [S5]: A jump, B board, X 4-hand, Y 6-hand, LB grapple, RB fly, LT block, RT charge, Back map, Start profile, dpad interact
 const padMap={0:'Space',1:'KeyB',2:'Numpad4',3:'Numpad6',4:'KeyQ',5:'KeyF',6:'Numpad2',7:'Numpad5',8:'KeyM',9:'KeyP',12:'KeyE',13:'KeyX',14:'Numpad1',15:'Numpad3'};const padPrev={};
 function pollPad(){const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;if(!gp)return null;
- for(const [i,k] of Object.entries(padMap)){const v=gp.buttons[i]&&gp.buttons[i].pressed;if(v&&!padPrev[i])pressed[k]=true;keys[k]=v||keys[k]&&!padPrev[i]?v:keys[k];padPrev[i]=v;}
+ for(const [i,k] of Object.entries(padMap)){const chord=!!gp.buttons[6]?.pressed&&(i==='4'||i==='6'||i==='7');const v=!chord&&gp.buttons[i]&&gp.buttons[i].pressed;if(v&&!padPrev[i])pressed[k]=true;keys[k]=v||keys[k]&&!padPrev[i]?v:keys[k];padPrev[i]=v;}
  const dz=v=>Math.abs(v)<.15?0:v;if(gp.axes.length>=4){camYaw-=dz(gp.axes[2])*.04;camPitch=THREE.MathUtils.clamp(camPitch+dz(gp.axes[3])*.03,-.1,1.1);}return {x:dz(gp.axes[0]),y:dz(gp.axes[1])};}
 const tap=c=>{const v=pressed[c];pressed[c]=false;return v;};
 const ALT={KeyU:'Numpad7',KeyI:'Numpad8',KeyY:'Numpad9',KeyJ:'Numpad4',KeyK:'Numpad5',KeyL:'Numpad6',KeyM_:'Numpad1',Comma:'Numpad2',Period:'Numpad3'}; // laptop fallback [S5]
