@@ -456,11 +456,11 @@ function skateGround(dt,wish,il){
  }
  const hx=Math.sin(sk.h),hz=Math.cos(sk.h),fwdIn=wish.x*hx+wish.z*hz;
  const canPush=!sk.slide&&!pump&&!sk.manual&&!sk.rail;
- if(sk.stroke<0&&canPush&&il>.2&&(fwdIn>.3||s<.55)&&s<MSK.CRUISE*.97){sk.stroke=0;sk.pushes++;}
+ if(!METAL_FULL&&sk.stroke<0&&canPush&&il>.2&&(fwdIn>.3||s<.55)&&s<MSK.CRUISE*.97){sk.stroke=0;sk.pushes++;}
  if(sk.stroke>=0){
   if(!canPush){sk.stroke=-1;}
   else{const a=sk.stroke,b=a+dt/MSK.STROKE,[D0,D1]=MSK.DRIVE;const ov=Math.max(0,Math.min(b,D1)-Math.max(a,D0))/(D1-D0);
-   if(ov>0&&s<MSK.CRUISE)s=Math.min(MSK.CRUISE,s+MSK.PUSH*(1-.45*s/MSK.CRUISE)*ov);
+   if(ov>0&&s<MSK.CRUISE&&!METAL_FULL)s=Math.min(MSK.CRUISE,s+MSK.PUSH*(1-.45*s/MSK.CRUISE)*ov);
    sk.stroke=b>=1?-1:b;}
  }
  if(pump){sk.comp=Math.min(1,sk.comp+dt/.35);
@@ -910,6 +910,8 @@ function initMetalStory(){
 // R1 and L1 share the fluid-metal renderer, with entirely separate physics.
 const galliumRibbons=[];let gripTarget=null,gripFollow=null,gripHeight=0,riftCooldown=0,riftPressTime=0;
 let structureGrip=null;const riftMarks=[];
+const pressureStep=new PressureStep(),comboInput=new ComboInput();
+const metalNextHUD={lastAction:'coast',bank:'Movement',power:0};
 function clearGripVisual(){structureGrip=null;gripFollow=null;gripTarget=null;}
 function showGalliumHand(target,height=0){
  clearGripVisual();if(!target)return;
@@ -927,6 +929,28 @@ function releaseGrip(){
  clearGripVisual();
 }
 function leaveGalliumTrail(){/* Liquid Gallium extension and retraction are rendered by makeGalliumLimb. */}
+function tossHeldEnemy(){
+ if(!heldActor)return false;
+ const a=heldActor;heldActor=null;clearGripVisual();
+ const dir=safeThrow({yaw:camYaw,targetMass:a.body?.mass||85,power:.84});
+ if(!a.body)a.body=createCombatBody({x:a.root.position.x,y:a.root.position.y,z:a.root.position.z});
+ a.body.position.x=a.root.position.x;a.body.position.y=a.root.position.y;a.body.position.z=a.root.position.z;
+ applyCombatHit(a.body,{direction:{x:dir.x,y:0,z:dir.z},impulse:Math.min(700,dir.knockback*a.body.mass),vertical:dir.y*a.body.mass});
+ a.attackCooldown=1.5;a.home.copy(a.root.position);
+ if(a.kind==='slotta')startSlottaAction(slottaAnimator,'knockdown',{force:true});
+ play(P,P.acts.Slam?'Slam':'Punch',true);toast('GALLIUM · ANCHORED ENEMY THROW');return true;
+}
+function fullMetalCombo(action){
+ if(action==='throw-person'){pressed.Numpad6=false;keys.Numpad6=false;tossHeldEnemy();}
+ if(action==='parry'){pressed.KeyB=false;keys.KeyB=false;play(P,P.acts.Block?'Block':'Idle',true);toast('GALLIUM PARRY · TIMING WINDOW');}
+ if(action==='gallium-bind'){pressed.Numpad4=false;keys.Numpad4=false;if(!gripTarget)galliumGrabWorld();}
+ if(action==='knuckle-combo'){if(st.gal>=.12){play(P,P.acts.Cross?'Cross':'Punch',true);fireMetalBlast();}else toast('COMBO · NEED GALLIUM');}
+ if(action==='power-activate'){const names=['Punch','Cross','Kick','Block','Charge','Blast','Swing','Slam'];
+  const candidate=names[comboInput.selected%names.length];
+  if(P.acts[candidate]){play(P,candidate,true);toast('ABILITY PREVIEW · '+candidate+' · original GLB clip');}
+  else toast('ABILITY SLOT '+(comboInput.selected+1)+' · 3D ANIMATION PENDING');}
+ if(action==='bank-next'||action==='power-prev'||action==='power-next')toast('POWER '+metalNextHUD.bank+' · '+(metalNextHUD.power+1)+'/31');
+}
 function riffStep(){if(!P||riftCooldown>0)return;riftCooldown=.65;const dir=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw));const launch=36;vel.x+=dir.x*launch;vel.z+=dir.z*launch;vel.y=Math.max(vel.y,6);const pos=P.o.position.clone();const crater=new THREE.Mesh(new THREE.CylinderGeometry(1.4,.9,.14,12),new THREE.MeshStandardMaterial({color:0x342847,emissive:0x4a1e80,emissiveIntensity:.6}));crater.position.set(pos.x,groundY-.08,pos.z);scene.add(crater);riftMarks.push({mesh:crater,life:3.5});toast('RIFFT STEP · RIGHT FOOT');}
 function updateGalliumPhysics(dt){
  for(let i=riftMarks.length-1;i>=0;i--){
@@ -1236,10 +1260,30 @@ function update(dt){
  const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
  const lt=!!(gpWorld?.buttons[6]?.pressed||gpWorld?.buttons[6]?.value>.35||gpWorld?.axes?.[4]>.35),lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!(gpWorld?.buttons[7]?.pressed||gpWorld?.buttons[7]?.value>.35);
  updateCrownCharge(dt,gpWorld);const gripDown=lb||!!keys.KeyU;worldGripActive=gripDown;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
- if(rt&&!lt&&!gripDown){riftPressTime+=dt;if(riftPressTime>=.16&&!combatBlastLatch){riffStep();combatBlastLatch=true;}}else{riftPressTime=0;combatBlastLatch=false;}if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
+ if(METAL_FULL){
+  const buttonNums=gpWorld?.buttons?.map((b,i)=>b?.pressed||b?.value>.5?i:null).filter(x=>x!==null)||[];
+  const c=comboInput.step(buttonNums,dt,{hasHeldTarget:!!(heldActor||heldCar||heldCitizen),board:st.board,airborne:!onGround});
+  metalNextHUD.bank=c.bank;metalNextHUD.power=c.selected;
+  for(const action of c.events)fullMetalCombo(action);
+  const force=gpWorld?.buttons?.[7]?.value??(keys.KeyR?1:0);
+  const foot=pressureStep.step({dt,down:(rt||!!keys.KeyR)&&!lt&&!gripDown,pressure:Math.max(force,keys.KeyR?1:0),
+   onGround, onBoard:st.board,intercepted:!!(lt||gripDown)});
+  if(foot?.delta>0){
+   const dir=st.board?new THREE.Vector3(Math.sin(sk.h),0,Math.cos(sk.h)):
+    new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw));
+   const hv=new THREE.Vector3(vel.x,0,vel.z).addScaledVector(dir,foot.delta);
+   if(hv.length()>foot.cap)hv.setLength(foot.cap);
+   vel.x=hv.x;vel.z=hv.z;if(foot.kind?.startsWith('riff')){vel.y=Math.max(vel.y,Math.min(5.2,foot.delta*.50));onGround=false;setViolet(1);}
+   if(st.board){sk.stroke=0;sk.pushes++;if(P.acts.Push)play(P,'Push',true);}
+   else if(P.acts.Dash)play(P,'Dash',true);
+   metalNextHUD.lastAction=foot.kind;toast('R2 · '+foot.kind.toUpperCase()+' · '+foot.delta.toFixed(1)+' m/s');
+  }
+ }else if(rt&&!lt&&!gripDown){riftPressTime+=dt;if(riftPressTime>=.16&&!combatBlastLatch){riffStep();combatBlastLatch=true;}}
+ else{riftPressTime=0;combatBlastLatch=false;}
+ if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
  if(rb&&!gripDown&&!worldSwingLatch){if(slottaSnare>0)toast('Circuit Serpents: swing disabled');else{pressed.KeyQ=true;keys.KeyQ=true;}}if(!rb||gripDown||slottaSnare>0)keys.KeyQ=false;worldSwingLatch=rb&&!gripDown&&slottaSnare<=0;
  if(gripDown&&!heldCar&&!heldCitizen&&!heldActor&&!gripTarget&&worldGripRetry<=0){if(slottaSnare>0)toast('Circuit Serpents disrupting Galaxy Gallium');else galliumGrabWorld();worldGripRetry=.4;}else worldGripRetry=Math.max(0,worldGripRetry-dt);
- if((gripDown&&rt&&!worldThrowLatch)||tap('KeyI')){slingCar();releaseGrip();}
+ if((gripDown&&rt&&!worldThrowLatch)||tap('KeyI')){if(!(METAL_FULL&&tossHeldEnemy())){slingCar();releaseGrip();}}
  if(!gripDown){worldGripWarned=false;worldGripRetry=0;if(gripTarget||heldCar||heldCitizen||heldActor||structureGrip)releaseGrip();}worldGrabLatch=gripDown;worldThrowLatch=gripDown&&rt;
  let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
  if(bodyMachine.mode==='fallen'&&(pressed.Space||pressed.KeyE)){bodyMachine.velocity.x=0;bodyMachine.velocity.z=0;bodyMachine.recover();pressed.Space=false;pressed.KeyE=false;}
