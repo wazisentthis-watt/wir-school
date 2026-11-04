@@ -9,7 +9,7 @@ const page=await ctx.newPage(),errors=[];
 page.on('pageerror',e=>errors.push(String(e.stack||e)));
 const results=[];
 try{
- await page.goto(base+'/connected/?lite=1&gal_forge=1',{waitUntil:'domcontentloaded',timeout:40000});
+ await page.goto(base+'/connected/?lite=1',{waitUntil:'domcontentloaded',timeout:40000});
  await page.waitForFunction(()=>window.__ready===true&&!!window.__game?.forge?.()||!!window.__bootRecovery?.getStatus?.().error,null,{timeout:65000});
  const init=await page.evaluate(()=>({ready:window.__ready,boot:window.__bootRecovery?.getStatus?.(),board:window.__game?.board?.visible,flag:window.__game?.forge?.()?.state.phase,story:localStorage.getItem('wir_metal_story_v1'),profile:localStorage.getItem('wir_valence_profile_v1')}));
  assert.equal(init.ready,true,JSON.stringify(init.boot));
@@ -48,6 +48,21 @@ try{
  await page.waitForFunction(()=>window.__game.forge().state.phase==='IDLE',null,{timeout:15000});
  assert.equal(errors.length,0,'runtime errors '+JSON.stringify(errors));
  await page.screenshot({path:'test-results/metal_gallium_forge_chromium.png'});
+ // Explicit ?gal_forge=0 is a rollback switch for gameplay support without changing files or saves.
+ const fallback=await ctx.newPage();
+ fallback.on('pageerror',e=>errors.push(String(e.stack||e)));
+ await fallback.goto(base+'/connected/?lite=1&gal_forge=0',{waitUntil:'domcontentloaded',timeout:40000});
+ await fallback.waitForFunction(()=>window.__ready===true&&!!window.__game?.forge?.(),null,{timeout:65000});
+ assert.equal(await fallback.evaluate(()=>window.__game.board.visible),false,'never carry a skateboard even with forge disabled');
+ await fallback.evaluate(()=>{const g=window.__game;g.P.o.position.set(175,.25,175);g.pressed.KeyB=true;});
+ await fallback.waitForFunction(()=>window.__game.st.board===true,null,{timeout:7000});
+ assert.equal(await fallback.evaluate(()=>window.__game.forge().state.phase),'IDLE','explicit fallback must skip forge sequence');
+ await fallback.evaluate(()=>{window.__game.pressed.KeyB=true;});
+ await fallback.waitForFunction(()=>window.__game.st.board===false,null,{timeout:7000});
+ assert.equal(await fallback.evaluate(()=>window.__game.board.visible),false);
+ results.push({case:'fallback_parameter_reverses_to_instant_B_without_carried_board',pass:true});
+ await fallback.screenshot({path:'test-results/metal_gallium_forge_optout.png'});
+ await fallback.close();
  console.log('METAL GALLIUM FORGE BROWSER QA PASS',JSON.stringify(results));
 }catch(e){
  const diagnostic=await page.evaluate(()=>({ready:window.__ready,phase:window.__game?.forge?.()?.state?.phase,elapsed:window.__game?.forge?.()?.state?.elapsed,visible:window.__game?.board?.visible,skating:window.__game?.st?.board,gallium:window.__game?.st?.gal,gameErrors:window.__errors||[],boot:window.__bootRecovery?.getStatus?.()})).catch(err=>({captureError:String(err)}));
