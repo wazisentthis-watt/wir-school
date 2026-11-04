@@ -33,6 +33,7 @@ import {PressureStep,ComboInput,safeThrow,chargePose,enemyAbilityTick} from './m
 import {chooseGrappleAnchor} from './metal_grapple_aim.mjs';
 import {SkateStrokeChoreo,PairedThrowChoreo} from './metal_motion_choreo.mjs';
 import {makeRampSurface,pickRampSupport,blendTerrainNormal,correctedFootHeight} from './metal_terrain_contact.mjs';
+import {alignHeldTarget,approachActorFacing} from './metal_paired_contact.mjs';
 
 const $=id=>document.getElementById(id);
 const VIOLET=0x9b5cff, GUN=0x4a4f57;
@@ -971,6 +972,7 @@ const galliumRibbons=[];let gripTarget=null,gripFollow=null,gripHeight=0,riftCoo
 let structureGrip=null;const riftMarks=[];
 const pressureStep=new PressureStep(),comboInput=new ComboInput();
 const skateChoreo=new SkateStrokeChoreo(),pairedThrow=new PairedThrowChoreo();
+let latestHandContact='none';
 const metalNextHUD={lastAction:'coast',bank:'Movement',power:0};
 function clearGripVisual(){structureGrip=null;gripFollow=null;gripTarget=null;}
 function showGalliumHand(target,height=0){
@@ -1037,7 +1039,22 @@ function updateGalliumPhysics(dt){
  }
  if(heldActor){
   const a=heldActor,p=gripHeldPosition(P.o.position,camYaw,gripAxisX,gripAxisY,groundY);
-  if(METAL_FULL&&pairedThrow.active){const pose=pairedThrow.pose();p.y+=pose.lift;a.root.rotation.z=pose.twist*.7;}
+  if(METAL_FULL&&pairedThrow.active){
+   const pose=pairedThrow.pose();p.y+=pose.lift;a.root.rotation.z=pose.twist*.7;
+   P.o.updateMatrixWorld(true);
+   const right=P.handBone||P.model.getObjectByName('RightHand')||P.model.getObjectByName('HandR');
+   const left=P.model.getObjectByName('LeftHand')||P.model.getObjectByName('HandL')||P.model.getObjectByName('DEF-handL');
+   const rightPos=right?.getWorldPosition(new THREE.Vector3())||null;
+   const leftPos=left?.getWorldPosition(new THREE.Vector3())||null;
+   const aligned=alignHeldTarget({base:p,current:a.root.position,rightHand:rightPos,leftHand:leftPos,
+    forward:{x:-Math.sin(camYaw),y:0,z:-Math.cos(camYaw)},
+    groundY,load:pose.load,dt});
+   if(aligned){
+    p.x=aligned.position.x;p.y=aligned.position.y;p.z=aligned.position.z;
+    latestHandContact=aligned.mode;
+   }
+   a.root.rotation.y=approachActorFacing(a.root.rotation.y,a.root.position,P.o.position,dt);
+  }else latestHandContact='none';
   a.root.position.set(p.x,p.y,p.z);a.home.copy(a.root.position);
   Object.assign(a.body.position,{x:p.x,y:p.y,z:p.z});
   Object.assign(a.body.velocity,{x:0,y:0,z:0});
@@ -1767,6 +1784,7 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
    enabled:true,board:st.board,boardBackSwing:!!st.swing?.boardBack,
    swingActive:!!st.swing,pressureCount:pressureStep.count,cooldown:pressureStep.cooldown,
    skateAnimation:skateChoreo.pose(),throwAnimation:pairedThrow.pose(),throwCompletions:pairedThrow.completed,
+   contactMode:latestHandContact,
    terrain:{surfaceCount:terrainSurfaces.length,surface:terrainInfo?.id||null,rootGround:floorAt(P.o.position),
     normal:{...terrainNormal},boardUp:board?new THREE.Vector3(0,1,0).applyQuaternion(board.quaternion).toArray():null},
    action:metalNextHUD.lastAction,powerBank:metalNextHUD.bank,powerIndex:metalNextHUD.power,
