@@ -66,7 +66,7 @@ export class MetalRooftopDuelPilot{
    '<button data-duel="dodge" type="button">B · DODGE</button></div>'+
    '<div class="ad-dpad" aria-label="Touch movement"><button data-move="KeyW">▲</button><div><button data-move="KeyA">◀</button><button data-move="KeyS">▼</button><button data-move="KeyD">▶</button></div></div>'+
    '<small class="ad-legend">Keyboard J strike · K launch · Space/F chase · Q finisher · B dodge · WASD move · Esc exit</small>';
-  document.body.append(panel);this.panel=panel;
+  document.body.append(panel);this.panel=panel;this.message=panel.querySelector('#adMessage');
   panel.querySelector('#adExit').onclick=()=>this.stop();
   for(const b of panel.querySelectorAll('[data-duel]')){
    b.addEventListener('pointerdown',e=>{e.preventDefault();this.actions.push(b.dataset.duel);});
