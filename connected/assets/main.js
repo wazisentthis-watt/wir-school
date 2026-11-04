@@ -32,6 +32,8 @@ import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {PressureStep,ComboInput,safeThrow,chargePose,enemyAbilityTick} from './metal_full_motion.mjs';
 import {chooseGrappleAnchor} from './metal_grapple_aim.mjs';
 import {SkateStrokeChoreo,PairedThrowChoreo} from './metal_motion_choreo.mjs';
+import {makeRampSurface,pickRampSupport,blendTerrainNormal,correctedFootHeight} from './metal_terrain_contact.mjs';
+import {alignHeldTarget,approachActorFacing} from './metal_paired_contact.mjs';
 
 const $=id=>document.getElementById(id);
 const VIOLET=0x9b5cff, GUN=0x4a4f57;
@@ -151,10 +153,25 @@ function label(text,pos,color='#d6c2ff'){const c=document.createElement('canvas'
  const s=new THREE.Mesh(new THREE.PlaneGeometry(8,1.5),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true,side:THREE.DoubleSide}));s.position.copy(pos);scene.add(s);return s;}
 const signs=[];
 function sign(spot,y=6){const s=label(spot.name,spot.c.clone().add(new THREE.Vector3(0,y,-BLOCK/2+1)));signs.push(s);}
-const ramps=[];// {box, type}
+const ramps=[];// original kicker navigation + reference geometry
+const terrainSurfaces=[];let terrainInfo=null;
+let terrainNormal={x:0,y:1,z:0};
+const terrainUp=new THREE.Vector3(0,1,0),terrainN=new THREE.Vector3(),terrainQ=new THREE.Quaternion(),terrainYawQ=new THREE.Quaternion();
 function buildSkatepark(c){sign(SPOTS.skate);const m=new THREE.MeshStandardMaterial({color:0x9a9a9e,roughness:.6});
  // kicker ramps (airs only from lips/kickers [S1])
- for(const [x,z,r] of [[-10,-8,0],[10,8,Math.PI],[-12,10,Math.PI/2],[12,-10,-Math.PI/2]]){const g=new THREE.Mesh(new THREE.BoxGeometry(6,0.4,7),m);g.position.set(c.x+x,1,c.z+z);g.rotation.set(-0.32,r,0,'YXZ');g.castShadow=g.receiveShadow=true;scene.add(g);ramps.push({p:new THREE.Vector3(c.x+x,0,c.z+z),r:3.6,kick:9});}
+ for(const [x,z,r] of [[-10,-8,0],[10,8,Math.PI],[-12,10,Math.PI/2],[12,-10,-Math.PI/2]]){const g=new THREE.Mesh(new THREE.BoxGeometry(6,0.4,7),m);g.position.set(c.x+x,1,c.z+z);g.rotation.set(-0.32,r,0,'YXZ');g.castShadow=g.receiveShadow=true;scene.add(g);ramps.push({p:new THREE.Vector3(c.x+x,0,c.z+z),r:3.6,kick:9,mesh:g});
+  if(METAL_FULL){
+   g.updateMatrixWorld(true);
+   const surface=makeRampSurface({
+    id:'MorrowKicker_'+terrainSurfaces.length,
+    origin:g.localToWorld(new THREE.Vector3(0,.2,0)),
+    normal:new THREE.Vector3(0,1,0).transformDirection(g.matrixWorld),
+    right:new THREE.Vector3(1,0,0).transformDirection(g.matrixWorld),
+    forward:new THREE.Vector3(0,0,1).transformDirection(g.matrixWorld),
+    width:6,depth:7
+   });
+   if(surface)terrainSurfaces.push(surface);
+  }}
  // rail
  const rail=new THREE.Mesh(new THREE.BoxGeometry(14,.12,.12),new THREE.MeshStandardMaterial({color:GUN,metalness:1,roughness:.3}));rail.position.set(c.x,0.9,c.z);rail.castShadow=true;scene.add(rail);
  rails.push({a:new THREE.Vector3(c.x-7,0.9,c.z),b:new THREE.Vector3(c.x+7,0.9,c.z)});
@@ -353,7 +370,16 @@ function tickRamps(dt){for(let i=ramps3.length-1;i>=0;i--){const r=ramps3[i];r.t
  if(st.wall){const w=st.wall;shimmer.position.copy(P.o.position).addScaledVector(w.n,-.38);shimmer.lookAt(shimmer.position.clone().add(w.n));shimmer.material.opacity=.25+Math.sin(performance.now()*.02)*.12;shimmer.scale.setScalar(1+Math.sin(performance.now()*.013)*.15);
   if(el){el.style.display='block';el.textContent='WALL · '+w.mat.toUpperCase()+' · stick '+WALLMAT[w.mat].stick.toFixed(2)+' (PROPOSAL)';}}
  else{shimmer.material.opacity=0;if(el)el.style.display='none';}}
-function floorAt(p){let y=groundY;for(const b of colliders){if(p.x>b.min.x-.3&&p.x<b.max.x+.3&&p.z>b.min.z-.3&&p.z<b.max.z+.3&&p.y>=b.max.y-.35&&b.max.y>y)y=b.max.y;}return y;} // rooftops are real floors
+function rampContactAt(p,maxStep=.55,maxDrop=.9){
+ return METAL_FULL?pickRampSupport(terrainSurfaces,p.x,p.z,p.y,{maxStep,maxDrop,minHeight:groundY}):null;
+}
+function floorAt(p){let y=groundY;
+ for(const b of colliders){if(p.x>b.min.x-.3&&p.x<b.max.x+.3&&p.z>b.min.z-.3&&p.z<b.max.z+.3&&p.y>=b.max.y-.35&&b.max.y>y)y=b.max.y;}
+ // The four rendered kicker meshes are physical support surfaces only in the opt-in test.
+ const ramp=rampContactAt(p);
+ if(ramp&&ramp.y>y)y=ramp.y;
+ return y;
+} // Rooftops remain flat, original physical colliders still own walls
 function startWall(h){const n=h.n,t=new THREE.Vector3(-n.z,0,n.x);const s=Math.min(WR.maxSpeed,h.hv.length());const along=h.hv.dot(t);
  const mat=matOf(h.b);st.wall={b:h.b,n:n.clone(),t,mat,up:Math.max(4,s*WR.climbShare)*(h.ramp?1.15:1),side:along*.9,time:0};if(h.ramp){st.gal=Math.max(0,st.gal-WR.rampCost);galliumRamp(P.o.position,n);setViolet(.8);}vel.set(0,0,0);onGround=false;st.comboPend++;
  plog('discoveries','Wall ride — gravity point locked to the wall');toast((h.ramp?'Gallium ramp → ':'')+'WALL RIDE — '+mat+' grip');beep(520,.12,'triangle');}
@@ -525,10 +551,21 @@ function p6Pose(dt){
  P.model.position.y-=.12*load;P.o.updateMatrixWorld(true);                        // THOOM: the prosthetic knee loads
  const ch=P.legs.chest;if(ch){ch.getWorldQuaternion(_q2);_q1.setFromAxisAngle(_up0,.32*load);_q2.premultiply(_q1);_q1.setFromAxisAngle(_iV.set(0,0,1).transformDirection(P.o.matrixWorld),.2*load);_q2.premultiply(_q1);ch.parent.getWorldQuaternion(_q3);ch.quaternion.copy(_q3.invert().multiply(_q2));ch.updateMatrixWorld(true);}
  // LEFT (front, prosthetic) foot stays planted on the nose
- legIK(P.legs.L,_iT.set(.02,DECK_TOP+g,.19).applyMatrix4(P.o.matrixWorld).clone(),_pole.set(-1,0,.2).transformDirection(P.o.matrixWorld));
+ if(METAL_FULL&&terrainInfo){
+  board.updateMatrixWorld(true);
+  _iT.set(.02/BOARD_S,(DECK_TOP+g)/BOARD_S,.19/BOARD_S).applyMatrix4(board.matrixWorld);
+ }else _iT.set(.02,DECK_TOP+g,.19).applyMatrix4(P.o.matrixWorld);
+ legIK(P.legs.L,_iT.clone(),_pole.set(-1,0,.2).transformDirection(P.o.matrixWorld));
  // RIGHT (back, biological) foot strokes
  const R=P.legs.R;if(!R[2])return;R[2].getWorldPosition(_iC);
- strokePoint(u,_sp);_sp.y+=g;_sp.applyMatrix4(P.o.matrixWorld);_iC.lerp(_sp,sk.pw);
+ strokePoint(u,_sp);const deckFraction=_sp.y/DECK_TOP;
+ _sp.y+=g;_sp.applyMatrix4(P.o.matrixWorld);
+ if(METAL_FULL&&terrainInfo){
+  const support=pickRampSupport(terrainSurfaces,_sp.x,_sp.z,P.o.position.y,
+   {maxStep:.75,maxDrop:1.0,minHeight:groundY});
+  if(support)_sp.y=correctedFootHeight(_sp.y,P.o.position.y,support.y,deckFraction,sk.pw);
+ }
+ _iC.lerp(_sp,sk.pw);
  legIK(R,_iC.clone(),_pole.set(-1,.15,-.1).transformDirection(P.o.matrixWorld));
 }
 const _up0=new THREE.Vector3(0,1,0);
@@ -935,6 +972,7 @@ const galliumRibbons=[];let gripTarget=null,gripFollow=null,gripHeight=0,riftCoo
 let structureGrip=null;const riftMarks=[];
 const pressureStep=new PressureStep(),comboInput=new ComboInput();
 const skateChoreo=new SkateStrokeChoreo(),pairedThrow=new PairedThrowChoreo();
+let latestHandContact='none';
 const metalNextHUD={lastAction:'coast',bank:'Movement',power:0};
 function clearGripVisual(){structureGrip=null;gripFollow=null;gripTarget=null;}
 function showGalliumHand(target,height=0){
@@ -1001,7 +1039,22 @@ function updateGalliumPhysics(dt){
  }
  if(heldActor){
   const a=heldActor,p=gripHeldPosition(P.o.position,camYaw,gripAxisX,gripAxisY,groundY);
-  if(METAL_FULL&&pairedThrow.active){const pose=pairedThrow.pose();p.y+=pose.lift;a.root.rotation.z=pose.twist*.7;}
+  if(METAL_FULL&&pairedThrow.active){
+   const pose=pairedThrow.pose();p.y+=pose.lift;a.root.rotation.z=pose.twist*.7;
+   P.o.updateMatrixWorld(true);
+   const right=P.handBone||P.model.getObjectByName('RightHand')||P.model.getObjectByName('HandR');
+   const left=P.model.getObjectByName('LeftHand')||P.model.getObjectByName('HandL')||P.model.getObjectByName('DEF-handL');
+   const rightPos=right?.getWorldPosition(new THREE.Vector3())||null;
+   const leftPos=left?.getWorldPosition(new THREE.Vector3())||null;
+   const aligned=alignHeldTarget({base:p,current:a.root.position,rightHand:rightPos,leftHand:leftPos,
+    forward:{x:-Math.sin(camYaw),y:0,z:-Math.cos(camYaw)},
+    groundY,load:pose.load,dt});
+   if(aligned){
+    p.x=aligned.position.x;p.y=aligned.position.y;p.z=aligned.position.z;
+    latestHandContact=aligned.mode;
+   }
+   a.root.rotation.y=approachActorFacing(a.root.rotation.y,a.root.position,P.o.position,dt);
+  }else latestHandContact='none';
   a.root.position.set(p.x,p.y,p.z);a.home.copy(a.root.position);
   Object.assign(a.body.position,{x:p.x,y:p.y,z:p.z});
   Object.assign(a.body.velocity,{x:0,y:0,z:0});
@@ -1425,7 +1478,16 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  actT-=dt;if(actT<=0&&(!P.cur||P.cur.loop!==THREE.LoopOnce||!P.cur.isRunning())){
   if(st.flying)plA('Flight','Jump');else if(st.swing)plA('Swing','Jump');else if(st.board&&st.wall)plA('Wallride','Skate');else if(st.board)skateAnim(onGround);else footAnim(hs);}
  if(st.board){if(st.boardFree>0){st.boardFree-=dt;}else{ // BOARD LOCK: board stays attached under the LEFT (prosthetic) foot while riding; only bail (B) or kick-off (Space) separates. Mechanism (Gallium film / magnetic) = OPEN
-  if(st.wall||swingTilted())board.quaternion.copy(P.o.quaternion);else board.rotation.set(0,yaw,0);
+  if(st.wall||swingTilted())board.quaternion.copy(P.o.quaternion);
+  else if(METAL_FULL&&onGround){
+   terrainInfo=rampContactAt(pp,.7,1.0);
+   const desire=terrainInfo?.normal||{x:0,y:1,z:0};
+   terrainNormal=blendTerrainNormal(terrainNormal,desire,dt,12);
+   terrainN.set(terrainNormal.x,terrainNormal.y,terrainNormal.z);
+   terrainQ.setFromUnitVectors(terrainUp,terrainN);
+   terrainYawQ.setFromAxisAngle(terrainUp,yaw);
+   board.quaternion.copy(terrainQ.multiply(terrainYawQ));
+  }else board.rotation.set(0,yaw,0);
   const up=_bu.set(0,1,0).applyQuaternion(board.quaternion);const fl=P.footL;
   if(fl){P.o.updateMatrixWorld(true);fl.getWorldPosition(_bf);const rel=_bf.sub(pp);const along=rel.dot(up);rel.addScaledVector(up,-along);rel.multiplyScalar(.5);board.position.copy(pp).add(rel);}else board.position.copy(pp);
   st.boardGap=fl?fl.getWorldPosition(_bf).distanceTo(board.position):0;}}
@@ -1718,10 +1780,20 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
    },queueThrow:()=>queueEnemyThrow(),isHolding:()=>!!heldActor,
    throwState:()=>({...pairedThrow.pose(),completed:pairedThrow.completed})};
   }
+  if(METAL_FULL&&new URLSearchParams(location.search).get('metal_terrain_qa')==='1'){
+   // Read-only source geometry; use pre-existing teleportForTest only in QA.
+   window.__game.terrainQA=()=>terrainSurfaces.map(surface=>({
+    id:surface.id,origin:{...surface.origin},normal:{...surface.normal},
+    halfWidth:surface.halfWidth,halfDepth:surface.halfDepth
+   }));
+  }
   window.__game.metalNext=()=>METAL_FULL?({
    enabled:true,board:st.board,boardBackSwing:!!st.swing?.boardBack,
    swingActive:!!st.swing,pressureCount:pressureStep.count,cooldown:pressureStep.cooldown,
    skateAnimation:skateChoreo.pose(),throwAnimation:pairedThrow.pose(),throwCompletions:pairedThrow.completed,
+   contactMode:latestHandContact,
+   terrain:{surfaceCount:terrainSurfaces.length,surface:terrainInfo?.id||null,rootGround:floorAt(P.o.position),
+    normal:{...terrainNormal},boardUp:board?new THREE.Vector3(0,1,0).applyQuaternion(board.quaternion).toArray():null},
    action:metalNextHUD.lastAction,powerBank:metalNextHUD.bank,powerIndex:metalNextHUD.power,
    cityGridSize:2*N+1,actorKinds:factionActors.map(a=>a.kind),
    chargeActive:crownCharge.active,chargeStress:crownCharge.stress
