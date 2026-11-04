@@ -183,9 +183,12 @@ function updatePose(){
  const s=gorilliumStatus(state.game);
  get('counter').textContent='Charge: '+(s.charge*100).toFixed(1)+'% | Free limbs: '+s.freeLimbs+'/8';
 }
+let lastWidth=0,lastHeight=0;
 function resize(){
  if(!renderer)return;
  const w=stage.clientWidth,h=stage.clientHeight;
+ if(w===lastWidth&&h===lastHeight)return;
+ lastWidth=w;lastHeight=h;
  camera.aspect=w/Math.max(1,h);camera.updateProjectionMatrix();
  renderer.setSize(w,h,false);
 }
