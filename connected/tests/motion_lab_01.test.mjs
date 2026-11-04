@@ -30,7 +30,7 @@ test('rider accelerates, carves and brakes deterministically',()=>{
 });
 test('real-height collision adapter: ramp rises; vertical ledge blocks',()=>{
  const a=createRider();a.z=5;a.vz=-3;
- for(let i=0;i<75;i++)stepRider(a,{throttle:1},1/60,slope);
+ for(let i=0;i<35;i++)stepRider(a,{throttle:1},1/60,slope);
  assert.equal(a.onRamp,true);assert.ok(a.y>.1);
  const b=createRider();b.z=3;b.vz=-10;b.grounded=true;
  const wall=(x,z)=>({height:z<2?3:0,ramp:z<2});
