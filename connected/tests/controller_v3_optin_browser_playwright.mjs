@@ -14,7 +14,10 @@ let page;
 try{
  const context=await browser.newContext({viewport:{width:1024,height:720},serviceWorkers:'block'});
  await context.addInitScript(()=>{
-  localStorage.setItem('wir_metal_story_v1','QA_KEEP_MISSION_PROGRESS');
+  const story=JSON.stringify({version:1,chapter:1,flags:{skate_reached:true},
+   checkpoint:{position:{x:0,y:.25,z:8},reason:'Controller QA'},updatedAt:null});
+  window.__qaStoryOriginal=story;
+  localStorage.setItem('wir_metal_story_v1',story);
   window.__qaPad={id:'QA Simulated Xbox Controller',index:0,connected:true,mapping:'standard',
    axes:[0,0,0,0],buttons:Array.from({length:18},()=>({pressed:false,value:0}))};
   Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>[window.__qaPad]});
@@ -39,7 +42,7 @@ try{
  await page.evaluate(()=>{for(const i of [4,5,6,7])window.__qaPad.buttons[i]={pressed:true,value:1};});
  assert.equal(await page.evaluate(()=>!!window.__game?.keys?.KeyQ),false);
  await page.evaluate(()=>{for(const i of [4,5,6,7])window.__qaPad.buttons[i]={pressed:false,value:0};});
- assert.equal(await page.evaluate(()=>localStorage.getItem('wir_metal_story_v1')),'QA_KEEP_MISSION_PROGRESS');
+ assert.equal(await page.evaluate(()=>localStorage.getItem('wir_metal_story_v1')),await page.evaluate(()=>window.__qaStoryOriginal));
  evidence.optin={gameReady:true,panel:true,gamepadId:true,analogMovement:true,jump:true,release:true,
   remapProfile:true,storySaveUnchanged:true};
  await page.screenshot({path:'test-results/connected-controller-v3-optin.png',fullPage:true});
@@ -51,7 +54,7 @@ try{
  assert.equal(await ordinary.evaluate(()=>!!window.__ready),true,'Legacy mission failed to load');
  assert.equal(await ordinary.evaluate(()=>window.__controllerV3===undefined),true,'Opt-in leaked into default');
  assert.equal(await ordinary.locator('#connected-controller-v3-panel').count(),0);
- assert.equal(await ordinary.evaluate(()=>localStorage.getItem('wir_metal_story_v1')),'QA_KEEP_MISSION_PROGRESS');
+ assert.equal(await ordinary.evaluate(()=>localStorage.getItem('wir_metal_story_v1')),await ordinary.evaluate(()=>window.__qaStoryOriginal));
  evidence.defaultMode={gameReady:true,adapterOff:true,missionSaveUnchanged:true};
  assert.deepEqual(errors,[],'Browser JavaScript errors');
  evidence.status='PASS';console.log('CONNECTED CONTROLLER v3 OPT-IN QA PASS',JSON.stringify(evidence));
