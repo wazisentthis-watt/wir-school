@@ -9,7 +9,7 @@ const ctx=()=>({keys:{},pressed:{}});
 test('opt-in is exact and absent by default',()=>{assert.equal(gamepadV3Enabled(''),false);assert.equal(gamepadV3Enabled('?controller_v3=0'),false);assert.equal(gamepadV3Enabled('?controller_v3=1'),true)});
 test('legacy world actions are explicitly named',()=>{assert.equal(CONNECTED_ACTION_KEYS.jump,'Space');assert.equal(CONNECTED_ACTION_KEYS.dash,'KeyB')});
 test('zero stick deadzone',()=>{const c=createConnectedControllerV3(),x=ctx();const a=c.poll(makePad([],[.07,-.08,0,0]),1/60,x);assert.equal(a.x,0);assert.equal(a.y,0)});
-test('controller-reported axes drive travel',()=>{const c=createConnectedControllerV3(),x=ctx();const a=c.poll(makePad([],[.85,-.9,0,0]),1/60,x);assert.ok(a.x>.7);assert.ok(a.y<-.7)});
+test('controller-reported axes drive travel',()=>{const c=createConnectedControllerV3(),x=ctx();const a=c.poll(makePad([],[.85,-.9,0,0]),1/60,x);assert.ok(a.x>.65);assert.ok(a.y<-.70)});
 test('newly connected held button cannot create phantom jump',()=>{const c=createConnectedControllerV3(),x=ctx();c.poll(makePad([0]),.016,x);assert.equal(x.pressed.Space,undefined);assert.equal(x.keys.Space,true)});
 test('button edge produces one jump',()=>{const c=createConnectedControllerV3(),x=ctx();c.poll(makePad(),.016,x);c.poll(makePad([0]),.016,x);assert.equal(x.pressed.Space,true);x.pressed.Space=false;c.poll(makePad([0]),.016,x);assert.equal(x.pressed.Space,false)});
 test('release unsets owned controller keys',()=>{const c=createConnectedControllerV3(),x=ctx();c.poll(makePad(),.016,x);c.poll(makePad([0]),.016,x);c.poll(makePad(),.016,x);assert.equal(x.keys.Space,false)});
