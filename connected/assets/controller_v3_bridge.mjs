@@ -20,12 +20,25 @@ export function createConnectedControllerV3({storage=null}={}){
  const adapter=new ControllerAdapter({storage});
  let prevKeys=new Set(),currentPad=null,frames=0,lastMove={x:0,y:0};
  let learningAction=null,learningPrev=new Set(),suppressUntilRelease=false;
+ let cameraArmed=false,cameraNeutralFrames=0,cameraPadKey=null;
  const release=keys=>{for(const k of prevKeys)keys[k]=false;prevKeys.clear();};
  function poll(pad,dt,{keys,pressed,lookEnabled=true,applyCamera=()=>{}}={}){
   if(!keys||!pressed)throw Error('Key and press tables are required');
   if(!pad||pad.connected===false){release(keys);adapter.disconnect();currentPad=null;
-   learningAction=null;learningPrev.clear();suppressUntilRelease=false;lastMove={x:0,y:0};return null;}
+   learningAction=null;learningPrev.clear();suppressUntilRelease=false;
+   cameraArmed=false;cameraNeutralFrames=0;cameraPadKey=null;lastMove={x:0,y:0};return null;}
   currentPad=pad;
+  const identity=[pad.id,pad.mapping,pad.axes?.length,pad.buttons?.length].join('|');
+  if(identity!==cameraPadKey){cameraPadKey=identity;cameraArmed=false;cameraNeutralFrames=0;}
+  // Some Bluetooth pads expose an uncentered trigger as axis 2/3: no camera
+  // movement is allowed until the selected look axes have returned to neutral.
+  const p=adapter.profile;
+  const rawX=Number(pad.axes?.[p.lookX]||0),rawY=Number(pad.axes?.[p.lookY]||0);
+  if(!cameraArmed){
+   if(Math.hypot(rawX,rawY)<Math.max(.24,p.lookDeadzone+.04))cameraNeutralFrames++;
+   else cameraNeutralFrames=0;
+   if(cameraNeutralFrames>=6)cameraArmed=true;
+  }
   if(learningAction){
    const down=new Set(Array.from(pad.buttons||[],(b,i)=>b?.pressed||b?.value>.6?i:null)
     .filter(i=>i!==null));
@@ -53,7 +66,8 @@ export function createConnectedControllerV3({storage=null}={}){
   for(const key of prevKeys)if(!next.has(key))keys[key]=false;
   for(const key of next){if(!prevKeys.has(key)&&!justConnected)pressed[key]=true;keys[key]=true;}
   prevKeys=next;lastMove={x:report.x,y:report.y};
-  if(lookEnabled)applyCamera(report.lookX,report.lookY,dt);
+  if(lookEnabled&&cameraArmed)applyCamera(report.lookX,report.lookY,dt);
+  if(!cameraArmed){adapter.lookX=0;adapter.lookY=0;}
   frames++;return {...lastMove,id:pad.id,calibrating:false,profile:report.profile};
  }
  function startLearning(action){
@@ -65,12 +79,13 @@ export function createConnectedControllerV3({storage=null}={}){
  function cancelLearning(){learningAction=null;learningPrev.clear();suppressUntilRelease=false;}
  return {
   adapter,poll,startLearning,cancelLearning,
-  configure:update=>{cancelLearning();const p=adapter.configure(update);adapter.save();return p;},
-  reset:()=>{cancelLearning();adapter.reset();return adapter.profile;},
+  configure:update=>{cancelLearning();const p=adapter.configure(update);adapter.save();
+   if(Object.keys(update||{}).some(k=>['lookX','lookY','lookDeadzone'].includes(k))){cameraArmed=false;cameraNeutralFrames=0;}return p;},
+  reset:()=>{cancelLearning();adapter.reset();cameraArmed=false;cameraNeutralFrames=0;return adapter.profile;},
   status:()=>({connected:!!currentPad,id:String(currentPad?.id||'No controller detected'),
    family:controllerFamily(currentPad?.id||''),index:currentPad?.index??null,
    mapping:currentPad?.mapping||'unknown',buttonCount:currentPad?.buttons?.length||0,
-   axisCount:currentPad?.axes?.length||0,learningAction,frameCount:frames,
+   axisCount:currentPad?.axes?.length||0,learningAction,frameCount:frames,cameraArmed,
    move:{...lastMove},bindings:{...adapter.profile.bindings},deadzone:adapter.profile.deadzone,
    lookDeadzone:adapter.profile.lookDeadzone,invertLookY:adapter.profile.invertLookY})
  };
@@ -106,7 +121,7 @@ export function installConnectedControllerPanel(bridge,{documentRef=document}={}
  let last=0;
  function refresh(now=0){if(now-last<300)return;last=now;const s=bridge.status();
   status.textContent=s.learningAction?'Press button to remap '+CONNECTED_ACTION_NAMES[s.learningAction]+' (LB/RB/LT/RT reserved)':
-   s.connected?s.id+' | '+s.family+' | '+s.axisCount+' axes, '+s.buttonCount+' buttons':
+   s.connected?s.id+' | '+s.family+' | '+s.axisCount+' axes, '+s.buttonCount+' buttons'+(!s.cameraArmed?' | RECENTER RIGHT STICK':''):
    'No controller detected. Pair controller, then press a button.';
  }
  return {element:box,refresh};
