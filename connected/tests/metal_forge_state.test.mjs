@@ -4,4 +4,13 @@ test('ground, material, finite Galaxy Gallium are mandatory',()=>{const s=new Fo
 test('time-driven forging includes every distinct stage and exactly one mount',()=>{const s=new ForgeState(),seen=new Set();s.begin({grounded:true,hasMaterial:true,gallium:1});for(let i=0;i<90;i++){seen.add(s.tick(.05));}for(const p of ['DETECTING','EXTRACTION','GATHERING','COMPRESSION','ACTIVATED','MOUNTING','SKATING'])assert.ok(seen.has(p),p);assert.equal(s.tick(1),'SKATING');});
 test('dismantle has finite loss and no duplicate refunds',()=>{const s=new ForgeState();s.begin({grounded:true,hasMaterial:true,gallium:1});for(let i=0;i<80;i++)s.tick(.05);assert.ok(s.dissolve());assert.ok(!s.dissolve());for(let i=0;i<20;i++)s.tick(.05);assert.equal(s.phase,'IDLE');assert.ok(FORGE_REFUND<FORGE_COST);});
 test('bad elapsed time does not bypass transitions',()=>{const s=new ForgeState();s.begin({grounded:true,hasMaterial:true,gallium:1});s.tick(NaN);s.tick(-1);assert.equal(s.elapsed,0);s.tick(100);assert.ok(s.elapsed<=.1);s.cancel();assert.equal(s.phase,'IDLE');});
-test('integration remains opt-in and never creates a second rig mixer or replaces the board material',()=>{assert.ok(main.includes("get('gal_forge')==='1'"));assert.ok(main.includes('forgeController=new MetalForgeController'));assert.ok(fx.includes('board?.isGroup'));assert.ok(!fx.includes('new THREE.AnimationMixer'));assert.ok(!fx.includes('this.board.material='));});
+test('normal B action forges, with an explicit reversible gal_forge=0 escape hatch',()=>{assert.ok(main.includes("get('gal_forge')!=='0'"));assert.ok(main.includes('forgeController=new MetalForgeController'));assert.ok(fx.includes('board?.isGroup'));assert.ok(!fx.includes('new THREE.AnimationMixer'));assert.ok(!fx.includes('this.board.material='));});
+
+test('default B forge preserves original fallback and the no-carried-board contract',()=>{
+ assert.match(main,/const GAL_FORGE_ENABLED=new URLSearchParams\(location.search\).get\('gal_forge'\)!=='0'/);
+ assert.ok(main.includes('else if(GAL_FORGE_ENABLED){'));
+ assert.ok(main.includes('}else{st.board=true;board.visible=true;'));
+ assert.ok(main.includes('if(!st.board)board.visible=false;'));
+ assert.ok(!main.includes('function boardOnBack(){'));
+ assert.ok(!main.includes('BOARD ON BACK'));
+});

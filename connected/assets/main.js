@@ -869,7 +869,9 @@ function swingOrient(dt){const pp=P.o.position;if(SWS.air>0)SWS.air-=dt;
  if(SWS.flip>0){SWS.flip-=dt;if(onGround)SWS.flip=0;const a=Math.PI*2*(1-Math.max(0,SWS.flip)/SW.FLIP_T);P.o.quaternion.multiply(_swq.setFromAxisAngle(_sw1.set(1,0,0),-a));}}  // backflip on release
 function swingTilted(){return !!(st.swing||SWS.flip>0||SWS.blend>0);}
 // Forge-only board: NEVER mounted to Metal's back or chest.
-const GAL_FORGE_ENABLED=new URLSearchParams(location.search).get('gal_forge')==='1';
+// Board Forge is now the normal B action. Reversible emergency fallback: ?gal_forge=0.
+// Explicit opt-out retains the old instant-board toggle without displaying a carried board.
+const GAL_FORGE_ENABLED=new URLSearchParams(location.search).get('gal_forge')!=='0';
 let forgeController=null;
 const forgePerformance=new ForgePerformanceOverlay();
 
