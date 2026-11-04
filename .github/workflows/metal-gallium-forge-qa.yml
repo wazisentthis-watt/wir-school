@@ -1,0 +1,54 @@
+name: METAL Gallium Forge source QA - HOLD
+on:
+  push:
+    paths:
+      - 'connected/assets/main.js'
+      - 'connected/assets/metal_forge_*'
+      - 'connected/tests/metal_forge_state.test.mjs'
+      - 'connected/tests/metal_forge_browser_playwright.mjs'
+      - 'connected/tests/frame_startup_regression.test.mjs'
+      - 'connected/tests/metal_boardback_swing_contract.test.mjs'
+      - '.github/workflows/metal-gallium-forge-qa.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/main.js'
+      - 'connected/assets/metal_forge_*'
+      - 'connected/tests/metal_forge_state.test.mjs'
+      - 'connected/tests/metal_boardback_swing_contract.test.mjs'
+      - '.github/workflows/metal-gallium-forge-qa.yml'
+permissions:
+  contents: read
+jobs:
+  source-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          node --check connected/assets/main.js
+          node --check connected/assets/metal_forge_controller.js
+          node --check connected/assets/metal_forge_state.mjs
+          node --test connected/tests/metal_forge_state.test.mjs connected/tests/metal_boardback_swing_contract.test.mjs
+      - name: Install Chromium QA runner
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Start local real game
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/metal-forge-http.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:8765/connected/ > /dev/null
+      - name: Play real forge using B in Chromium
+        env:
+          METAL_BOOT_BASE: http://127.0.0.1:8765
+        run: node connected/tests/metal_forge_browser_playwright.mjs
+      - name: Capture visual QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: galaxy-gallium-forge-visual-qa
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: warn

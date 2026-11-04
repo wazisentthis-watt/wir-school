@@ -21,6 +21,7 @@ import {chooseGripTarget,stepStructureOffset,gripHeldPosition} from './gallium_g
 import {PhysicsTelemetry} from './physics_telemetry.js';
 import {analyzePhysics} from './physics_analysis.js';
 import {makeGalliumLimb,galliumLiquidMat,GU} from './gallium_limb.js';
+import {MetalForgeController,FORGE_COST,FORGE_REFUND} from './metal_forge_controller.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RGBELoader} from 'three/addons/loaders/RGBELoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -832,11 +833,9 @@ function pickAnchor(pp){if(!swingAnchors)buildSwingAnchors();const hv=_sw1.set(v
  if(!a)for(const an of swingAnchors){const d=an.distanceTo(pp);if(d<SW.MIN_D||d>SW.MAX_D||an.y-pp.y<2.5)continue;const sc=-Math.abs(d-15);if(sc>bs){bs=sc;a=an;}} /* nothing ahead: best line in any direction */
  return a;}
 function startSwing(pp){const a=pickAnchor(pp);if(!a||st.gal<=.04){toast(st.gal<=.04?'Out of Gallium — bank combos to refill':'No anchor in range');return;}
- // Preserve the player's choice: a swing does NOT teleport the four-wheel board to his feet.
- // When walking it remains an attached back-mounted route instrument (PROPOSAL).
- const boardBack=!st.board;
- if(boardBack){boardOnBack();toast('BOARD ON BACK · GALAXY GALLIUM SWING');}
- const d=a.distanceTo(pp);st.swing={a:a.clone(),len:d*SW.REEL,len0:d,spent:0,t:0,held:!!keys.KeyQ,boardBack};SWS.q.copy(P.o.quaternion);SWS.flip=0;SWS.swings++;
+ // Swing stays anchored to real surfaces; no carried skateboard.
+ if(forgeController?.busy){toast('Finish the Galaxy Gallium forge before swinging');return;}
+ const d=a.distanceTo(pp);st.swing={a:a.clone(),len:d*SW.REEL,len0:d,spent:0,t:0,held:!!keys.KeyQ};SWS.q.copy(P.o.quaternion);SWS.flip=0;SWS.swings++;
  play(P,'Swing');tether.visible=true;onGround=false;vel.y=Math.max(vel.y,4);plog('discoveries','Grapple swing');setViolet(1);beep(330,.1,'triangle');}
 function releaseSwing(why,landed){const s=st.swing;if(!s)return;st.gal=Math.min(1,st.gal+s.spent*.5);st.swing=null;tether.visible=false;st.comboPend++;
  const hs=Math.hypot(vel.x,vel.z);if(hs>.5)yaw=Math.atan2(vel.x,vel.z);SWS.blend=.35;SWS.air=3;
@@ -866,21 +865,9 @@ function swingOrient(dt){const pp=P.o.position;if(SWS.air>0)SWS.air-=dt;
  if(SWS.blend>0){SWS.blend-=dt;_swq2.copy(P.o.quaternion);SWS.q.slerp(_swq2,Math.min(1,dt*8));P.o.quaternion.copy(SWS.q);}else SWS.q.copy(P.o.quaternion);
  if(SWS.flip>0){SWS.flip-=dt;if(onGround)SWS.flip=0;const a=Math.PI*2*(1-Math.max(0,SWS.flip)/SW.FLIP_T);P.o.quaternion.multiply(_swq.setFromAxisAngle(_sw1.set(1,0,0),-a));}}  // backflip on release
 function swingTilted(){return !!(st.swing||SWS.flip>0||SWS.blend>0);}
-// board on his back while he walks or fights (it never vanishes); B or a swing puts it back under his shoes
-function boardOnBack(){if(!board||!P)return;
- // Non-S1 rigs may not expose P.legs; fall back to a named chest/spine or root.
- // The carried board follows the actual torso orientation while swinging.
- const ch=P.legs?.chest||P.model?.getObjectByName('Chest')||P.model?.getObjectByName('Spine')||P.o;
- if(!ch){board.visible=false;return;}board.visible=true;
- P.o.updateMatrixWorld(true);ch.getWorldPosition(_sw1);ch.getWorldQuaternion(_swq2);
- const f=_sw2.set(0,0,1).applyQuaternion(_swq2).normalize();
- board.position.copy(_sw1).addScaledVector(f,-.32);board.position.y-=.2;
- const up=_sw3.set(0,1,0).applyQuaternion(_swq2).normalize();
- const x=new THREE.Vector3().crossVectors(f,up).normalize();
- if(x.lengthSq()<.01)x.set(1,0,0);
- const y=new THREE.Vector3().crossVectors(up,x).normalize();
- _swm.makeBasis(x,y,up);board.quaternion.setFromRotationMatrix(_swm);
-}
+// Forge-only board: NEVER mounted to Metal's back or chest.
+const GAL_FORGE_ENABLED=new URLSearchParams(location.search).get('gal_forge')==='1';
+let forgeController=null;
 
 // ---------- main loop ----------
 const clock=new THREE.Clock();let camPos=new THREE.Vector3();
@@ -1256,6 +1243,7 @@ function update(dt){
  // Poll the Menu hold while paused; never suspend the browser loop or mission loader.
  if(metalPadV3.paused){pollPad(dt);return;}
  st.grinding=false;
+ if(forgeController?.update(dt,P.o.position,floorAt(P.o.position))){st.board=true;board.visible=true;toast('FORGE COMPLETE · FOUR WHEELS');}
  // Single external-root physics step. The actual movement solver owns Metal's position.
  bodyMachine.step(dt,0,true);
  bodyMachine.position.x=P.o.position.x;bodyMachine.position.z=P.o.position.z;
@@ -1274,6 +1262,7 @@ function update(dt){
  if((gripDown&&rt&&!worldThrowLatch)||tap('KeyI')){slingCar();releaseGrip();}
  if(!gripDown){worldGripWarned=false;worldGripRetry=0;if(gripTarget||heldCar||heldCitizen||heldActor||structureGrip)releaseGrip();}worldGrabLatch=gripDown;worldThrowLatch=gripDown&&rt;
  let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
+ if(forgeController?.busy){ix=0;iz=0;vel.x=0;vel.z=0;}
  if(bodyMachine.mode==='fallen'&&(pressed.Space||pressed.KeyE)){bodyMachine.velocity.x=0;bodyMachine.velocity.z=0;bodyMachine.recover();pressed.Space=false;pressed.KeyE=false;}
  if(bodyMachine.mode==='fallen'||bodyMachine.mode==='recovering'){ix=0;iz=0;vel.x*=Math.exp(-8*dt);vel.z*=Math.exp(-8*dt);}
  const il=Math.min(1,Math.hypot(ix,iz));
@@ -1287,8 +1276,17 @@ function update(dt){
  // camera-relative movement
  const fwd=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw)),right=new THREE.Vector3(-fwd.z,0,fwd.x);
  const wish=new THREE.Vector3().addScaledVector(right,ix).addScaledVector(fwd,-iz);if(wish.lengthSq()>1)wish.normalize();
- if(st.wall&&st.board&&tap('KeyB')){st.wall=null;onGround=false;st.board=false;board.visible=false;toast('Bail (B) — board released');}
- if(tap('KeyB')&&onGround&&!st.swing){st.board=!st.board;board.visible=st.board;toast(st.board?'Board down — four wheels':'Board up');if(st.board)plog('discoveries','Skating on the four-wheel board');}
+ const bPressed=tap('KeyB');
+ if(st.wall&&st.board&&bPressed){st.wall=null;onGround=false;st.board=false;board.visible=false;if(GAL_FORGE_ENABLED&&forgeController?.dissolve())st.gal=Math.min(1,st.gal+FORGE_REFUND);toast('Bail (B) · board released');}
+ else if(bPressed&&onGround&&!st.swing){
+  if(st.board){st.board=false;board.visible=false;if(GAL_FORGE_ENABLED&&forgeController?.dissolve())st.gal=Math.min(1,st.gal+FORGE_REFUND);toast(GAL_FORGE_ENABLED?'GALAXY GALLIUM · BOARD DISSOLVING':'Board up');}
+  else if(GAL_FORGE_ENABLED){
+   const sourceFloor=floorAt(pp);
+   if(forgeController?.begin({grounded:onGround&&!st.flying&&!st.wall,hasMaterial:Number.isFinite(sourceFloor),gallium:st.gal},pp,sourceFloor)){
+    st.gal=Math.max(0,st.gal-FORGE_COST);vel.x=vel.z=0;toast('GALAXY GALLIUM · FORGING FOUR WHEELS');setViolet(.75);
+   }else toast('Forge unavailable: '+(forgeController?.state.error||'unknown'));
+  }else{st.board=true;board.visible=true;toast('Board down — four wheels');plog('discoveries','Skating on the four-wheel board');}
+ }
  // grapple [S1]: tap to attach nearest anchor in front; tendril costs Gallium only while out, refunds on release
  if(tap('KeyQ')){if(st.swing)releaseSwing('tap');else startSwing(pp);}
  // flight: Merkaba propulsion, limited only by orientation to gravity point [decision #3]. No charge meter.
@@ -1344,7 +1342,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   const up=_bu.set(0,1,0).applyQuaternion(board.quaternion);const fl=P.footL;
   if(fl){P.o.updateMatrixWorld(true);fl.getWorldPosition(_bf);const rel=_bf.sub(pp);const along=rel.dot(up);rel.addScaledVector(up,-along);rel.multiplyScalar(.5);board.position.copy(pp).add(rel);}else board.position.copy(pp);
   st.boardGap=fl?fl.getWorldPosition(_bf).distanceTo(board.position):0;}}
- if(!st.board)boardOnBack();
+ if(!st.board)board.visible=false; // Walking/swinging never displays the board
  // Model-space aerial turn (visual only); original physics and true X/Y/Z are unchanged.
  if(v3SpinTime>0){
   if(onGround)v3SpinTime=0;
@@ -1620,13 +1618,14 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
    missionAsset('assets/models/metal/metal_skateboard_4wheel_PLACEHOLDER.glb','board',true)
   ]);
   P=makeMetal();scene.add(P.o);initMorrow();P.o.position.copy(SPOTS.home.c).add(new THREE.Vector3(0,groundY,8));camPos.copy(P.o.position).add(new THREE.Vector3(0,4,8));
-  board=new THREE.Group();board.add(boardGLTF.scene);boardGLTF.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;if(/Wheel/i.test(m.material.name)){m.material.color=new THREE.Color(0xC9A979);if(m.material.emissive)m.material.emissiveIntensity=0;m.material.map=null;m.material.needsUpdate=true;}}});board.visible=false;board.scale.setScalar(BOARD_S);scene.add(board,tether,merkaba);galLimb=makeGalliumLimb(scene);P.handBone=P.o.getObjectByName('DEF-handR')||P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearmR');/* three.js strips '.' from node names */
+  board=new THREE.Group();board.add(boardGLTF.scene);boardGLTF.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;if(/Wheel/i.test(m.material.name)){m.material.color=new THREE.Color(0xC9A979);if(m.material.emissive)m.material.emissiveIntensity=0;m.material.map=null;m.material.needsUpdate=true;}}});board.visible=false;board.scale.setScalar(BOARD_S);scene.add(board,tether,merkaba);galLimb=makeGalliumLimb(scene);
+  forgeController=new MetalForgeController({character:P.o,board,scene,onPhase:phase=>{if(phase==='EXTRACTION'||phase==='GATHERING'){if(P?.acts.Charge)play(P,'Charge',true,.12);}else if(phase==='MOUNTING'){if(P?.acts.Interact)play(P,'Interact',true,.12);}}});P.handBone=P.o.getObjectByName('DEF-handR')||P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearmR');/* three.js strips '.' from node names */
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
   boot.ready();
   if(boot.getStatus().warnings.length)toast('Mission running with '+boot.getStatus().warnings.length+' art fallbacks · PROPOSAL');
-  window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
+  window.__game={galLimb:()=>galLimb,forge:()=>forgeController,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
   window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.metalControllerV3=metalPadV3;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;window.__game.bootReport=()=>boot.getStatus();initMetalStory();
   if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(0);
  }catch(e){boot.failed(e);window.__errors.push(String(e));}})();
