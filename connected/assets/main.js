@@ -827,13 +827,6 @@ function boardOnBack(){if(!board)return;if(!P.p6){board.visible=false;return;}co
 const clock=new THREE.Clock();let camPos=new THREE.Vector3();
 // Morrow prototype encounter: visual pursuit and timed ReFramer counter.
 // PUBLISH HOLD: training encounter only; no story canon or police behavior implied.
-const morrow=createEncounter();let morrowClock=0,morrowStatus='';
-const morrowMeshes=[];
-function initMorrow(){
- const home=SPOTS.home.c;const mk=(color,x,z,h=1.7)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(.85,h,.85),new THREE.MeshStandardMaterial({color,metalness:.55,roughness:.38}));o.position.set(home.x+x,groundY+h/2,home.z+z);scene.add(o);morrowMeshes.push(o);return o;};
- morrow.slottaMesh=mk(0xd65d36,10,3);morrow.reframerMesh=mk(0x546b81,17,3,3.1);morrow.constructMesh=mk(0x858a99,14,3,2.4);
- morrow.reframerMesh.visible=false;morrow.constructMesh.visible=false;
- const panel=document.createElement('div');panel.id='morrowMission';panel.style.cssText='position:fixed;left:12px;bottom:92px;z-index:12;max-width:300px;padding:10px 12px;background:#10141de6;color:#f1f2ff;border:1px solid #a978f0;border-radius:10px;font:12px system-ui;pointer-events:none';document.body.append(panel);morrow.panel=panel;
 const physicsTelemetry=new PhysicsTelemetry();let physicsTime=0;
 // Morrow prototype encounter: visual pursuit and timed ReFramer counter.
 // PUBLISH HOLD: training encounter only; no story canon or police behavior implied.
@@ -1178,12 +1171,6 @@ function updateMorrow(dt){if(!morrow.slottaMesh)return;
  else if(tap('KeyV'))action='brace';
  const old=morrow.events.length;stepEncounter(morrow,action,dt);
  if(morrow.events.length!==old&&action!=='wait')toast(morrow.events[morrow.events.length-1]);
- if(!morrow.slotta.captured&&!morrow.slotta.escaped){const away=sm.position.clone().sub(p).setY(0);if(away.lengthSq()<100&&away.lengthSq()>.01)sm.position.addScaledVector(away.normalize(),dt*2.6);}
- sm.visible=!morrow.slotta.captured&&!morrow.slotta.escaped;
- rm.visible=morrow.reframer.active;cm.visible=rm.visible&&morrow.reframer.construct>.05;
- cm.scale.y=Math.max(.08,morrow.reframer.construct);cm.material.emissive.setHex(morrow.reframer.windup>.55&&morrow.reframer.windup<.85?0xa34c24:0x000000);
- morrowClock+=dt;if(morrowClock>.15){morrowClock=0;morrow.panel.textContent='MORROW / PROTOTYPE · SLOTTA '+(morrow.slotta.captured?'CAUGHT':morrow.slotta.escaped?'ESCAPED':distance.toFixed(1)+'m')+' · R tether · T anchor · G timed construct break · V brace | ReFramer '+(morrow.reframer.active?'ACTIVE':'incoming')+' · '+Math.round(morrow.reframer.construct*100)+'% structure';}
-}
  if(!slottaCombat.defeated&&!morrow.slotta.captured&&!morrow.slotta.escaped){const away=sm.position.clone().sub(p).setY(0);if(away.lengthSq()<100&&away.lengthSq()>.01){sm.position.addScaledVector(away.normalize(),dt*2.6);const actor=factionActors.find(a=>a.root===sm);if(actor)actor.home.copy(sm.position);}}
  sm.visible=!slottaCombat.defeated&&!morrow.slotta.captured&&!morrow.slotta.escaped;
  rm.visible=morrow.reframer.active;cm.visible=rm.visible&&morrow.reframer.construct>.05;
@@ -1207,16 +1194,8 @@ function tickCitySystems(dt){if(!P)return;const p=P.o.position;
 }
 let worldGripWarned=false,worldGripRetry=0,worldSwingLatch=false,worldGrabLatch=false,worldThrowLatch=false,worldGripActive=false,gripAxisX=0,gripAxisY=0;
 function update(dt){
- updateMorrow(dt);
  st.grinding=false;
- // Keep body state time-based, independent of the existing movement solver.
- bodyMachine.step(dt,0);
- // Keep proxy impact state anchored to the actual player, never integrate a second root.
- bodyMachine.position.x=P.o.position.x;bodyMachine.position.z=P.o.position.z;
- bodyMachine.position.y=Math.max(0,P.o.position.y-floorAt(P.o.position));
- if(FG.inFight&&!st.board&&pressed.KeyB){pressed.KeyB=false;FG.wantDodge=true;}
- const pad=pollPad();let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
- if(bodyMachine.mode==='fallen'&&(pressed.Space||pressed.KeyE)){bodyMachine.recover();pressed.Space=false;pressed.KeyE=false;}
+ // Single external-root physics step. The actual movement solver owns Metal's position.
  bodyMachine.step(dt,0,true);
  bodyMachine.position.x=P.o.position.x;bodyMachine.position.z=P.o.position.z;
  bodyMachine.position.y=Math.max(0,P.o.position.y-floorAt(P.o.position));
@@ -1545,8 +1524,6 @@ function installSlottaBrowserQA(){
     gameReady:!!window.__ready,time:new Date().toISOString()};}};
 }
 
-(async()=>{const msg=t=>$('loadmsg').textContent=t;
- try{await buildWorld(msg);msg('Characters (Quaternius CC0)…');robotGLTF=await loadG('assets/models/RobotExpressive.glb');msg('Sparring rival…');rivalGLTF=await loadG('assets/models/rival_sparring_hero.glb').catch(()=>null);crewFemGLTF=await loadG('assets/models/crew_female.glb').catch(()=>null);msg('3D Metal…');metalGLTF=await loadG('assets/models/metal/metal_phase6_fight.glb');boardGLTF=await loadG('assets/models/metal/metal_skateboard_4wheel_PLACEHOLDER.glb');
 let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());if(window.__testHold){if(LITE)renderer.render(scene,camera);else composer.render();return;}try{update(fgTime(dt));window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<12){console.error(e);window.__errors.push(String(e));toast('Runtime error: '+String(e.message||e).slice(0,80));}}if(LITE)renderer.render(scene,camera);else composer.render();}
 
 (async()=>{const msg=t=>{boot.stage(t);$('loadmsg').textContent=t;};

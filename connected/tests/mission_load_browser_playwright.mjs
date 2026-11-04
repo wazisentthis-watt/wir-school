@@ -18,8 +18,11 @@ await context.addInitScript(({checkpoint,profile})=>{
  localStorage.setItem('wir_valence_profile_v1',profile);
 },{checkpoint,profile});
 async function awaitMission(page){
- await page.waitForFunction(()=>window.__ready===true&&!!window.__game?.P?.o,
-  null,{timeout:150000});
+ await page.waitForFunction(()=>window.__ready===true&&!!window.__game?.P?.o
+  || !!window.__bootRecovery?.getStatus?.().error,null,{timeout:55000});
+ const status=await page.evaluate(()=>window.__bootRecovery?.getStatus?.());
+ if(status?.error)throw Error('Game boot failed at '+status.phase+': '+status.error+
+  '\\nSee browser page errors and screenshot in CI evidence.');
  return page.evaluate(()=>({
   ready:window.__ready,
   mission:window.__game?.metalStoryChapter?.()?.title,
@@ -31,10 +34,31 @@ async function awaitMission(page){
   fallbackMetal:window.__game?.P?.model?.userData?.missionFallback||null
  }));
 }
-let current=null;
+let current=null;const pageErrors=[],failedResponses=[],chromeExceptions=[],consoleErrors=[];
+const observe=async page=>{
+ await page.addInitScript(()=>{
+  window.__earlyGameErrors=[];
+  window.addEventListener('error',e=>{
+   window.__earlyGameErrors.push({message:e.message,url:e.filename,line:e.lineno,column:e.colno,
+    stack:String(e.error?.stack||'')});
+  },true);
+ });
+ const cdp=await page.context().newCDPSession(page);
+ await cdp.send('Runtime.enable');
+ cdp.on('Runtime.exceptionThrown',event=>{
+  const e=event.exceptionDetails;
+  chromeExceptions.push({text:e.text,url:e.url,line:e.lineNumber,column:e.columnNumber,
+   details:e.exception?.description,frames:e.stackTrace?.callFrames?.slice(0,3).map(x=>({url:x.url,line:x.lineNumber}))});
+ });
+ page.on('console',msg=>{if(msg.type()==='error')
+  consoleErrors.push({text:msg.text().slice(0,350),location:msg.location()});});
+ page.on('pageerror',error=>pageErrors.push(String(error.stack||error.message||error)));
+ page.on('response',response=>{if(response.status()>=400&&response.url().includes('/connected/'))
+  failedResponses.push({url:response.url(),status:response.status()});});
+};
 try{
  // Baseline route: full first mission, existing world and original asset paths.
- current=await context.newPage();
+ current=await context.newPage();await observe(current);
  const normalErrors=[];current.on('pageerror',e=>normalErrors.push(e.message));
  await current.goto(base+'/connected/?lite=1',{waitUntil:'domcontentloaded'});
  const normal=await awaitMission(current);
@@ -47,7 +71,7 @@ try{
 
  // Fault injection: deliberate 404 on important model dependencies, plus
  // a city building and car. The fallback must be visible and traceable.
- current=await context.newPage();
+ current=await context.newPage();await observe(current);
  const missing=['RobotExpressive.glb','metal_phase6_fight.glb',
   'metal_skateboard_4wheel_PLACEHOLDER.glb','building-a.glb','taxi.glb'];
  const aborted=[];
@@ -73,7 +97,7 @@ try{
 
  // Fatal module outage: independent classic boot script offers retry and Lite
  // before any main.js code can execute. Retry must keep existing save bytes.
- current=await context.newPage();
+ current=await context.newPage();await observe(current);
  let failOnce=true;
  await current.route('**/connected/assets/main.js',route=>{
   if(failOnce){failOnce=false;return route.abort('failed');}
@@ -99,8 +123,14 @@ try{
  for(const item of outcomes)console.log('PASS METAL MISSION',item.scenario,JSON.stringify(item));
 }catch(e){
  writeFileSync('test-results/metal_mission_recovery.json',
-  JSON.stringify({passed:outcomes.length,total:3,outcomes,error:String(e.stack||e)},null,2));
+  JSON.stringify({passed:outcomes.length,total:3,outcomes,error:String(e.stack||e),pageErrors,failedResponses,chromeExceptions,consoleErrors},null,2));
  console.error('METAL MISSION RECOVERY FAILED',e.stack||e);
+ console.error('BROWSER MODULE ERRORS',JSON.stringify(pageErrors));
+ console.error('CHROME RUNTIME EXCEPTIONS',JSON.stringify(chromeExceptions));
+ console.error('CHROME CONSOLE ERRORS',JSON.stringify(consoleErrors));
+ if(current){try{console.error('WINDOW EARLY ERRORS',JSON.stringify(
+  await current.evaluate(()=>window.__earlyGameErrors||[])));}catch{}}
+ console.error('BROWSER FAILED RESPONSES',JSON.stringify(failedResponses));
  if(current){try{await current.screenshot({path:'test-results/metal_mission_failure.png',fullPage:true});}catch{}}
  process.exitCode=1;
 }finally{await browser.close();}
