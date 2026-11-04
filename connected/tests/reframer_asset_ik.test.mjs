@@ -37,7 +37,7 @@ test('uploaded animation samples have real nontrivial unit-quaternion changes',(
  }
 });
 test('real IK solver is called on proxy chain, not target skeleton or its skin indices',()=>{
- assert.ok(code.includes('new CCDIKSolver({skeleton:{bones}},'));
+ assert.ok(code.includes('new CCDIKSolver({skeleton:{bones:[target,c,b,a]}}'));
  assert.ok(code.includes('root.add(anchor,target)'));
  assert.ok(code.includes('applyIK(chain,goal,.2)'));
  assert.ok(!code.includes('this.duel.enemy.model.skeleton.bones.push'));
