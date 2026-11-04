@@ -32,3 +32,16 @@ test('only one mission boot exists and recovery-aware loading stays authoritativ
   'Obsolete direct loader bypasses mission fallback and boot status');
  assert.match(source,/robotGLTF=await missionAsset\('assets\/models\/RobotExpressive\.glb'/);
 });
+
+test('Morrow story state is top-level and single-owned',()=>{
+ const count=pattern=>(source.match(pattern)||[]).length;
+ assert.equal(count(/const morrow=createEncounter\(\)/g),1,'single Morrow encounter');
+ assert.equal(count(/const morrowMeshes=\[\];/g),1,'single Morrow rendering ownership');
+ assert.equal(count(/function initMorrow\(\)/g),1,'single Morrow initializer');
+ assert.equal(count(/function updateMorrow\(dt\)/g),1,'single Morrow frame update');
+ assert.ok(source.indexOf('const physicsTelemetry=new PhysicsTelemetry()') <
+  source.indexOf('function initMorrow(){'),
+  'an orphaned legacy initMorrow wrapper may conceal all newer scene state');
+ assert.ok(source.indexOf('const morrow=createEncounter()') <
+  source.indexOf('(async()=>{const msg='),'Morrow must exist before mission boot');
+});
