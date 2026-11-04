@@ -40,6 +40,8 @@ import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 const $=id=>document.getElementById(id);
 const VIOLET=0x9b5cff, GUN=0x4a4f57;
 const LITE=new URLSearchParams(location.search).get('lite')==='1';
+// Test Yard is an optional source-only sidecar. Missing declaration in main caused a boot-time ReferenceError.
+const TEST_YARD_SKATE=new URLSearchParams(location.search).get('skate_yard')==='1';
 // Opt-in, isolated browser QA only. Normal gameplay never exposes this interface.
 const SLOTTA_BROWSER_QA=new URLSearchParams(location.search).get('slotta_qa')==='1';
 // Explicit opt-in training arena; inactive normal Savannah remains fully unchanged.
