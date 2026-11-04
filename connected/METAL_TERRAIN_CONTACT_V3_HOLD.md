@@ -25,4 +25,11 @@ QA-only `metal_terrain_qa=1` exposes a read-only ramp manifest to the automated 
 - Inspect visually for right-toe clipping, left prosthetic heel alignment, upside-down normals, snapped hips at ramp lips, opponent interpenetration, Ballast landing/get-up, and moving charges.
 - Preserve the three story missions, all saved checkpoints, original rigs and PUBLISH HOLD until explicit owner approval.
 
-Source: `metal_terrain_contact.mjs` + `metal_paired_contact.mjs`, guarded integrations in `main.js`, 37 targeted deterministic source tests and browser integration checks. This is a technically scoped, reversible milestone. No release, publishing, merge, asset overwrite, or new canonical animation declared.
+Source: `metal_terrain_contact.mjs` + `metal_paired_contact.mjs`, guarded integrations in `main.js`, 38 new targeted deterministic source tests (88 total with preceding movement tests) and browser integration checks. This is a technically scoped, reversible milestone. No release, publishing, merge, asset overwrite, or new canonical animation declared.
+
+## Verified browser evidence (November 4, 2026)
+- Exact v3 game-branch Chrome test passed: four original ramp meshes discovered; first kicker normal `(0, 0.95024, -0.31152)`; board-up matched that normal; support height `1.18985` world units; one R2 impulse; original Phase 6 leg bones present.
+- Ballast followed **two** original S1 hand bones during wind-up, released into `ragdoll-proxy` exactly once; the original story version-1 save and legacy Lite boot remained intact.
+- 88/88 unit tests passed; entire scoped browser choreography gate passed; previous first-mission, physics, SLOTTA and hosted-startup workflows passed.
+- GitHub Actions evidence: https://github.com/wazisentthis-watt/wir-school/actions/runs/41831315500/artifacts/13321294911
+- Original rig materials, animation *visual pixel fidelity*, terrain on other ramps, actual mobile GPU performance, and a physical Bluetooth controller still require hands-on QA.
