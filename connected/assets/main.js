@@ -6,6 +6,7 @@ import {createCombatBody,applyCombatHit,stepCombatBody,blastDirection} from './m
 // Sources: [S1] Metal InDa RIFFT, [S3] Valence Life, [S4] Retro Bowl, [S5] Stay On Page, attunement packet.
 // Anything not stated in those sources is labelled PROPOSAL. Code is original; libs MIT, assets CC0.
 import * as THREE from 'three';
+import {gamepadV3Enabled,createConnectedControllerV3,installConnectedControllerPanel} from './controller_v3_bridge.mjs';
 import {STORY_ENEMIES} from './story_enemies.js';
 import {createEncounter,stepEncounter} from './morrow_encounters.js';
 import {createSlottaLoadout,tickSlotta,swapSlot,SLOTTA_GAMES} from './slotta_slots.js';
@@ -275,6 +276,13 @@ async function spawnLife(){const tints=[0xd9a066,0x5ea1d6,0xc85a5a,0x7bc47f,0xe0
 
 // ---------- input: keyboard, touch, gamepad (one scheme for the whole world) ----------
 const keys={},pressed={};
+// Isolated opt-in only: no changes to legacy inputs, mission loading, saves, or defaults.
+const OPTIN_CONTROLLER_V3=gamepadV3Enabled(location.search);
+const controllerV3=OPTIN_CONTROLLER_V3?createConnectedControllerV3({storage:safeStorage}):null;
+const controllerV3Panel=controllerV3?installConnectedControllerPanel(controllerV3):null;
+if(controllerV3)window.__controllerV3={status:()=>controllerV3.status(),
+ configure:update=>controllerV3.configure(update),reset:()=>controllerV3.reset(),
+ startLearning:action=>controllerV3.startLearning(action)};
 addEventListener('keydown',e=>{if(/^F[1-4]$/.test(e.code))e.preventDefault();if(!keys[e.code])pressed[e.code]=true;keys[e.code]=true;if(e.code.startsWith('Numpad')||e.code==='Space')e.preventDefault();});
 addEventListener('keyup',e=>keys[e.code]=false);
 let drag=null;renderer.domElement.addEventListener('pointerdown',e=>{if(e.button===2){pressed.KeyQ=true;return;}drag={x:e.clientX,y:e.clientY,id:e.pointerId};});
@@ -294,7 +302,14 @@ function showControllerLegend(){
  controllerLegend.style.display=controllerLegend.style.display==='none'?'block':'none';
 }
 const padMap={0:'Space',1:'KeyB',2:'Numpad4',3:'Numpad6',4:'KeyQ',5:'KeyF',6:'Numpad2',7:'Numpad5',8:'KeyM',9:'KeyP',12:'KeyE',13:'KeyX',14:'Numpad1',15:'Numpad3'};const padPrev={};
-function pollPad(){const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;if(!gp)return null;
+function pollPad(dt=1/60){const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
+ if(controllerV3){
+  const frame=controllerV3.poll(gp,dt,{keys,pressed,lookEnabled:!worldGripActive,
+   applyCamera:(x,y,step)=>{const k=Math.min(2,Math.max(.25,step*60));
+    camYaw-=x*.04*k;camPitch=THREE.MathUtils.clamp(camPitch+y*.03*k,-.1,1.1);}});
+  controllerV3Panel?.refresh(performance.now());return frame;
+ }
+ if(!gp)return null;
  for(const [i,k] of Object.entries(padMap)){const chord=(i==='4'||i==='5'||i==='6'||i==='7');const v=!!(!chord&&gp.buttons[i]&&gp.buttons[i].pressed);if(v&&!padPrev[i])pressed[k]=true;if(v)keys[k]=true;else if(padPrev[i])keys[k]=false;padPrev[i]=v;}
  const dz=v=>Math.abs(v)<.15?0:v;if(gp.axes.length>=4&&!worldGripActive){camYaw-=dz(gp.axes[2])*.04;camPitch=THREE.MathUtils.clamp(camPitch+dz(gp.axes[3])*.03,-.1,1.1);}return {x:dz(gp.axes[0]),y:dz(gp.axes[1])};}
 const tap=c=>{const v=pressed[c];pressed[c]=false;return v;};
@@ -1201,7 +1216,7 @@ function update(dt){
  bodyMachine.position.x=P.o.position.x;bodyMachine.position.z=P.o.position.z;
  bodyMachine.position.y=Math.max(0,P.o.position.y-floorAt(P.o.position));
  if(FG.inFight&&!st.board&&pressed.KeyB){pressed.KeyB=false;FG.wantDodge=true;}
- const pad=pollPad();
+ const pad=pollPad(dt);
  if(pad&&!controllerSeen){controllerSeen=true;/* guide available on H, not forced over gameplay */}
  tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);updateMetalBlasts(dt);updateGalliumPhysics(dt);updateSlottaBoss(dt);updateMetalStory(dt);
  // Controller contract: LB grabs, RB swings, LT charges, RT RIFFT Steps; LB+RT throws a held car.
