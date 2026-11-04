@@ -34,12 +34,20 @@ try{
    assert.equal(startup.adapter,c.enabled,'Unexpected Test Yard flag state');
    assert.equal(startup.tools,c.enabled?3:0,'Touch tools unexpected');
    if(c.enabled){
+    // On this build B FORGES a real four-wheel board over ~3.3 seconds.
+    // Do not mistake a two-frame tick for a completed board equip.
+    await page.evaluate(()=>{
+      const g=window.__game;
+      g.P.o.position.set(175,.25,175); // QA only: clear road from existing test harness
+      if(!g.st.board)g.pressed.KeyB=true;
+    });
+    await page.waitForFunction(()=>window.__game?.st.board===true
+      ||!!window.__bootRecovery?.getStatus?.().error,null,{timeout:26000});
     const effect=await page.evaluate(()=>{
      const g=window.__game;if(!g)return {error:'No game debug'};
      localStorage.setItem('testyard-qa-sentinel','unchanged');
      const original={gal:g.st.gal,charge:g.st.charge,root:g.st.root,board:g.st.board};
-     if(!g.st.board){g.pressed.KeyB=true;g.stepForTest(2,1/60);}
-     const boardReady=!!g.st.board;
+     const boardReady=!!g.st.board; // completed real Galaxy Gallium forge, no QA force-equip
      let trickStarted=false;
      if(boardReady&&g.ground()){
       g.pressed.BracketLeft=true;g.stepForTest(9,1/60);
