@@ -1372,7 +1372,7 @@ function update(dt){
   // Classic X/Y have no foot-combat effect while riding; opt-in board-only mapping.
   const yardEligible=!!(yard&&st.board&&!st.wall&&!st.swing&&!st.flying&&sk.bailT<=0&&bodyMachine.mode!=='fallen'&&bodyMachine.mode!=='recovering');
   const yardFlipPulse=yardEligible?(tap('BracketLeft')||tap('Numpad4')):false;
-  const yardDir=yard?trickDirection(ix,-iz):'N';
+  const yardDir=yard?trickDirection(ix,iz):'N'; // W/forward = nose, S/back = tail
   const yardGrabHeld=!!(yardEligible&&(keys.BracketRight||keys.Numpad6));
   if(yardFlipPulse)yard.queueFlip(yardDir);
  if(st.wall&&st.board&&bPressed){st.wall=null;onGround=false;st.board=false;board.visible=false;if(GAL_FORGE_ENABLED&&forgeController?.dissolve())st.gal=Math.min(1,st.gal+FORGE_REFUND);toast('Bail (B) · board released');}
