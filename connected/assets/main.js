@@ -1,4 +1,5 @@
 import {createCharge,stepCharge} from './merkabah_charge.js';
+import {createSavannahMetalController,shouldGripWorld} from './metal_skylab_v3_bridge.mjs';
 import {loadMissionAsset,createMissionFallback,MISSION_ASSET_TIMEOUTS} from './mission_asset_recovery.js';
 import {readMetalCheckpoint,writeMetalCheckpoint,advanceMetalStory,metalStoryChapter} from './metal_story_engine.js';
 import {createCombatBody,applyCombatHit,stepCombatBody,blastDirection} from './metal_combat_physics.js';
@@ -314,7 +315,8 @@ function pollPad(dt=1/60){const gp=navigator.getGamepads?[...navigator.getGamepa
  }
  if(!gp)return null;
  for(const [i,k] of Object.entries(padMap)){const chord=(i==='4'||i==='5'||i==='6'||i==='7');const v=!!(!chord&&gp.buttons[i]&&gp.buttons[i].pressed);if(v&&!padPrev[i])pressed[k]=true;if(v)keys[k]=true;else if(padPrev[i])keys[k]=false;padPrev[i]=v;}
- const dz=v=>Math.abs(v)<.15?0:v;if(gp.axes.length>=4&&!worldGripActive){camYaw-=dz(gp.axes[2])*.04;camPitch=THREE.MathUtils.clamp(camPitch+dz(gp.axes[3])*.03,-.1,1.1);}return {x:dz(gp.axes[0]),y:dz(gp.axes[1])};}
+ const dz=v=>Math.abs(v)<.15?0:v;if(gp.axes.length>=4&&!worldGripActive){camYaw-=dz(gp.axes[2])*.04;camPitch=THREE.MathUtils.clamp(camPitch+dz(gp.axes[3])*.03,-.1,1.1);}return {x:dz(gp.axes[0]),y:dz(gp.axes[1])};
+}
 const tap=c=>{const v=pressed[c];pressed[c]=false;return v;};
 const ALT={KeyU:'Numpad7',KeyI:'Numpad8',KeyY:'Numpad9',KeyJ:'Numpad4',KeyK:'Numpad5',KeyL:'Numpad6',KeyM_:'Numpad1',Comma:'Numpad2',Period:'Numpad3'}; // laptop fallback [S5]
 
@@ -1299,6 +1301,8 @@ function tickCitySystems(dt){if(!P)return;const p=P.o.position;
 }
 let worldGripWarned=false,worldGripRetry=0,worldSwingLatch=false,worldGrabLatch=false,worldThrowLatch=false,worldGripActive=false,gripAxisX=0,gripAxisY=0;
 function update(dt){
+ // Poll the Menu hold while paused; never suspend the browser loop or mission loader.
+ if(metalPadV3.paused){pollPad(dt);return;}
  st.grinding=false;
  // Single external-root physics step. The actual movement solver owns Metal's position.
  bodyMachine.step(dt,0,true);
@@ -1309,7 +1313,7 @@ function update(dt){
  if(pad&&!controllerSeen){controllerSeen=true;/* guide available on H, not forced over gameplay */}
  tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);updateMetalBlasts(dt);updateGalliumPhysics(dt);updateSlottaBoss(dt);updateMetalStory(dt);
  // Controller contract: LB grabs, RB swings, LT charges, RT RIFFT Steps; LB+RT throws a held car.
- const gpWorld=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
+ const gpWorld=metalPadV3.mode==='skylab'?null:(navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null);
  const lt=!!(gpWorld?.buttons[6]?.pressed||gpWorld?.buttons[6]?.value>.35||gpWorld?.axes?.[4]>.35),lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!(gpWorld?.buttons[7]?.pressed||gpWorld?.buttons[7]?.value>.35);
  updateCrownCharge(dt,gpWorld);const gripDown=lb||!!keys.KeyU;worldGripActive=gripDown;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
  if(METAL_FULL){
@@ -1362,7 +1366,7 @@ function update(dt){
 if(st.wall){wallRide(dt,wish,pp);}else{
  const SK={cruise:8.5,boost:16,acc:5,coast:.15,grav:17.5,ollie:6.8}; // v7 parity port (html_v7_parity.json: CRUISE_MAX 340px*.025, GRAV 700px*.025, coast 8.42->6.26 m/s in 2 s, ollie peak 1.31 m / air .775 s)
  let maxS=st.board?(run?SK.boost:SK.cruise):(run?7:3.2);if(st.form===2)maxS*=1.05; // form stats placeholder
- if(st.flying){const up=(keys.Space?1:0)-(keys.KeyC&&!keys.KeyZ?0:0);const turn=Math.abs(wish.clone().normalize().dot(new THREE.Vector3(vel.x,0,vel.z).normalize()||0));
+ if(st.flying){const up=((keys.Space||(metalPadV3.mode==='skylab'&&v3PrevFlight))?1:0)-(keys.KeyC&&!keys.KeyZ?0:0);const turn=Math.abs(wish.clone().normalize().dot(new THREE.Vector3(vel.x,0,vel.z).normalize()||0));
   vel.lerp(wish.clone().multiplyScalar(20).setY(up*8-(keys.ControlLeft?8:0)),dt*1.6);
   // sharp direction changes destabilise orientation; steady flight restores it
   const sharp=wish.lengthSq()>.1&&new THREE.Vector3(vel.x,0,vel.z).length()>5&&turn<.3;st.ori=THREE.MathUtils.clamp(st.ori+(sharp?-.5:.12)*dt,0,1);
@@ -1409,6 +1413,21 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   if(fl){P.o.updateMatrixWorld(true);fl.getWorldPosition(_bf);const rel=_bf.sub(pp);const along=rel.dot(up);rel.addScaledVector(up,-along);rel.multiplyScalar(.5);board.position.copy(pp).add(rel);}else board.position.copy(pp);
   st.boardGap=fl?fl.getWorldPosition(_bf).distanceTo(board.position):0;}}
  if(!st.board)boardOnBack();
+ // Model-space aerial turn (visual only); original physics and true X/Y/Z are unchanged.
+ if(v3SpinTime>0){
+  if(onGround)v3SpinTime=0;
+  else{
+   v3SpinTime=Math.max(0,v3SpinTime-dt);
+   const a=(1-v3SpinTime/.75)*Math.PI*2;
+   P.o.rotateY(a);
+   if(st.board&&st.boardFree<=0)board.rotateY(a);
+  }
+ }
+ // Independent board trick; the existing 4-wheel board never becomes a hoverboard.
+ if(v3KickflipTime>0){
+  v3KickflipTime=Math.max(0,v3KickflipTime-dt);
+  if(st.board&&!onGround){const a=(1-v3KickflipTime/.75)*Math.PI*2;board.rotateZ(a);}
+ }
  // violet decays (only on active moves)
  for(const mt of seamMats)mt.emissiveIntensity=Math.max(0,mt.emissiveIntensity-dt*3);
  if(galLimb){const hb=P.handBone;if(hb){hb.updateMatrixWorld(true);hb.getWorldPosition(_hand);}else _hand.copy(P.o.position).setY(P.o.position.y+1.2);galLimb.tick(dt,{swing:st.swing,grip:worldGripActive&&gripTarget?gripTarget:null,hand:_hand,model:P.model,st,groundY,playerPos:P.o.position});} // PROPOSAL Gallium limb visuals

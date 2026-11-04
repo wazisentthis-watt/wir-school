@@ -40,10 +40,13 @@ input[type=file]{width:100%;max-width:100%;background:#1a1830}select{width:100%;
 <p class="muted">Each slot must bind to a distinct bone used by a skinned mesh. Auto suggestions are only naming hints. Review anatomy before accepting.</p>
 <div id="limbMap"></div>
 <button id="bind" disabled type="button">Validate 8 actual bone bindings</button>
-<h2>4 · Try a motion event</h2>
-<div class="actions"><button id="lash" disabled type="button">Tentacle Lash</button><button id="tether" disabled type="button">Galaxy Tether</button></div>
+<h2>4 · Original animation events</h2>
+<p id="authenticStatus" class="notice" role="status">Full six-move animation playback requires the exact original Gorillium SHA-256 and its 31 clips / 70 skinned joints. Metal S1 is only a compatibility fixture.</p>
+<div class="actions"><button id="lash" disabled type="button">Tentacle Lash</button><button id="tether" disabled type="button">Galaxy Tether</button>
+<button id="shield" disabled type="button">Octo-Shield</button><button id="barrage" disabled type="button">Crystal Barrage</button>
+<button id="slam" disabled type="button">Pressure Slam</button><button id="cataclysm" disabled type="button">Cataclysm</button></div>
 <p class="muted" id="counter">Charge: n/a | Free limbs: n/a</p>
-<p class="muted">These buttons animate mapped model bones, not successful combat hits. Collision, gameplay and canonical animation retargeting remain separate milestones.</p>
+<p class="muted">Verified original GLB: plays embedded real animation clips. Other GLBs: Lash/Tether are labeled compatibility pose tests only. No enemy damage, automatic body synthesis, or live game integration.</p>
 </aside></div>
 <script type="module" src="./preview.js"></script>
 </body></html>
