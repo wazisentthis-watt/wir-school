@@ -1,0 +1,58 @@
+name: Gorillium original-rig preview QA
+on:
+  push:
+    paths:
+      - 'connected/gorillium-lab/**'
+      - 'connected/assets/gorillium_ability_core.js'
+      - 'connected/tests/gorillium_*.mjs'
+      - '.github/workflows/gorillium-rig-preview.yml'
+  pull_request:
+    paths:
+      - 'connected/gorillium-lab/**'
+      - 'connected/assets/gorillium_ability_core.js'
+      - 'connected/tests/gorillium_*.mjs'
+      - '.github/workflows/gorillium-rig-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-rig-inspection:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate original binary intake and standalone eight-limb core
+        run: |
+          mkdir -p test-results
+          node --check connected/gorillium-lab/glb_intake.mjs
+          node --check connected/gorillium-lab/preview.js
+          node --check connected/gorillium-lab/gorillium_animation_contract.mjs
+          node --test connected/tests/gorillium_ability_core.test.mjs connected/tests/gorillium_glb_intake.test.mjs connected/tests/gorillium_animation_contract.test.mjs
+      - name: Inspect actual existing Metal GLB sources (NOT Gorillium)
+        run: |
+          node connected/gorillium-lab/glb_intake.mjs \
+            connected/assets/models/metal/metal_phase6_fight.glb \
+            connected/assets/models/metal/forms/metal_S3_PROPOSAL.glb \
+            | tee test-results/metal-existing-rig-report.jsonl
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Start isolated preview site
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/wir-gorillium-preview.log 2>&1 &
+          sleep 2
+          curl -fI http://127.0.0.1:8765/connected/gorillium-lab/
+      - name: Verify actual skinned-bone motion without affecting saves
+        run: node connected/tests/gorillium_lab_browser_playwright.mjs
+      - name: Keep inspection evidence even on failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gorillium-real-rig-qa-proposal
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: warn

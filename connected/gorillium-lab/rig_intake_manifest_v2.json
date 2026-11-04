@@ -1,0 +1,68 @@
+{
+  "kind": "WIR_GORILLIUM_ORIGINAL_RIG_LOCAL_INTAKE",
+  "schemaVersion": 1,
+  "status": "PROPOSAL/PUBLISH_HOLD",
+  "review": "Binary validated from current-conversation user upload; no rights/canon approval implied; binary is NOT present in GitHub repo.",
+  "file": "METAL_GORILLIUM_ABILITY_SHOWCASE_v2.glb",
+  "sha256": "8495a8c5e727bf64244a1235e58fb655c4c4cae91ac46e18206e668ae154cd81",
+  "sizeBytes": 2298460,
+  "geometry": {
+    "gltfVersion": 2,
+    "nodeCount": 72,
+    "meshCount": 1,
+    "skinCount": 1,
+    "skinnedJointCount": 70
+  },
+  "animation": {
+    "clipCount": 31,
+    "totalChannels": 1162,
+    "originalClipNames": [
+      "Idle_Gallium_Breath",
+      "Silverback_Walk",
+      "Lion_Roar",
+      "Gorilla_Ground_Slam",
+      "Eight_Tentacle_Bloom",
+      "Gallium_Whip",
+      "Rage_Stance",
+      "Ability_01_Kings_Roar",
+      "Ability_02_Predator_Vision",
+      "Ability_03_Crystalline_Mane",
+      "Ability_04_Lions_Pounce",
+      "Ability_05_Sonic_Fang",
+      "Ability_06_Titan_Knuckles",
+      "Ability_07_Groundbreaker",
+      "Ability_08_Wallbreaker_Charge",
+      "Ability_09_Quadrupedal_Pursuit",
+      "Ability_10_Colossus_Grip",
+      "Ability_11_Eightfold_Assault",
+      "Ability_12_Living_Grapples",
+      "Ability_13_Octo_Shield",
+      "Ability_14_Eight_Armed_Outlaw",
+      "Ability_15_Tentacle_Locomotion",
+      "Ability_16_Distributed_Awareness",
+      "Ability_17_Liquid_Metal_Morph",
+      "Ability_18_Density_Shift",
+      "Ability_19_Gallium_Regeneration",
+      "Ability_20_Pressure_Reactor",
+      "Ability_21_Galactic_Tether",
+      "Ability_22_Crystal_Barrage",
+      "Ability_23_Primal_Overdrive",
+      "Ability_24_Galaxy_Gallium_Cataclysm"
+    ]
+  },
+  "tentacles": {
+    "chains": 8,
+    "jointsPerChain": 5,
+    "verifiedNamedSkinJointCount": 40
+  },
+  "qa": {
+    "glbBinaryHeader": true,
+    "jsonChunkDecoded": true,
+    "declaredLengthMatches": true,
+    "uniqueClipNames": true,
+    "all40TentacleBonesPresentInSkin": true,
+    "browserPixelRendering": false,
+    "liveGameIntegration": false
+  },
+  "nextGate": "Use original user-uploaded GLB via existing draft rig-preview file picker; inspect 8 true appendage chains under real animation before inserting a binary into the host game."
+}
