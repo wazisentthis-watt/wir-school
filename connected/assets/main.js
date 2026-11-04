@@ -373,7 +373,7 @@ function rampContactAt(p,maxStep=.55,maxDrop=.9){
  return METAL_FULL?pickRampSupport(terrainSurfaces,p.x,p.z,p.y,{maxStep,maxDrop,minHeight:groundY}):null;
 }
 function floorAt(p){let y=groundY;
- for(const b of colliders){if(p.x>b.min.x-.3&&p.x<b.max.x+.3&&p.z>b.min.z-.3&&b.max.y>y)y=b.max.y;}
+ for(const b of colliders){if(p.x>b.min.x-.3&&p.x<b.max.x+.3&&p.z>b.min.z-.3&&p.z<b.max.z+.3&&p.y>=b.max.y-.35&&b.max.y>y)y=b.max.y;}
  // The four rendered kicker meshes are physical support surfaces only in the opt-in test.
  const ramp=rampContactAt(p);
  if(ramp&&ramp.y>y)y=ramp.y;
