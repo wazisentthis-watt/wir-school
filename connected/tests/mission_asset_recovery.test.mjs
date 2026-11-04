@@ -44,7 +44,7 @@ test('timeouts are limited to a reasonable optional and critical startup window'
 test('recoverable startup has UI boot script before module, keeps its main asset and saves',()=>{
  const html=read('../index.html');
  assert.ok(html.indexOf('assets/boot_recovery.js')<html.indexOf('assets/main.js'));
- assert.match(html,/src="assets\/main\.js"/);
+ assert.match(html,/src="assets\/main\.js(?:\?v=[a-z0-9-]+)?"/i);
  const main=read('../assets/main.js');
  for(const text of ['missionAsset(\'assets/models/RobotExpressive.glb\'','missionAsset(\'assets/models/metal/metal_phase6_fight.glb\'',
    'missionAsset(\'assets/models/metal/metal_skateboard_4wheel_PLACEHOLDER.glb\''])
