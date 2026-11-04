@@ -28,7 +28,9 @@ export function duelAction(s,action){
   const side=Math.abs(e.z-p.z)<.5?1:-1;p.vx+=side*6;p.vz-=2;
   return {ok:true,event:emit(s,'dodge')};
  }
- if(s.cooldown>0)return {ok:false,reason:'cooldown'};
+ // A confirmed launcher can transition straight into pursuit; recovery still protects
+ // ground strikes and the finisher, and a chase cannot be restarted repeatedly.
+ if(s.cooldown>0&&action!=='pursue')return {ok:false,reason:'cooldown'};
  if(action==='light'){
   if(p.y>.75||e.y>.75)return {ok:false,reason:'ground-strikes-only'};
   s.cooldown=.23;s.comboWindow=1.2;
@@ -47,6 +49,7 @@ export function duelAction(s,action){
   return {ok:true,event:emit(s,'launch',{enemyHP:e.hp})};
  }
  if(action==='pursue'){
+  if(s.airChase>0)return {ok:false,reason:'already-pursuing'};
   if(e.y<.65)return {ok:false,reason:'launch-opponent-first'};
   if(s.energy<.1)return {ok:false,reason:'low-energy'};
   s.energy-=.1;s.cooldown=.22;s.airChase=1.9;
