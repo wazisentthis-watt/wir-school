@@ -38,3 +38,60 @@ canvas{display:block}#load{position:fixed;inset:0;display:flex;flex-direction:co
  #metalV3ControllerPanel{bottom:calc(300px + env(safe-area-inset-bottom))!important;max-height:40vh!important}
  #toast{top:24%;font-size:15px}
 }
+
+/* METAL Rooftop Duel Pilot 01. Shown only when ?aerial_duel=1 and user enters encounter. */
+#aerialDuelStart{position:fixed;z-index:100001;left:50%;bottom:22px;transform:translateX(-50%);border:1px solid #bd94ff;background:#1a102de8;color:#f2e6ff;border-radius:14px;padding:13px 18px;font:800 13px system-ui;box-shadow:0 4px 24px #0009;cursor:pointer;max-width:calc(100vw - 32px)}
+#aerialDuelStart[hidden],#aerialDuelPanel[hidden]{display:none}
+#aerialDuelPanel{position:fixed;inset:0;z-index:100000;pointer-events:none;font:600 12px system-ui;color:#f7edff;text-shadow:0 1px 2px #000}
+#aerialDuelPanel button{pointer-events:auto;cursor:pointer;border:1px solid #a88cc7;border-radius:9px;padding:9px 10px;font:750 12px system-ui;color:#fff;background:#281945ed;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.ad-head{position:absolute;top:max(8px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;border-radius:12px;padding:8px 10px;background:#100e1de9;border:1px solid #8463b6;min-width:min(90vw,420px)}
+.ad-head b{font:900 15px system-ui;letter-spacing:.04em}
+.ad-head span{font-size:10px;opacity:.8}
+.ad-bars{position:absolute;top:65px;left:50%;transform:translateX(-50%);width:min(400px,86vw);display:flex;justify-content:space-between;gap:8px}
+.ad-meter{position:absolute;top:89px;left:calc(50% - min(205px,43vw));width:min(175px,37vw);height:8px;border-radius:8px;background:#352742;overflow:hidden}
+.ad-meter.enemy{left:auto;right:calc(50% - min(205px,43vw))}
+.ad-meter i{display:block;width:100%;height:100%;background:linear-gradient(90deg,#7d8caa,#ddc2ff)}
+.ad-meter.enemy i{background:linear-gradient(90deg,#ff9773,#8a3b42)}
+#adMessage{position:absolute;top:104px;left:50%;transform:translateX(-50%);max-width:90vw;width:max-content;border-radius:9px;background:#151020c9;padding:7px 10px;text-align:center;letter-spacing:.02em}
+.ad-controls{position:absolute;bottom:max(21px,env(safe-area-inset-bottom));right:12px;display:grid;grid-template-columns:repeat(2,minmax(85px,1fr));gap:7px;max-width:min(310px,55vw)}
+.ad-controls button{min-height:48px}
+.ad-dpad{position:absolute;bottom:max(21px,env(safe-area-inset-bottom));left:12px;display:flex;flex-direction:column;align-items:center;gap:3px}
+.ad-dpad>div{display:flex;gap:4px}
+.ad-dpad button{min-width:48px;min-height:48px}
+.ad-legend{position:absolute;bottom:180px;left:50%;transform:translateX(-50%);background:#0d0b1be2;padding:7px 8px;border-radius:9px;text-align:center;max-width:86vw}
+.aerial-duel-active #touch,.aerial-duel-active #forgeHud{display:none!important}
+@media(max-width:550px){
+ .ad-head{top:max(5px,env(safe-area-inset-top));gap:5px;padding:6px 8px;min-width:95vw}
+ .ad-head b{font-size:12px}
+ .ad-head span{font-size:9px}
+ .ad-head button{padding:5px!important}
+ .ad-bars{top:60px}
+ .ad-meter{top:78px}
+ #adMessage{top:97px;font-size:10px;padding:5px}
+ .ad-controls{right:6px;bottom:calc(10px + env(safe-area-inset-bottom));grid-template-columns:repeat(2,76px);gap:5px}
+ .ad-controls button{min-height:44px;font-size:10px}
+ .ad-dpad{left:6px;bottom:calc(10px + env(safe-area-inset-bottom))}
+ .ad-dpad button{min-width:44px;min-height:44px;padding:6px 8px}
+ .ad-legend{bottom:182px;font-size:9px;max-width:95vw}
+}
+
+
+/* Rooftop Pursuit mission HUD appears ONLY after ?mission05=1 initializes. */
+#mission05Hud{position:fixed;top:calc(145px + env(safe-area-inset-top));left:50%;
+ transform:translateX(-50%);width:min(410px,92vw);z-index:65;
+ background:#120e22e9;border:1px solid #9478b8;border-radius:13px;padding:9px 11px;
+ color:#f1e9ff;font:600 12px/1.4 system-ui;text-align:center;box-shadow:0 6px 26px #0009}
+#mission05Hud b{font-size:14px;letter-spacing:.05em}
+#mission05Hud #m05Stage{color:#dfb9ff;font-size:10px}
+#mission05Hud p{margin:6px 0 7px;color:#ded7f1}
+#mission05Hud button{min-height:44px;min-width:91px;border:1px solid #a58bc9;
+ background:#443261;color:#fff;border-radius:9px;padding:8px 12px;
+ font:750 12px system-ui;cursor:pointer;touch-action:manipulation}
+#mission05Hud button[hidden]{display:none}
+#mission05Hud small{display:block;opacity:.72;font:10px/1.2 system-ui;margin-top:5px}
+.aerial-duel-active #mission05Hud,.aerial-duel-active #testyardSkateActions{display:none!important}
+@media(max-width:540px){
+ #mission05Hud{top:calc(120px + env(safe-area-inset-top));max-width:90vw;padding:7px}
+ #mission05Hud b{font-size:12px}#mission05Hud p{font-size:11px}
+ #mission05Hud button{min-height:44px}
+}
