@@ -22,6 +22,7 @@ import {PhysicsTelemetry} from './physics_telemetry.js';
 import {analyzePhysics} from './physics_analysis.js';
 import {makeGalliumLimb,galliumLiquidMat,GU} from './gallium_limb.js';
 import {MetalForgeController,FORGE_COST,FORGE_REFUND} from './metal_forge_controller.js';
+import {selectForgePose} from './metal_forge_choreography.mjs';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RGBELoader} from 'three/addons/loaders/RGBELoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -224,6 +225,7 @@ function buildFormModel(gltf,i){const o=gltf.scene;o.traverse(m=>{if(!m.isMesh)r
  return {model:o,mixer,acts};}
 const bandMats=[];
 async function setForm(i){if(!P||i<0||i>3)return;
+ if(GAL_FORGE_ENABLED&&forgeController?.busy){toast('Finish forging before switching METAL forms');return;}
  if(i===0&&metalGLTF?.userData?.missionFallback){toast('Metal fallback active · original rig still available when restored');return;}
  let g=formGLTF[i];if(!g){try{
   g=formGLTF[i]=await loadMissionAsset(loadG,FORM_FILES[i],{timeout:MISSION_ASSET_TIMEOUTS.critical,onWarning:w=>boot.warning(w)});
@@ -1334,8 +1336,11 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  const hs=Math.hypot(vel.x,vel.z);yaw=faceYaw(dt,hs,yaw);P.o.rotation.set(0,yaw,0);
  if(st.wall){const w=st.wall;const f=new THREE.Vector3().copy(w.t).multiplyScalar(w.side).setY(w.up);if(f.lengthSq()<.01)f.set(0,1,0);f.normalize();const x=new THREE.Vector3().crossVectors(w.n,f).normalize();f.crossVectors(x,w.n);_wm.makeBasis(x,w.n,f);_wq.setFromRotationMatrix(_wm);P.o.quaternion.slerp(_wq,1);}
  swingOrient(dt);
+ // The existing character rig performs one pose per forge phase; no duplicate mixer.
+ // Suppress generic walk/idle animation selection until the forge sequence finishes.
+ const forgePoseActive=GAL_FORGE_ENABLED&&forgeController?.busy;
  // animation select
- actT-=dt;if(actT<=0&&(!P.cur||P.cur.loop!==THREE.LoopOnce||!P.cur.isRunning())){
+ actT-=dt;if(!forgePoseActive&&actT<=0&&(!P.cur||P.cur.loop!==THREE.LoopOnce||!P.cur.isRunning())){
   if(st.flying)plA('Flight','Jump');else if(st.swing)plA('Swing','Jump');else if(st.board&&st.wall)plA('Wallride','Skate');else if(st.board)skateAnim(onGround);else footAnim(hs);}
  if(st.board){if(st.boardFree>0){st.boardFree-=dt;}else{ // BOARD LOCK: board stays attached under the LEFT (prosthetic) foot while riding; only bail (B) or kick-off (Space) separates. Mechanism (Gallium film / magnetic) = OPEN
   if(st.wall||swingTilted())board.quaternion.copy(P.o.quaternion);else board.rotation.set(0,yaw,0);
@@ -1619,7 +1624,11 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   ]);
   P=makeMetal();scene.add(P.o);initMorrow();P.o.position.copy(SPOTS.home.c).add(new THREE.Vector3(0,groundY,8));camPos.copy(P.o.position).add(new THREE.Vector3(0,4,8));
   board=new THREE.Group();board.add(boardGLTF.scene);boardGLTF.scene.traverse(m=>{if(m.isMesh){m.castShadow=true;if(/Wheel/i.test(m.material.name)){m.material.color=new THREE.Color(0xC9A979);if(m.material.emissive)m.material.emissiveIntensity=0;m.material.map=null;m.material.needsUpdate=true;}}});board.visible=false;board.scale.setScalar(BOARD_S);scene.add(board,tether,merkaba);galLimb=makeGalliumLimb(scene);
-  forgeController=new MetalForgeController({character:P.o,board,scene,onPhase:phase=>{if(phase==='EXTRACTION'||phase==='GATHERING'){if(P?.acts.Charge)play(P,'Charge',true,.12);}else if(phase==='MOUNTING'){if(P?.acts.Interact)play(P,'Interact',true,.12);}}});P.handBone=P.o.getObjectByName('DEF-handR')||P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearmR');/* three.js strips '.' from node names */
+  forgeController=new MetalForgeController({character:P.o,board,scene,onPhase:phase=>{
+   if(!GAL_FORGE_ENABLED||!P)return;
+   const pose=selectForgePose(phase,P.acts);
+   if(pose)play(P,pose,false,.16); // real rig action, no unverified FBX names
+  }});P.handBone=P.o.getObjectByName('DEF-handR')||P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearmR');/* three.js strips '.' from node names */
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
