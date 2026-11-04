@@ -4,6 +4,7 @@ import {loadMissionAsset,createMissionFallback,MISSION_ASSET_TIMEOUTS} from './m
 import {readMetalCheckpoint,writeMetalCheckpoint,advanceMetalStory,metalStoryChapter} from './metal_story_engine.js';
 import {createCombatBody,applyCombatHit,stepCombatBody,blastDirection} from './metal_combat_physics.js';
 import {MetalRooftopDuelPilot} from './metal_aerial_duel_pilot.js';
+import {RooftopPursuitMission} from './metal_rooftop_pursuit.js';
 // WIR: Connected — unified open-world prototype (HTML/JS per Coach's decisions; Godot later).
 // Sources: [S1] Metal InDa RIFFT, [S3] Valence Life, [S4] Retro Bowl, [S5] Stay On Page, attunement packet.
 // Anything not stated in those sources is labelled PROPOSAL. Code is original; libs MIT, assets CC0.
@@ -43,7 +44,9 @@ const LITE=new URLSearchParams(location.search).get('lite')==='1';
 // Opt-in, isolated browser QA only. Normal gameplay never exposes this interface.
 const SLOTTA_BROWSER_QA=new URLSearchParams(location.search).get('slotta_qa')==='1';
 // Explicit opt-in training arena; inactive normal Savannah remains fully unchanged.
-const AERIAL_DUEL_PILOT=new URLSearchParams(location.search).get('aerial_duel')==='1';
+const MISSION05=new URLSearchParams(location.search).get('mission05')==='1'; // PUBLISH HOLD
+const AERIAL_DUEL_PILOT=new URLSearchParams(location.search).get('aerial_duel')==='1'&&!MISSION05;
+const TEST_YARD_SKATE=new URLSearchParams(location.search).get('skate_yard')==='1'||MISSION05; // fix missing flag from merged PR34; preserve default
 if(SLOTTA_BROWSER_QA)window.__testHold=true;
 const boot=window.__bootRecovery||{stage:()=>{},warning:()=>{},failed:()=>{},ready:()=>{},getStatus:()=>({warnings:[]})};
 const safeStorage=(()=>{try{return window.localStorage}catch(e){boot.warning({asset:'localStorage',reason:String(e)});return {getItem:()=>null,setItem:()=>{throw Error('Storage is unavailable')}};}})();
@@ -531,7 +534,7 @@ function finishYardAir(){
  if(!yard)return true;
  const landed=yard.land();
  if(landed.failed){skBail(landed.reason);bodyMachine.fall(vel.x,vel.z);return false;}
- if(landed.points>0){st.comboPend+=Math.min(4,landed.points/120);toast(landed.names.join(' + ')+' · LANDED');}
+ if(landed.points>0){st.comboPend+=Math.min(4,landed.points/120);toast(landed.names.join(' + ')+' · LANDED');mission05?.land({names:landed.names,points:landed.points,position:P.o.position,board:st.board});}
  return true;
 }
 
@@ -964,6 +967,60 @@ function updateForgeHud(){
 
 // ---------- main loop ----------
 const clock=new THREE.Clock();let camPos=new THREE.Vector3();
+// M05 isolated from original story, saves and movement except opt-in event observers.
+let mission05=null,missionDuel=null,missionDuelRestore=null;
+function initMission05(){
+ if(!MISSION05||!P||!SPOTS.fight.c)return;
+ mission05=new RooftopPursuitMission({
+  scene,colliders,anchors,skate:SPOTS.skate.c,home:SPOTS.home.c,fight:SPOTS.fight.c,
+  storage:safeStorage,
+  readWorld:()=>({position:P.o.position,grounded:onGround,board:st.board,
+   flying:st.flying,swinging:!!st.swing,forgeBusy:!!forgeController?.busy,storyChapter:metalStory.chapter}),
+  onEngage:()=>!!missionDuel?.start(),
+  onNotice:message=>toast(message)
+ });
+ const actPlayer=name=>{
+  const labels={Punch:['punch_l','Punch'],Kick:['kick_r','Kick'],Flight:['flight','Flight'],
+   Blast:['blast','Blast'],Block:['dodge','Block'],Idle:['idle','Idle']};
+  const key=(labels[name]||[name]).find(k=>P.acts[k]);if(key)play(P,key,true,.12);
+ };
+ missionDuel=new MetalRooftopDuelPilot({
+  scene,camera,player:P,origin:mission05.roof.clone(),useWorldEntry:true,hideEntry:true,
+  makeOpponent:()=>rivalGLTF?makeFighter(rivalGLTF,{top:0x2b5665,bot:0x1a1c24,shoe:0x252a2f,h:1.95}):makeChar(0x597e9a),
+  playPlayer:actPlayer,
+  playOpponent:(ch,name)=>{
+   const map={HitChest:['hit','HitChest','No'],Knock:['slam','Knock','Fall'],
+    Guard:['block','Guard'],Jab:['punch_l','Jab','Punch'],GetUp:['stand','GetUp','Idle']};
+   const key=(map[name]||[name]).find(k=>ch.acts[k]);if(key)play(ch,key,true,.12);
+  },
+  advanceMixers:dt=>{for(const mixer of mixers)mixer.update(dt);},
+  onEnter:()=>{
+   if(mission05.stage!=='DUEL'||!onGround||st.board||st.wall||st.flying||st.swing||
+    forgeController?.busy||FG.inFight||bodyMachine.mode==='fallen'||gripTarget||
+    heldCar||heldCitizen||heldActor){
+    toast('Dismount on the roof and release held items before the duel');return false;
+   }
+   missionDuelRestore={pos:P.o.position.clone(),rot:P.o.quaternion.clone(),vel:vel.clone(),
+    ground:onGround,flying:st.flying,swing:st.swing,cam:camera.position.clone(),
+    up:camera.up.clone(),fov:camera.fov,yaw:camYaw,pitch:camPitch};
+   vel.set(0,0,0);onGround=false;FG.act=null;return true;
+  },
+  onExit:()=>{
+   if(!missionDuelRestore)return;const s=missionDuelRestore;
+   P.o.position.copy(s.pos);P.o.quaternion.copy(s.rot);vel.copy(s.vel);
+   onGround=s.ground;st.flying=s.flying;st.swing=s.swing;
+   camera.position.copy(s.cam);camera.up.copy(s.up);camera.fov=s.fov;
+   camera.updateProjectionMatrix();camPos.copy(s.cam);camYaw=s.yaw;camPitch=s.pitch;
+   FG.act=null;FG.stun=0;missionDuelRestore=null;
+   mission05?.refresh();toast('Back on the Savannah rooftop · Metal movement restored');
+  }
+ });
+ mission05.attachDuel(missionDuel);
+ mission05.restore(P.o.position); // explicit mission route only, startup-only checkpoint
+ window.__mission05={snapshot:()=>mission05.snapshot(),duel:missionDuel};
+}
+
+
 let aerialDuel=null,aerialDuelRestore=null;
 // Lifecycle in a self-contained training instance, with full return to original free-roam state.
 function initAerialDuelPilot(){
@@ -1366,6 +1423,11 @@ function tickCitySystems(dt){if(!P)return;const p=P.o.position;
 }
 let worldGripWarned=false,worldGripRetry=0,worldSwingLatch=false,worldGrabLatch=false,worldThrowLatch=false,worldGripActive=false,gripAxisX=0,gripAxisY=0;
 function update(dt){
+ if(missionDuel?.active){
+  missionDuel.update(dt);
+  mission05?.duelFrame(missionDuel.state);
+  return;
+ }
  // A dedicated, opted-in training arena owns input/physics only while the duel is active.
  if(aerialDuel?.active){aerialDuel.update(dt);return;}
  // Poll the Menu hold while paused; never suspend the browser loop or mission loader.
@@ -1585,6 +1647,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   }
  physicsTime+=dt;
  physicsTelemetry.sample({time:physicsTime,dt,position:P.o.position,velocity:vel,grounded:onGround,board:st.board,wall:st.wall,swing:st.swing,flying:st.flying,body:bodyMachine});
+ mission05?.tick(dt);
 }
 // Private-in-query browser QA. Operates on actual loaded entities and combat methods,
 // not mocked DOM values; state is restored after each test. PROPOSAL/HOLD.
@@ -1784,12 +1847,13 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   }});P.handBone=P.o.getObjectByName('DEF-handR')||P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearmR');/* three.js strips '.' from node names */
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
-  if(AERIAL_DUEL_PILOT)initAerialDuelPilot();
+  if(AERIAL_DUEL_PILOT)initAerialDuelPilot(); // legacy pilot stays isolated from Mission05 by flag
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
   boot.ready();
   if(boot.getStatus().warnings.length)toast('Mission running with '+boot.getStatus().warnings.length+' art fallbacks · PROPOSAL');
   window.__game={galLimb:()=>galLimb,forge:()=>forgeController,forgePerformance:()=>forgePerformance.snapshot(),WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
   if(AERIAL_DUEL_PILOT)window.__aerialPilot=aerialDuel; // query-flagged browser QA and training entry only
-  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.metalControllerV3=metalPadV3;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;window.__game.bootReport=()=>boot.getStatus();initMetalStory();
+  window.__game.setForm=setForm;window.__game.sk=sk;if(yard)window.__game.testYard=()=>yard.snapshot();window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.metalControllerV3=metalPadV3;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;window.__game.bootReport=()=>boot.getStatus();initMetalStory();
+  if(MISSION05)initMission05();
   if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(0);
  }catch(e){boot.failed(e);window.__errors.push(String(e));}})();
