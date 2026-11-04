@@ -1013,6 +1013,26 @@ function hitSlotta(damage){if(!morrow.slottaMesh||slottaCombat.defeated||morrow.
 function fireMetalBlast(){if(!P||st.gal<.12)return;st.gal-=.12;const d=blastDirection(camYaw+Math.PI,Math.max(-.3,Math.min(.3,-camPitch*.35)));const p=P.o.position.clone().add(new THREE.Vector3(0,1.3,0));const ball=new THREE.Mesh(new THREE.SphereGeometry(.38,10,8),new THREE.MeshStandardMaterial({color:0xc5a3ff,emissive:0x873aff,emissiveIntensity:2,metalness:.9}));ball.position.copy(p);scene.add(ball);metalBlasts.push({mesh:ball,dir:new THREE.Vector3(d.x,d.y,d.z),life:1.3});toast('GALAXY GALLIUM · plasma-core discharge');}
 function updateMetalBlasts(dt){for(let i=metalBlasts.length-1;i>=0;i--){const b=metalBlasts[i];b.life-=dt;b.mesh.position.addScaledVector(b.dir,dt*28);b.mesh.scale.setScalar(.65+Math.sin(b.life*25)*.18);if(morrow.slottaMesh&&!slottaCombat.defeated&&morrow.slottaMesh.visible&&b.mesh.position.distanceTo(morrow.slottaMesh.position.clone().add(new THREE.Vector3(0,1.2,0)))<2){if(hitSlotta(12))b.life=0;}if(b.life>0)for(const a of factionActors){if(a.root===morrow.slottaMesh||!a.root.visible)continue;if(b.mesh.position.distanceTo(a.root.position.clone().add(new THREE.Vector3(0,1.2,0)))<2){if(!a.body)a.body=createCombatBody({x:a.root.position.x,y:a.root.position.y,z:a.root.position.z});applyCombatHit(a.body,{direction:b.dir,impulse:520,vertical:160});b.life=0;break;}}if(b.life<=0){scene.remove(b.mesh);b.mesh.geometry.dispose();b.mesh.material.dispose();metalBlasts.splice(i,1);}}}
 
+function metalEnemyPower(a,event,range,delta){
+ if(!event||!METAL_FULL)return;
+ if(event.startsWith('telegraph-')){
+  slottaEffect('telegraph',a.root.position,Math.min(3,range*.25+1),.6);
+  toast(a.label.toUpperCase()+' · POWER LOADING');return;
+ }
+ if(!event.startsWith('attack-'))return;
+ const kind=event.slice(7);
+ if(kind==='ballast'){const push=delta.lengthSq()>.01?delta.clone().normalize():new THREE.Vector3(0,0,1);
+  vel.addScaledVector(push,5.5);vel.y=Math.max(vel.y,1);slottaEffect('strike',a.root.position,2.4,.55);
+  toast('BALLAST · MASS SHIFT / BRACED STRIKE');}
+ else if(kind==='slipline'){const vx=vel.x,vz=vel.z;vel.x=vx*.72-vz*.69;vel.z=vx*.69+vz*.72;
+  slottaEffect('shield',a.root.position,3,.65);toast('SLIPLINE · VECTOR REDIRECTED THROUGH ANCHOR');}
+ else if(kind==='glassjaw'){st.ori=Math.max(0,st.ori-.12);
+  slottaEffect('shield',P.o.position,2.6,.8);toast('GLASSJAW · BRITTLE COATING / SURFACE FRACTURE PROXY');}
+ else if(kind==='kiln'&&crownMetalSupply()>.04){st.gal=Math.max(0,st.gal-.035);
+  slottaEffect('strike',P.o.position,2,.6);toast('KILN · CONNECTED MATERIAL HEAT TRANSFER');}
+ else if(kind==='framekeeper'&&Math.hypot(vel.x,vel.z)>6){vel.x*=.78;vel.z*=.78;
+  slottaEffect('shield',P.o.position,3,.7);toast('FRAMEKEEPER · RESCUE CONTAINMENT / MISCLASSIFIED');}
+}
 function factionActor(label,color,x,z,kind){
  const root=kind==='slotta'?createSlottaBossAsset():new THREE.Group();root.name=label;
  if(kind!=='slotta'){
@@ -1027,10 +1047,17 @@ function factionActor(label,color,x,z,kind){
  }
  root.position.set(x,groundY,z);scene.add(root);
  factionActors.push({root,label,kind,home:root.position.clone(),phase:Math.random()*6.28,
-  attackCooldown:1.2+Math.random()*1.5,body:createCombatBody({x,y:groundY,z})});
+  attackCooldown:1.2+Math.random()*1.5,body:createCombatBody({x,y:groundY,z}),
+  powerState:{cooldown:3+Math.random()*1.4,telegraph:0}});
  return root;
 }
-function updateFactionActors(dt){if(!P)return;for(const a of factionActors){if(a.kind==='slotta'&&(slottaCombat.defeated||morrow.slotta.captured||morrow.slotta.escaped)){a.root.visible=false;continue;}if(a===heldActor){a.attackCooldown=1;if(a.kind==='slotta')animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));continue;}a.attackCooldown=Math.max(0,(a.attackCooldown||0)-dt);const hostile=a.kind==='framebreaker'||a.kind==='reframer'||a.kind==='slotta';const delta=P.o.position.clone().sub(a.root.position).setY(0);const range=delta.length();const aiMoveAllowed=a.kind!=='slotta'||(SLOTTA_ACTIONS[slottaAnimator.state].loop&&!slottaDash);if(hostile&&aiMoveAllowed&&a.root.visible&&range<17&&a.body.state==='standing'){if(range>3&&range>0.01){a.home.addScaledVector(delta.normalize(),dt*(a.kind==='reframer'?1.8:2.5));}else if(a.attackCooldown<=0){const dir=delta.lengthSq()>.01?delta.normalize():new THREE.Vector3(0,0,1);vel.addScaledVector(dir,5);vel.y=Math.max(vel.y,1.8);a.attackCooldown=a.kind==='reframer'?2.8:1.8;toast(a.kind==='reframer'?'REFRAMER · kinetic strike':'FRAMEBREAKER · counterattack');}}a.phase+=dt*(a.kind==='reframer'?1.4:.7);if(a.kind==='slotta'){const locomotion=range<17?'walking':'idle';if(SLOTTA_ACTIONS[slottaAnimator.state].loop)startSlottaAction(slottaAnimator,locomotion);animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));}if(a.body.state!=='standing'){stepCombatBody(a.body,dt,groundY);a.root.position.set(a.body.position.x,a.body.position.y,a.body.position.z);a.root.rotation.z=Math.min(1.1,Math.hypot(a.body.velocity.x,a.body.velocity.z)*.07);if(a.body.state==='standing'){a.home.copy(a.root.position);a.root.rotation.z=0;}}else{
+function updateFactionActors(dt){if(!P)return;for(const a of factionActors){if(a.kind==='slotta'&&(slottaCombat.defeated||morrow.slotta.captured||morrow.slotta.escaped)){a.root.visible=false;continue;}if(a===heldActor){a.attackCooldown=1;if(a.kind==='slotta')animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));continue;}a.attackCooldown=Math.max(0,(a.attackCooldown||0)-dt);const hostile=a.kind==='framebreaker'||a.kind==='reframer'||a.kind==='slotta'||
+  (METAL_FULL&&['ballast','slipline','glassjaw','kiln'].includes(a.kind));const delta=P.o.position.clone().sub(a.root.position).setY(0);const range=delta.length();
+ if(METAL_FULL&&['ballast','slipline','glassjaw','kiln','framekeeper'].includes(a.kind)){
+  const effect=enemyAbilityTick(a.kind,a.powerState,dt,range);
+  a.powerState=effect.state;if(effect.event)metalEnemyPower(a,effect.event,range,delta);
+ }
+ const aiMoveAllowed=a.kind!=='slotta'||(SLOTTA_ACTIONS[slottaAnimator.state].loop&&!slottaDash);if(hostile&&aiMoveAllowed&&a.root.visible&&range<17&&a.body.state==='standing'){if(range>3&&range>0.01){a.home.addScaledVector(delta.normalize(),dt*(a.kind==='reframer'?1.8:2.5));}else if(a.attackCooldown<=0){const dir=delta.lengthSq()>.01?delta.normalize():new THREE.Vector3(0,0,1);vel.addScaledVector(dir,5);vel.y=Math.max(vel.y,1.8);a.attackCooldown=a.kind==='reframer'?2.8:1.8;toast(a.kind==='reframer'?'REFRAMER · kinetic strike':'FRAMEBREAKER · counterattack');}}a.phase+=dt*(a.kind==='reframer'?1.4:.7);if(a.kind==='slotta'){const locomotion=range<17?'walking':'idle';if(SLOTTA_ACTIONS[slottaAnimator.state].loop)startSlottaAction(slottaAnimator,locomotion);animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));}if(a.body.state!=='standing'){stepCombatBody(a.body,dt,groundY);a.root.position.set(a.body.position.x,a.body.position.y,a.body.position.z);a.root.rotation.z=Math.min(1.1,Math.hypot(a.body.velocity.x,a.body.velocity.z)*.07);if(a.body.state==='standing'){a.home.copy(a.root.position);a.root.rotation.z=0;}}else{
  // SLOTTA keeps a stable home/world transform between attacks; the other factions retain their patrol bob.
  const slottaSteady=a.kind==='slotta';a.root.position.x=a.home.x+(slottaSteady?0:Math.sin(a.phase)*2);a.root.position.z=a.home.z+(slottaSteady?0:Math.cos(a.phase)*2);a.root.rotation.y+=dt*.3;a.body.position.x=a.root.position.x;a.body.position.z=a.root.position.z;}}}
 
@@ -1209,6 +1236,12 @@ function updateSlottaBoss(dt){
 function initMorrow(){
  const home=SPOTS.home.c;const mk=(color,x,z,h=1.7)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(.85,h,.85),new THREE.MeshStandardMaterial({color,metalness:.55,roughness:.38}));o.position.set(home.x+x,groundY+h/2,home.z+z);scene.add(o);morrowMeshes.push(o);return o;};
  morrow.slottaMesh=factionActor('SLOTTA',0xd65d36,home.x+10,home.z+3,'slotta');morrow.reframerMesh=factionActor('ReFramer',0x546b81,home.x+17,home.z+3,'reframer');morrow.constructMesh=mk(0x858a99,14,3,2.4);
+ if(METAL_FULL&&fightC){
+  factionActor('Ballast · Shift Harness',0x775a4b,fightC.x-13,fightC.z-8,'ballast');
+  factionActor('Slipline · Impulse Pads',0x4d8fc7,fightC.x+13,fightC.z+7,'slipline');
+  factionActor('Glassjaw · Metastable Coat',0xa8bbc8,fightC.x-7,fightC.z+14,'glassjaw');
+  factionActor('Kiln · Thermal Link',0xcf6e37,fightC.x+9,fightC.z-13,'kiln');
+ }
  factionActor('Framekeeper Patrol',0x4778d5,home.x-11,home.z+7,'framekeeper');factionActor('Framebreaker',0xc34c62,home.x-15,home.z-6,'framebreaker');factionActor('Framebreaker Scout',0xa64b5d,home.x+5,home.z-16,'framebreaker');
  factionActor('Framebreaker Striker',0xb54251,home.x+20,home.z-12,'framebreaker');factionActor('Framebreaker Enforcer',0x912c4a,home.x-22,home.z+14,'framebreaker');factionActor('Framekeeper Sentinel',0x3b84c9,home.x-19,home.z-12,'framekeeper');factionActor('ReFramer Hunter',0x5e8299,home.x+26,home.z+12,'reframer');
  factionActor('Framebreaker Enforcer',0x9d364e,home.x-21,home.z-11,'framebreaker');factionActor('Framebreaker Vanguard',0x9d364e,home.x+24,home.z-15,'framebreaker');factionActor('Framekeeper Sentinel',0x367fcb,home.x-20,home.z+17,'framekeeper');factionActor('Framekeeper Guardian',0x367fcb,home.x+22,home.z+18,'framekeeper');factionActor('ReFramer Hunter',0x637887,home.x+27,home.z+8,'reframer');factionActor('ReFramer Pursuer',0x637887,home.x-25,home.z-20,'reframer');
