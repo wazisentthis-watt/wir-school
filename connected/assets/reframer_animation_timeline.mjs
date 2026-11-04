@@ -41,5 +41,5 @@ export function selectReframerEventMotion(event){
  return ({'reframer-telegraph':'shield_formation','reframer-strike':'melee_three',
   'launch':'airborne_tumble','aerial-finisher':'airborne_tumble',
   'roof-floor-impact':'rooftop_recovery','roof-wall-impact':'rooftop_recovery',
-  'perfect-evade':'aerial_counter'})[event]||null;
+  'perfect-evade':'aerial_counter','reframer-air-counter-telegraph':'aerial_counter'})[event]||null;
 }

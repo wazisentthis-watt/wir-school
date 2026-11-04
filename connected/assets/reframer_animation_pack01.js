@@ -4,12 +4,13 @@
 // All new structural steel parts are visual-only (never Galaxy Gallium).
 import * as THREE from 'three';
 import {REFRAMER_ASSET,REFRAMER_PACK01,REFRAMER_PACK_IDS,pack01Timing,selectReframerEventMotion} from './reframer_animation_timeline.mjs';
+import {installReframerPack02,resetReframerPack02Pose,syncReframerPack02Pose} from './reframer_animation_pack02.js';
 const clamp01=x=>Math.min(1,Math.max(0,Number.isFinite(x)?x:0));
 const EASE=x=>{const t=clamp01(x);return t*t*(3-2*t)};
 export class ReframerAnimationPack01{
- constructor({enemy,playSource,scene}){
+ constructor({enemy,playSource,scene,phase2=false}){
   if(!enemy?.model||!enemy.mixer||!enemy.acts)throw Error('Real ReFramer 3D fighter, acts and original mixer required');
-  this.enemy=enemy;this.playSource=playSource;this.scene=scene;
+  this.enemy=enemy;this.playSource=playSource;this.scene=scene;this.phase2Enabled=!!phase2;this.phase2Data=null;
   this.current=null;this.elapsed=0;this.stageIndex=-1;this.preview=false;
   this.history=[];this.ownedActions=new Map();this.ownedClips=new Map();this.lastSources=new Set();
   this.rigBones={};enemy.model.traverse(o=>{if(o.isBone)this.rigBones[o.name]=o});
@@ -23,6 +24,7 @@ export class ReframerAnimationPack01{
    verifiedImportantBones:this.boneMatches.slice(),sourceClips:[...this.sourceClips].sort(),
    skinnedMeshes:(()=>{let n=0;enemy.model.traverse(o=>{if(o.isSkinnedMesh)n++;});return n;})()};
   this.buildAdditiveClips();
+  if(this.phase2Enabled)this.phase2Data=installReframerPack02(this);
  }
  buildAdditiveClips(){
   const shape=[0,.16,.4,.7,1];
@@ -98,7 +100,9 @@ export class ReframerAnimationPack01{
   for(const a of this.lastSources)a.setEffectiveTimeScale(1);
   this.lastSources.clear();
   this.shield.visible=false;this.trails.visible=false;this.ring.visible=false;
+  resetReframerPack02Pose(this);
  }
+ syncPhysicalPresentation(enemyBody){syncReframerPack02Pose(this,enemyBody);}
  update(dt){
   if(!this.current)return;
   const spec=REFRAMER_PACK01[this.current];dt=Math.max(0,Math.min(.06,Number.isFinite(dt)?dt:0));
@@ -128,10 +132,10 @@ export class ReframerAnimationPack01{
  attachUI(panel){
   if(this.ui)return;
   const launch=document.createElement('button');launch.id='reframerAnimLabToggle';
-  launch.type='button';launch.textContent='REFRAMER · 8 MOTIONS';launch.setAttribute('aria-label','Open ReFramer Animation Pack 01');
+  launch.type='button';launch.textContent=this.phase2Enabled?'REFRAMER · PACK 02':'REFRAMER · 8 MOTIONS';launch.setAttribute('aria-label','Open ReFramer Animation Pack 01');
   launch.className='ad-reframer-toggle';panel.append(launch);this.launch=launch;
   const ui=document.createElement('aside');ui.id='reframerAnimLab';ui.hidden=true;ui.setAttribute('aria-label','ReFramer motion preview');
-  const title=document.createElement('div');title.className='ad-rf-title';title.textContent='REFRAMER · ANIMATION PACK 01';ui.append(title);
+  const title=document.createElement('div');title.className='ad-rf-title';title.textContent=this.phase2Enabled?'REFRAMER · ANIMATION PACK 02':'REFRAMER · ANIMATION PACK 01';ui.append(title);
   const list=document.createElement('div');list.className='ad-rf-grid';
   for(const id of REFRAMER_PACK_IDS){
    const b=document.createElement('button');b.type='button';b.dataset.refmotion=id;
@@ -157,6 +161,8 @@ export class ReframerAnimationPack01{
    sourceClipCount:this.sourceClips.size,rigBoneCount:Object.keys(this.rigBones).length,
    authoredClipCount:this.ownedClips.size,authoredTracks:[...this.ownedClips.values()].reduce((n,c)=>n+c.tracks.length,0),
    shieldVisible:this.shield.visible,trailVisible:this.trails.visible,impactVisible:this.ring.visible,
-   history:this.history.slice(),missingImportantBones:REFRAMER_ASSET.importantBones.filter(x=>!this.rigBones[x])};
+   history:this.history.slice(),missingImportantBones:REFRAMER_ASSET.importantBones.filter(x=>!this.rigBones[x]),
+   phase2Enabled:this.phase2Enabled,upgraded:this.phase2Data?.upgraded||null,
+   tumbleAngle:this.phase2Data?.tumbleAngle||0,tumbleOffsetY:this.phase2Data?.tumbleOffsetY||0};
  }
 }
