@@ -4,6 +4,10 @@ on:
     paths:
       - 'connected/assets/metal_full_motion.mjs'
       - 'connected/assets/metal_motion_choreo.mjs'
+      - 'connected/assets/metal_terrain_contact.mjs'
+      - 'connected/assets/metal_paired_contact.mjs'
+      - 'connected/tests/metal_terrain_contact*'
+      - 'connected/tests/metal_paired_contact.test.mjs'
       - 'connected/tests/metal_motion_choreo*'
       - 'connected/assets/metal_grapple_aim.mjs'
       - 'connected/tests/metal_grapple_aim.test.mjs'
@@ -14,6 +18,10 @@ on:
     paths:
       - 'connected/assets/metal_full_motion.mjs'
       - 'connected/assets/metal_motion_choreo.mjs'
+      - 'connected/assets/metal_terrain_contact.mjs'
+      - 'connected/assets/metal_paired_contact.mjs'
+      - 'connected/tests/metal_terrain_contact*'
+      - 'connected/tests/metal_paired_contact.test.mjs'
       - 'connected/tests/metal_motion_choreo*'
       - 'connected/assets/metal_grapple_aim.mjs'
       - 'connected/tests/metal_grapple_aim.test.mjs'
@@ -36,11 +44,14 @@ jobs:
           mkdir -p test-results
           node --check connected/assets/metal_full_motion.mjs
           node --check connected/assets/metal_motion_choreo.mjs
+          node --check connected/assets/metal_terrain_contact.mjs
+          node --check connected/assets/metal_paired_contact.mjs
+          node --check connected/tests/metal_terrain_contact_browser_playwright.mjs
           node --check connected/tests/metal_motion_choreo_browser_playwright.mjs
           node --check connected/assets/metal_grapple_aim.mjs
           node --check connected/assets/main.js
           node --check connected/tests/metal_full_motion_browser_playwright.mjs
-          node --test connected/tests/metal_full_motion.test.mjs connected/tests/metal_grapple_aim.test.mjs connected/tests/metal_motion_choreo.test.mjs
+          node --test connected/tests/metal_full_motion.test.mjs connected/tests/metal_grapple_aim.test.mjs connected/tests/metal_motion_choreo.test.mjs connected/tests/metal_terrain_contact.test.mjs connected/tests/metal_paired_contact.test.mjs
       - name: Install headless Chromium
         run: |
           npm install --no-save --no-audit --no-fund playwright
@@ -54,6 +65,8 @@ jobs:
         run: node connected/tests/metal_full_motion_browser_playwright.mjs
       - name: Browser test actual animated leg load and paired enemy release
         run: node connected/tests/metal_motion_choreo_browser_playwright.mjs
+      - name: Browser test real kicker slope ground contact and hand-aligned Ballast throw
+        run: node connected/tests/metal_terrain_contact_browser_playwright.mjs
       - name: Archive QA evidence even on failure
         if: always()
         uses: actions/upload-artifact@v4
