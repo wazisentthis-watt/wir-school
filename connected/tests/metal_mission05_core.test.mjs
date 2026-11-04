@@ -128,3 +128,9 @@ test('duel lifecycle requires opt-in and validates exact roof position before st
  assert.match(code,/this\.state\.player\.x=position\.x-this\.origin\.x/);
  assert.doesNotMatch(code,/window\.localStorage|indexedDB/);
 });
+
+test('physical rooftop and ledges update parent world matrix before collision volumes',()=>{
+ const src=readFileSync(new URL('../assets/metal_rooftop_pursuit.js',import.meta.url),'utf8');
+ assert.match(src,/this\.group\.add\(deck\);[\s\S]{0,500}this\.group\.updateMatrixWorld\(true\);[\s\S]{0,130}this\.colliders\.push\(new THREE\.Box3\(\)\.setFromObject\(deck\)\)/);
+ assert.match(src,/this\.group\.add\(step\);[\s\S]{0,130}this\.group\.updateMatrixWorld\(true\);[\s\S]{0,140}this\.colliders\.push\(new THREE\.Box3\(\)\.setFromObject\(step\)\)/);
+});
