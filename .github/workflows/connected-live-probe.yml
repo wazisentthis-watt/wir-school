@@ -40,6 +40,11 @@ jobs:
         env:
           METAL_BOOT_BASE: https://wazisentthis-watt.github.io/wir-school
         run: node connected/tests/mission_load_browser_playwright.mjs
+      - name: Test hosted FULL-quality desktop and mobile startup
+        if: always()
+        env:
+          METAL_BOOT_BASE: https://wazisentthis-watt.github.io/wir-school
+        run: node connected/tests/live_full_browser_playwright.mjs
       - name: Preserve live QA evidence on failure or success
         if: always()
         uses: actions/upload-artifact@v4
