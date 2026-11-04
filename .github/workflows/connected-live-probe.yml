@@ -1,0 +1,50 @@
+name: WIR Connected hosted live-load diagnosis
+on:
+  push:
+    branches:
+      - hotfix/connected-live-loading-20261103
+    paths:
+      - '.github/workflows/connected-live-probe.yml'
+      - 'connected/**'
+  pull_request:
+    paths:
+      - '.github/workflows/connected-live-probe.yml'
+      - 'connected/**'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  hosted-startup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Inspect deployed GitHub Pages response
+        run: |
+          set -o pipefail
+          for path in connected/ connected/assets/main.js connected/assets/boot_recovery.js connected/assets/lib/three.module.min.js; do
+            url="https://wazisentthis-watt.github.io/wir-school/$path"
+            echo "::group::$url"
+            curl -fL --retry 2 --max-time 35 -sS -o /tmp/live-response -w 'HTTP=%{http_code} type=%{content_type} bytes=%{size_download} final=%{url_effective}\n' "$url"
+            head -c 120 /tmp/live-response | tr '\n' ' '; echo
+            echo "::endgroup::"
+          done
+      - name: Install Chromium QA
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Test REAL hosted first mission and save-safe recovery
+        env:
+          METAL_BOOT_BASE: https://wazisentthis-watt.github.io/wir-school
+        run: node connected/tests/mission_load_browser_playwright.mjs
+      - name: Preserve live QA evidence on failure or success
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wir-connected-hosted-live-qa
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: warn
