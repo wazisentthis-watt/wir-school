@@ -1,0 +1,51 @@
+name: METAL vNext motion + combat proposal QA
+on:
+  push:
+    paths:
+      - 'connected/assets/metal_full_motion.mjs'
+      - 'connected/assets/main.js'
+      - 'connected/tests/metal_full_motion*'
+      - '.github/workflows/metal-full-motion-proposal.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/metal_full_motion.mjs'
+      - 'connected/assets/main.js'
+      - 'connected/tests/metal_full_motion*'
+      - '.github/workflows/metal-full-motion-proposal.yml'
+permissions:
+  contents: read
+jobs:
+  motion-combat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Source syntax and deterministic 20-case motion suite
+        run: |
+          mkdir -p test-results
+          node --check connected/assets/metal_full_motion.mjs
+          node --check connected/assets/main.js
+          node --check connected/tests/metal_full_motion_browser_playwright.mjs
+          node --test connected/tests/metal_full_motion.test.mjs
+      - name: Install headless Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Launch isolated draft over HTTP
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/wir-metal-next-http.log 2>&1 &
+          sleep 2
+          curl -fI http://127.0.0.1:8765/connected/
+      - name: Browser check vNext versus legacy and checkpoint
+        run: node connected/tests/metal_full_motion_browser_playwright.mjs
+      - name: Archive QA evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metal-full-motion-proposal-qa
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: warn
