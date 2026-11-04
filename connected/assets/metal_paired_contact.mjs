@@ -19,7 +19,7 @@ export function alignHeldTarget({base,current,rightHand,leftHand,forward,groundY
    y:Math.max(groundY+.25,center.y-.68),z:center.z+direct.z/length*.58};
   const dx=goal.x-base.x,dy=goal.y-base.y,dz=goal.z-base.z;
   if(Math.hypot(dx,dy,dz)<=2.7){
-   const t=(r&&l?.5:.3)+.45*w;
+   const t=(r&&l ? .5 : .3)+.45*w;
    target={x:lerp(base.x,goal.x,t),y:lerp(base.y,goal.y,t),z:lerp(base.z,goal.z,t)};
    mode=r&&l?'two-hand':'one-hand';
   }
