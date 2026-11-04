@@ -1,0 +1,46 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>WIR Gorillium | Original-Rig Preview Lab</title>
+<style>
+:root{color-scheme:dark;font:14px/1.45 system-ui,sans-serif}*{box-sizing:border-box}
+body{margin:0;background:#11111c;color:#f0eafd}header{padding:14px 18px;border-bottom:1px solid #483d66;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0}small,.muted{color:#b1a7cb}strong{color:#e8d5ff}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,350px);min-height:calc(100vh - 73px)}
+#stage{position:relative;min-height:540px;background:linear-gradient(#131426,#22223d);overflow:hidden;touch-action:none}
+#stage canvas{width:100%;height:100%;display:block}#stageLabel{position:absolute;top:12px;left:12px;max-width:calc(100% - 24px);padding:8px 12px;border-radius:8px;background:#121321b8;color:#f9db8c}
+aside{padding:17px;overflow:auto;max-height:calc(100vh - 73px);border-left:1px solid #443754}
+h2{font-size:15px;margin:20px 0 8px}h2:first-child{margin-top:0}p{margin:9px 0}
+button,input,select{font:inherit;color:#fff;background:#282440;border:1px solid #7b5ac2;border-radius:9px;padding:10px;min-height:43px}
+button{cursor:pointer}button:disabled{opacity:.4;cursor:default}button:hover:not(:disabled){background:#4b3578}
+input[type=file]{width:100%;max-width:100%;background:#1a1830}select{width:100%;margin:4px 0}
+.actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+#status{color:#f0ce91}#report{font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:250px;overflow-y:auto;background:#171626;padding:10px;border-radius:8px}
+.notice{border:1px solid #6e5a89;background:#221c32;border-radius:9px;padding:10px}
+#limbMap{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+#limbMap label{font-size:11px}#limbMap select{padding:7px}
+@media(max-width:780px){.layout{grid-template-columns:1fr}aside{max-height:none;border-left:0;border-top:1px solid #443754}#stage{min-height:48vh;height:52vh}}
+</style>
+<script type="importmap">{"imports":{"three":"../assets/lib/three.module.min.js","three/addons/":"../assets/lib/addons/"}}</script></head>
+<body><header><h1>🦍🐙 WIR Gorillium Original-Rig Lab</h1><small>Isolated preview · PROPOSAL / PUBLISH HOLD · no live-game edits</small></header>
+<div class="layout">
+<div id="stage"><div id="stageLabel">No Gorillium source loaded. Inspect the existing Metal baseline or select the original GLB.</div></div>
+<aside>
+<h2>1 · Choose source</h2>
+<p class="notice">The live Metal S1 model is for compatibility comparison only. It is <strong>not Gorillium</strong>. No replacement tentacles are fabricated.</p>
+<button id="baseline" type="button">Inspect existing Metal S1</button>
+<p><label>Load authentic Gorillium GLB from this device (never uploaded): <input id="glbUpload" type="file" accept=".glb,model/gltf-binary"></label></p>
+<p id="status" role="status">Ready. All models remain local to this browser session.</p>
+<h2>2 · Rig and animations</h2>
+<pre id="report" aria-live="polite">No rig inspected.</pre>
+<button id="playClip" disabled type="button">Play first embedded animation</button>
+<h2>3 · Assign actual tentacle skin bones</h2>
+<p class="muted">Each slot must bind to a distinct bone used by a skinned mesh. Auto suggestions are only naming hints. Review anatomy before accepting.</p>
+<div id="limbMap"></div>
+<button id="bind" disabled type="button">Validate 8 actual bone bindings</button>
+<h2>4 · Try a motion event</h2>
+<div class="actions"><button id="lash" disabled type="button">Tentacle Lash</button><button id="tether" disabled type="button">Galaxy Tether</button></div>
+<p class="muted" id="counter">Charge: n/a | Free limbs: n/a</p>
+<p class="muted">These buttons animate mapped model bones, not successful combat hits. Collision, gameplay and canonical animation retargeting remain separate milestones.</p>
+</aside></div>
+<script type="module" src="./preview.js"></script>
+</body></html>
