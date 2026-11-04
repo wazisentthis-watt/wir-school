@@ -3,6 +3,7 @@
 // Render and locomotion of the rest of Savannah are unchanged when this is inactive.
 import * as THREE from 'three';
 import {createRooftopDuel,duelAction,stepRooftopDuel,duelSnapshot,DUEL_ROOF} from './metal_aerial_duel_core.mjs';
+import {ReframerAnimationPack01} from './reframer_animation_pack01.js';
 const keyActions=Object.freeze({KeyJ:'light',KeyK:'launch',KeyF:'pursue',Space:'pursue',KeyQ:'finisher',KeyB:'dodge'});
 const motion={light:'Punch',launch:'Kick',pursue:'Flight',finisher:'Blast',dodge:'Block'};
 export class MetalRooftopDuelPilot{
@@ -12,6 +13,8 @@ export class MetalRooftopDuelPilot{
   this.advanceMixers=advanceMixers;this.onEnter=onEnter;this.onExit=onExit;
   this.active=false;this.state=null;this.lastEventId=0;this.actions=[];this.held=new Set();
   this.previousButtons={};this.effects=[];this.enemy=null;this.uiTick=0;
+  this.packEnabled=new URLSearchParams(location.search).get('reframer_pack')==='1';
+  this.reframerPack=null;
   this.roof=new THREE.Group();this.roof.position.copy(this.origin);this.roof.visible=false;
   scene.add(this.roof);this.buildRoof();this.buildControls();
   this.keydown=e=>{
@@ -83,9 +86,16 @@ export class MetalRooftopDuelPilot{
   if(!this.onEnter())return false;
   this.state=createRooftopDuel();this.actions.length=0;this.held.clear();this.previousButtons={};this.lastEventId=0;
   if(!this.enemy){this.enemy=this.makeOpponent();this.scene.add(this.enemy.o);}
+  if(this.packEnabled&&!this.reframerPack&&this.enemy?.mixer){
+   this.reframerPack=new ReframerAnimationPack01({
+    enemy:this.enemy,scene:this.scene,playSource:(fighter,alias)=>this.playOpponent(fighter,alias)
+   });
+   this.reframerPack.attachUI(this.panel);
+  }
   this.enemy.o.visible=true;this.roof.visible=true;this.active=true;this.uiTick=0;
   document.body.classList.add('aerial-duel-active');this.panel.hidden=false;this.startButton.hidden=true;
-  this.syncMeshes();this.playPlayer('Idle');this.playOpponent(this.enemy,'Idle');this.refreshHUD();
+  this.syncMeshes();this.playPlayer('Idle');this.playOpponent(this.enemy,'Idle');
+  this.reframerPack?.play('combat_idle',{source:'rooftop-start'});this.refreshHUD();
   return true;
  }
  stop(){
@@ -95,7 +105,7 @@ export class MetalRooftopDuelPilot{
   this.actions.length=0;this.held.clear();this.previousButtons={};
   document.body.classList.remove('aerial-duel-active');
   for(const effect of this.effects){this.scene.remove(effect.mesh);effect.mesh.geometry.dispose();effect.mesh.material.dispose();}
-  this.effects.length=0;this.onExit();
+  this.effects.length=0;this.reframerPack?.reset();this.onExit();
  }
  pollPad(){
   const g=navigator.getGamepads?.()?.find(g=>g?.connected);
@@ -132,11 +142,12 @@ export class MetalRooftopDuelPilot{
     ring.rotation.x=Math.PI/2;ring.position.set(this.origin.x+around.x,this.origin.y+(event.type.includes('roof-')?.1:around.y+1.1),this.origin.z+around.z);
     this.scene.add(ring);this.effects.push({mesh:ring,life:.65,total:.65});
    }
+   const handled=this.reframerPack?.onEvent(event.type)||false;
    if(event.type==='light-hit')this.playOpponent(this.enemy,'HitChest');
-   if(event.type==='launch'||event.type==='aerial-finisher')this.playOpponent(this.enemy,'Knock');
-   if(event.type==='reframer-telegraph')this.playOpponent(this.enemy,'Guard');
-   if(event.type==='reframer-strike')this.playOpponent(this.enemy,'Jab');
-   if(event.type==='roof-floor-impact')this.playOpponent(this.enemy,'GetUp');
+   if(!handled&&event.type==='launch'||event.type==='aerial-finisher')this.playOpponent(this.enemy,'Knock');
+   if(!handled&&event.type==='reframer-telegraph')this.playOpponent(this.enemy,'Guard');
+   if(!handled&&event.type==='reframer-strike')this.playOpponent(this.enemy,'Jab');
+   if(!handled&&event.type==='roof-floor-impact')this.playOpponent(this.enemy,'GetUp');
    if(event.type==='victory')this.message.textContent='VICTORY · REFRAMER CONTAINED. EXIT TO SAVANNAH.';
    if(event.type==='defeat')this.message.textContent='METAL DOWN · EXIT TO RETRY.';
   }
@@ -175,6 +186,12 @@ export class MetalRooftopDuelPilot{
  update(dt){
   if(!this.active)return;
   dt=Math.max(0,Math.min(.05,dt));
+  // Previewing rig motions freezes only this non-canon rooftop simulator.
+  // Savannah's main game and save formats are never touched.
+  if(this.reframerPack?.preview){
+   this.actions.length=0;this.advanceMixers(dt);this.reframerPack.update(dt);
+   this.updateCamera(dt);return;
+  }
   const stick=this.pollPad();
   const x=Number(this.held.has('KeyD')||this.held.has('ArrowRight'))-Number(this.held.has('KeyA')||this.held.has('ArrowLeft'));
   const z=Number(this.held.has('KeyS')||this.held.has('ArrowDown'))-Number(this.held.has('KeyW')||this.held.has('ArrowUp'));
@@ -190,8 +207,8 @@ export class MetalRooftopDuelPilot{
    f.mesh.scale.setScalar(1+(1-f.life/f.total)*2.5);f.mesh.material.opacity=Math.max(0,f.life/f.total);
    if(f.life<=0){this.scene.remove(f.mesh);f.mesh.geometry.dispose();f.mesh.material.dispose();this.effects.splice(i,1);}
   }
-  this.advanceMixers(dt);this.updateCamera(dt);
+  this.advanceMixers(dt);this.reframerPack?.update(dt);this.updateCamera(dt);
   this.uiTick-=dt;if(this.uiTick<=0){this.uiTick=.1;this.refreshHUD();}
  }
- snapshot(){return this.state?{...duelSnapshot(this.state),active:this.active,enemyVisible:this.enemy?.o.visible,roofVisible:this.roof.visible,playerWorld:{x:this.player.o.position.x,y:this.player.o.position.y,z:this.player.o.position.z}}:null;}
+ snapshot(){return this.state?{...duelSnapshot(this.state),active:this.active,enemyVisible:this.enemy?.o.visible,roofVisible:this.roof.visible,playerWorld:{x:this.player.o.position.x,y:this.player.o.position.y,z:this.player.o.position.z},reframerPack:this.reframerPack?.snapshot()||null}:null;}
 }
