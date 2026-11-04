@@ -40,7 +40,8 @@ try{
  await page.waitForFunction(()=>!window.__game.st.board&&window.__game.forge().state.phase==='DISSOLVING',null,{timeout:4000});
  assert.equal(await page.evaluate(()=>window.__game.board.visible),false);
  results.push({case:'B_dismount_no_board_carry',pass:true});
- await page.waitForFunction(()=>window.__game.forge().state.phase==='IDLE',null,{timeout:3500});
+ // Heavy software-WebGL frames can take multiple real seconds to simulate 0.55s of game time.
+ await page.waitForFunction(()=>window.__game.forge().state.phase==='IDLE',null,{timeout:15000});
  assert.equal(errors.length,0,'runtime errors '+JSON.stringify(errors));
  await page.screenshot({path:'test-results/metal_gallium_forge_chromium.png'});
  console.log('METAL GALLIUM FORGE BROWSER QA PASS',JSON.stringify(results));
