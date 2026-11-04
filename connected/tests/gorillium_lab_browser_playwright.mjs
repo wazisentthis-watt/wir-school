@@ -27,7 +27,10 @@ try{
  assert.ok(evidence.baseline.boneCount>0,'Original S1 contains no actual rig bones');
  assert.ok(evidence.baseline.skinJointCount>0,'S1 has no skinned joints');
  assert.equal(evidence.baseline.boundCount,0);
+ assert.equal(evidence.baseline.originalCompatible,false,'Metal S1 must not be mislabeled as the original Gorillium');
  assert.equal(await page.locator('#lash').isDisabled(),true,'Comparison rig must not cast as Gorillium');
+ for(const id of ['shield','barrage','slam','cataclysm'])
+  assert.equal(await page.locator('#'+id).isDisabled(),true,'A compatibility rig must not expose original full animation actions: '+id);
  console.log('BASELINE REAL-GLB RIG',JSON.stringify(evidence.baseline));
  // Exercise the newly added real embedded-clip selector and tour on known S1 fixture.
  // This proves the UI playback path, NOT Gorillium anatomy or gameplay integration.
@@ -50,17 +53,22 @@ try{
   ||window.__gorilliumLab?.getSnapshot?.().error,null,{timeout:30000});
  const uploaded=await page.evaluate(()=>window.__gorilliumLab.getSnapshot());
  assert.ok(uploaded.skinJointCount>=8,'Comparison GLB cannot exercise eight independently skinned bones');
+ assert.equal(uploaded.originalCompatible,false,'Uploading S1 must not satisfy strict Gorillium fingerprint');
  assert.equal(await page.locator('#bind').isDisabled(),false);
  const selects=page.locator('#limbMap select');
  assert.equal(await selects.count(),8);
  for(let i=0;i<8;i++)await selects.nth(i).selectOption({index:i+1});
  await page.locator('#bind').click();
  assert.equal(await page.locator('#lash').isDisabled(),false,'Eight distinct joints not bound');
+ for(const id of ['shield','barrage','slam','cataclysm'])
+  assert.equal(await page.locator('#'+id).isDisabled(),true,
+   'Non-Gorillium source should remain a two-action compatibility rig: '+id);
  await page.locator('#lash').click();
  await page.waitForFunction(()=>window.__gorilliumLab.getSnapshot().poseDeltaRadians>.035,
   null,{timeout:1500});
  const posed=await page.evaluate(()=>window.__gorilliumLab.getSnapshot());
  assert.equal(posed.lastAbility,'tentacle-lash');
+ assert.equal(posed.lastOriginalClip,null,'S1 fixture must never claim an original Gorillium clip');
  assert.ok(posed.poseDeltaRadians>.035,'No existing skin joint actually rotated');
  // Frame-rate independent: the engine clamps dt after device backgrounding.
  // Wait for a real reset instead of assuming 550 ms wall time equals simulated time.
