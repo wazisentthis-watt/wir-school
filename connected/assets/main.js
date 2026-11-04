@@ -30,6 +30,7 @@ import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {PressureStep,ComboInput,safeThrow,chargePose,enemyAbilityTick} from './metal_full_motion.mjs';
+import {chooseGrappleAnchor} from './metal_grapple_aim.mjs';
 
 const $=id=>document.getElementById(id);
 const VIOLET=0x9b5cff, GUN=0x4a4f57;
@@ -798,7 +799,11 @@ let swingAnchors=null;
 function buildSwingAnchors(){swingAnchors=anchors.slice();for(const b of colliders){if(b.max.y<6)continue;const y=b.max.y;
  for(let x=b.min.x;x<=b.max.x;x+=5)swingAnchors.push(new THREE.Vector3(x,y,b.min.z),new THREE.Vector3(x,y,b.max.z));
  for(let z=b.min.z;z<=b.max.z;z+=5)swingAnchors.push(new THREE.Vector3(b.min.x,y,z),new THREE.Vector3(b.max.x,y,z));}}
-function pickAnchor(pp){if(!swingAnchors)buildSwingAnchors();const hv=_sw1.set(vel.x,0,vel.z);const dir=hv.length()>3?hv.normalize():_sw1.set(-Math.sin(camYaw),0,-Math.cos(camYaw));
+function pickAnchor(pp){if(!swingAnchors)buildSwingAnchors();
+ if(METAL_FULL)return chooseGrappleAnchor(swingAnchors,pp,
+  {x:-Math.sin(camYaw),z:-Math.cos(camYaw)},{x:vel.x,z:vel.z},
+  {minDistance:SW.MIN_D,maxDistance:SW.MAX_D});
+ const hv=_sw1.set(vel.x,0,vel.z);const dir=hv.length()>3?hv.normalize():_sw1.set(-Math.sin(camYaw),0,-Math.cos(camYaw));
  let a=null,bs=-1e9;for(const an of swingAnchors){const vx=an.x-pp.x,vy=an.y-pp.y,vz=an.z-pp.z;const hl=Math.hypot(vx,vz);const d=Math.hypot(hl,vy);
   if(d<SW.MIN_D||d>SW.MAX_D||vy<2.5||hl<1)continue;const ahead=(vx*dir.x+vz*dir.z)/hl;if(ahead<.15)continue;
   const sc=ahead*6-Math.abs(Math.atan2(vy,hl)-.85)*4-Math.abs(d-17)*.25;if(sc>bs){bs=sc;a=an;}}
