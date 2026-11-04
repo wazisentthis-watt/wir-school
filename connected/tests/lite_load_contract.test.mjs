@@ -9,7 +9,8 @@ const rescue=read('../assets/boot_recovery.js');
 
 test('Lite is exact opt-in, keeps every named special lot and shrinks outer blocks',()=>{
  assert.match(main,/const LITE=new URLSearchParams\(location\.search\)\.get\('lite'\)==='1'/);
- assert.match(main,/const BLOCK=44,ROAD=12,N=LITE\?2:3/);
+ assert.match(main,/const BLOCK=44,ROAD=12,N=LITE\?2:\(METAL_FULL\?4:3\)/);
+ assert.match(main,/const METAL_FULL=new URLSearchParams\(location\.search\)\.get\('metal_next'\)==='1'/);
  for(const bx of ['skate','field','fight','dojo','forge','pluto','home'])
   assert.match(main,new RegExp('\\b'+bx+':\\{bx:'));
 });
