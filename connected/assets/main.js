@@ -1780,6 +1780,13 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
    },queueThrow:()=>queueEnemyThrow(),isHolding:()=>!!heldActor,
    throwState:()=>({...pairedThrow.pose(),completed:pairedThrow.completed})};
   }
+  if(METAL_FULL&&new URLSearchParams(location.search).get('metal_terrain_qa')==='1'){
+   // Read-only source geometry; use pre-existing teleportForTest only in QA.
+   window.__game.terrainQA=()=>terrainSurfaces.map(surface=>({
+    id:surface.id,origin:{...surface.origin},normal:{...surface.normal},
+    halfWidth:surface.halfWidth,halfDepth:surface.halfDepth
+   }));
+  }
   window.__game.metalNext=()=>METAL_FULL?({
    enabled:true,board:st.board,boardBackSwing:!!st.swing?.boardBack,
    swingActive:!!st.swing,pressureCount:pressureStep.count,cooldown:pressureStep.cooldown,
