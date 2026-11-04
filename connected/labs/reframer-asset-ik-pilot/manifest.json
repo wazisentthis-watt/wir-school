@@ -1,0 +1,81 @@
+{
+  "status": "PRIVATE / PROPOSAL / PUBLISH HOLD",
+  "version": "reframer-asset-intake-ik-pilot01",
+  "baseline": "f7d0560bee082946f24397bc69982259e32a1ccd",
+  "sourceModels": [
+    {
+      "file": "Soldier.glb",
+      "sha256": "8b3ecad9edfe10bc663cb9f8317603d9fc7952c6f95b90a9be92752aa0a37e0f",
+      "jointCount": 62,
+      "animationCount": 24,
+      "animationCandidates": [
+        "Punch_Left",
+        "Punch_Right",
+        "Kick_Left",
+        "Kick_Right",
+        "Roll",
+        "HitRecieve",
+        "HitRecieve_2",
+        "Idle_Neutral"
+      ]
+    },
+    {
+      "file": "Character.glb",
+      "sha256": "cefe2ff8b8e49607bb7e7349862a10e29a63c69eeabc1c939330cb8cb8f90301",
+      "jointCount": 25,
+      "animationCount": 22,
+      "animationCandidates": [
+        "Punch_Left",
+        "Punch_Right",
+        "Kick_Left",
+        "Kick_Right",
+        "Roll",
+        "HitRecieve",
+        "HitRecieve_2",
+        "Idle_Neutral"
+      ]
+    }
+  ],
+  "targetModel": {
+    "file": "connected/assets/models/rival_sparring_hero.glb",
+    "jointCount": 65,
+    "clipCount": 21
+  },
+  "sourceTools": [
+    {
+      "name": "CCDIKSolver.js",
+      "origin": "user upload, Three.js addon source",
+      "sizeBytes": 9855,
+      "license": "Three.js MIT",
+      "use": "bounded two-link proxy-chain IK; original skeleton unchanged"
+    },
+    {
+      "name": "three-mesh-bvh",
+      "version": "0.9.18",
+      "origin": "user upload three-mesh-bvh-master.zip",
+      "license": "MIT, Garrett Johnson",
+      "peerThree": ">= 0.159.0",
+      "use": "opt-in accelerated collision raycast and baseline comparison; pinned runtime build via npm in CI"
+    }
+  ],
+  "licenseStatus": {
+    "sourceGLBs": "Unverified distribution rights. They remain ONLY on the user's device and are never committed to the repository.",
+    "sourceTools": "MIT sources, retain attribution and license notes."
+  },
+  "runtime": {
+    "featureGate": "?lite=1&aerial_duel=1&reframer_ik=1",
+    "fileInput": "Choose local Soldier.glb or Character.glb inside rooftop training",
+    "bvh": "Optional installed 0.9.18 runtime build; otherwise standard Three raycast",
+    "retarget": "rotation deltas with rest-pose parent-space alignment. No root translation. Missing targets cause graceful fallback.",
+    "ik": "proxy CCD solver does not add bones to original ReFramer skeleton, foot and hand targets clamped near contact; original combat physics untouched",
+    "safety": "No changes to regular mission, save keys, world colliders, METAL character or model binaries"
+  },
+  "unverified": [
+    "True matching skin proportions and foot axis on every uploaded source",
+    "External source license and attribution",
+    "Real Bluetooth controller/iPhone Safari",
+    "Artistic polish",
+    "Equivalent BVH collision on every city mesh",
+    "Rigid-body physics replacement"
+  ]
+}

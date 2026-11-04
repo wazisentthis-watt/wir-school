@@ -94,3 +94,14 @@ canvas{display:block}#load{position:fixed;inset:0;display:flex;flex-direction:co
  #mission05Hud b{font-size:12px}#mission05Hud p{font-size:11px}
  #mission05Hud button{min-height:44px}
 }
+
+/* Isolated opt-in ReFramer asset intake. No styles applied outside active duel. */
+#wirReframerAssetPilot{position:absolute;z-index:5;right:12px;top:142px;max-width:min(315px,88vw);
+ display:flex;flex-direction:column;gap:7px;pointer-events:auto;padding:12px;border:1px solid #64aab5;
+ border-radius:12px;color:#dffaff;background:rgba(12,29,36,.94);font:600 11px system-ui}
+#wirReframerAssetPilot[hidden]{display:none}
+#wirReframerAssetPilot input,#wirReframerAssetPilot select{max-width:100%;color:#f5fbff;background:#152d35}
+#wirReframerAssetPilot .wir-ik-actions{display:grid;grid-template-columns:repeat(2,1fr);gap:5px}
+#wirReframerAssetPilot .wir-ik-actions button{min-height:44px;font-size:10px}
+#wirReframerIKResult{line-height:1.5;overflow-wrap:anywhere}
+@media(max-width:550px){#wirReframerAssetPilot{top:137px;right:7px;max-width:84vw;max-height:34vh;overflow:auto;padding:7px}}

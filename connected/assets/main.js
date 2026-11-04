@@ -46,6 +46,8 @@ const SLOTTA_BROWSER_QA=new URLSearchParams(location.search).get('slotta_qa')===
 // Explicit opt-in training arena; inactive normal Savannah remains fully unchanged.
 const MISSION05=new URLSearchParams(location.search).get('mission05')==='1'; // PUBLISH HOLD
 const AERIAL_DUEL_PILOT=new URLSearchParams(location.search).get('aerial_duel')==='1'&&!MISSION05;
+// Asset IK probe is opt-in and never runs during Mission 05 or the ordinary Savannah loop.
+const REFRAMER_IK_PROBE=AERIAL_DUEL_PILOT&&new URLSearchParams(location.search).get('reframer_ik')==='1';
 const TEST_YARD_SKATE=new URLSearchParams(location.search).get('skate_yard')==='1'||MISSION05; // fix missing flag from merged PR34; preserve default
 if(SLOTTA_BROWSER_QA)window.__testHold=true;
 const boot=window.__bootRecovery||{stage:()=>{},warning:()=>{},failed:()=>{},ready:()=>{},getStatus:()=>({warnings:[]})};
@@ -1847,7 +1849,14 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   }});P.handBone=P.o.getObjectByName('DEF-handR')||P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearmR');/* three.js strips '.' from node names */
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
-  if(AERIAL_DUEL_PILOT)initAerialDuelPilot(); // legacy pilot stays isolated from Mission05 by flag
+  if(AERIAL_DUEL_PILOT){
+    initAerialDuelPilot();
+    if(REFRAMER_IK_PROBE&&aerialDuel){
+      import('./reframer_asset_ik_pilot.mjs').then(({attachReframerAssetIKPilot})=>{
+        window.__reframerAssetPilot=attachReframerAssetIKPilot(aerialDuel);
+      }).catch(err=>console.warn('[WIR ReFramer IK pilot]',err));
+    }
+  } // legacy pilot stays isolated from Mission05 by flag
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
   boot.ready();
   if(boot.getStatus().warnings.length)toast('Mission running with '+boot.getStatus().warnings.length+' art fallbacks · PROPOSAL');
