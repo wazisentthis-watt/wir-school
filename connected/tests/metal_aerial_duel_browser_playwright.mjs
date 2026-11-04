@@ -81,11 +81,13 @@ try{
   await padPage.evaluate(({idx,held})=>{for(const j of held){const b=window.__virtualDuelPad.buttons[j];b.pressed=true;b.value=1;}const b=window.__virtualDuelPad.buttons[idx];b.pressed=true;b.value=1;}, {idx,held});
   await padPage.waitForTimeout(330);
   await padPage.evaluate(({idx,held})=>{for(const j of [idx,...held]){const b=window.__virtualDuelPad.buttons[j];b.pressed=false;b.value=0;}},{idx,held});
+  // A release frame must be sampled before a second Gamepad API edge can fire.
+  await padPage.waitForFunction(idx=>window.__aerialPilot?.previousButtons?.[idx]===false,idx,{timeout:12000});
  }
  await padPulse(2);
- await padPage.waitForFunction(()=>window.__aerialPilot.state.combo>=1,null,{timeout:8000});
+ await padPage.waitForFunction(()=>window.__aerialPilot.state.combo>=1&&window.__aerialPilot.state.cooldown===0,null,{timeout:12000});
  await padPulse(2);
- await padPage.waitForFunction(()=>window.__aerialPilot.state.combo>=2,null,{timeout:8000});
+ await padPage.waitForFunction(()=>window.__aerialPilot.state.combo>=2&&window.__aerialPilot.state.cooldown===0,null,{timeout:12000});
  await padPulse(3);
  await padPage.waitForFunction(()=>window.__aerialPilot.state.enemy.y>.5,null,{timeout:10000});
  results.push({case:'Virtual_Xbox_X_Chain_Y_Launch',ok:true});
