@@ -32,7 +32,10 @@ input[type=file]{width:100%;max-width:100%;background:#1a1830}select{width:100%;
 <p id="status" role="status">Ready. All models remain local to this browser session.</p>
 <h2>2 · Rig and animations</h2>
 <pre id="report" aria-live="polite">No rig inspected.</pre>
-<button id="playClip" disabled type="button">Play first embedded animation</button>
+<label for="clipSelect">Original clip (loaded model only):</label>
+<select id="clipSelect" aria-label="Embedded rig animation" disabled><option>Load GLB first</option></select>
+<div class="actions"><button id="playClip" disabled type="button">Play selected animation</button><button id="playAllClips" disabled type="button">Play all embedded clips</button><button id="stopClips" disabled type="button">Stop animations</button></div>
+<p class="muted">31 Gorillium clips are available only when the original uploaded GLB is selected. This preview plays the actual GLB tracks; it does not simulate damage or full combat mechanics.</p>
 <h2>3 · Assign actual tentacle skin bones</h2>
 <p class="muted">Each slot must bind to a distinct bone used by a skinned mesh. Auto suggestions are only naming hints. Review anatomy before accepting.</p>
 <div id="limbMap"></div>
