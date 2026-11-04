@@ -97,6 +97,7 @@ export function enemyAbilityTick(kind,state,dt,range){
  const next={cooldown:Math.max(0,(state?.cooldown??cfg.cooldown)-clamp(dt,0,.1)),
    telegraph:Math.max(0,(state?.telegraph??0)-clamp(dt,0,.1)),kind};
  if(range>cfg.range)return {event:null,state:next};
+ if(state?.telegraph>0&&next.telegraph<=0)return {event:'attack-'+kind,state:next};
  if(next.telegraph>0)return {event:null,state:next};
  if(next.cooldown<=0){next.cooldown=cfg.cooldown;next.telegraph=cfg.telegraph;
   return {event:'telegraph-'+kind,state:next};}
