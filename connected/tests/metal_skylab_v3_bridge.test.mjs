@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {createSavannahMetalController,SKYLAB_MOVES,SKYLAB_BUTTONS} from '../assets/metal_skylab_v3_bridge.mjs';
+import {createSavannahMetalController,SKYLAB_MOVES,SKYLAB_BUTTONS,shouldGripWorld} from '../assets/metal_skylab_v3_bridge.mjs';
 const pad=(pressed=[],axes=[0,0,0,0],id='Xbox Wireless Controller')=>({
  id,index:0,mapping:'standard',connected:true,axes,
  buttons:Array.from({length:18},(_,i)=>({pressed:pressed.includes(i),value:pressed.includes(i)?1:0}))
@@ -64,4 +64,12 @@ test('controller settings use separate storage key, not story checkpoints',()=>{
 test('Bluetooth loss clears even a deliberate pause, allowing keyboard/touch fallback',()=>{
  const c=fresh();c.poll(pad());for(let i=0;i<13;i++)c.poll(pad([9]),.08);
  assert.equal(c.paused,true);const s=c.poll(null);assert.equal(c.paused,false);assert.equal(s.paused,false);
+});
+
+test('Classic mode cannot inherit a held SkyLab grab after switching layouts',()=>{
+ assert.equal(shouldGripWorld({mode:'classic',v3Held:true}),false);
+ assert.equal(shouldGripWorld({mode:'skylab',v3Held:true}),true);
+ assert.equal(shouldGripWorld({mode:'classic',lb:true,v3Held:true}),true);
+ assert.equal(shouldGripWorld({mode:'classic',keyboard:true}),true);
+ assert.equal(shouldGripWorld({mode:'skylab'}),false);
 });
