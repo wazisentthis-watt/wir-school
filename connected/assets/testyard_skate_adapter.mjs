@@ -68,7 +68,7 @@ export function createTestYardSkateAdapter(){
    flip.elapsed+=limit(dt,0,.08);
    if(flip.elapsed>=flip.duration){flip.done=true;airPoints+=flip.points;airNames.push(flip.name);}
   }
-  if(!flip&&!queued&&grabHeld){
+  if((!flip||flip.done)&&!queued&&grabHeld){
    if(!grab)grab={name:GRABS[dir]||GRABS.N,elapsed:0};
    grab.elapsed+=limit(dt,0,.08);
   }else if(grab&&!grabHeld){
