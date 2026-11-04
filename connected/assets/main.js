@@ -1243,7 +1243,7 @@ function update(dt){
  // Poll the Menu hold while paused; never suspend the browser loop or mission loader.
  if(metalPadV3.paused){pollPad(dt);return;}
  st.grinding=false;
- if(forgeController?.update(dt,P.o.position,floorAt(P.o.position))){st.board=true;board.visible=true;plog('discoveries','Forged Galaxy Gallium four-wheel board');toast('FORGE COMPLETE · FOUR WHEELS');}
+ if(forgeController?.update(dt,P.o.position,floorAt(P.o.position))){st.board=true;board.visible=true;toast('FORGE COMPLETE · FOUR WHEELS');}
  // Single external-root physics step. The actual movement solver owns Metal's position.
  bodyMachine.step(dt,0,true);
  bodyMachine.position.x=P.o.position.x;bodyMachine.position.z=P.o.position.z;
