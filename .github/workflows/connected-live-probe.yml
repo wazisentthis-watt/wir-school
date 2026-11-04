@@ -1,7 +1,11 @@
 name: WIR Connected hosted live-load diagnosis
 on:
+  # Daily hosted mission smoke check alerts through GitHub Actions failures.
+  schedule:
+    - cron: '25 13 * * *'
   push:
     branches:
+      - main
       - hotfix/connected-live-loading-20261103
     paths:
       - '.github/workflows/connected-live-probe.yml'
