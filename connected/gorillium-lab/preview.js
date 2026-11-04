@@ -125,13 +125,17 @@ async function loadParsedGLB(bytes,{source,name}){
  setStatus('Decoding locally verified '+name+'…');
  const gltf=await new Promise((resolve,reject)=>loader.parse(data,'',resolve,reject));
  const hash=await hashBytes(data);
+ // Prepare the replacement completely before dismissing the previous preview.
+ const rig=inspectRig(gltf);
+ const skinBones=activeJointBones(gltf.scene);
+ const mixer=gltf.animations.length?new THREE.AnimationMixer(gltf.scene):null;
+ placeModel(gltf);
  clearModel();
  state.source=source;state.gltf=gltf;state.sha256=hash;
  state.sourceScan=validation;
- placeModel(gltf);
- state.rig=inspectRig(gltf);
- state.skinBones=activeJointBones(gltf.scene);
- state.mixer=gltf.animations.length?new THREE.AnimationMixer(gltf.scene):null;
+ state.rig=rig;
+ state.skinBones=skinBones;
+ state.mixer=mixer;
  button('playClip').disabled=!state.mixer;
  populateClipPicker();
  sourceLabel.textContent=source==='device-glb'
