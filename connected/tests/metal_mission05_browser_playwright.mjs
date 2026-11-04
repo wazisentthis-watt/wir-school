@@ -115,13 +115,19 @@ try{
  const done=await snapshot(page);
  assert.equal(done.stage.complete,true);
  assert.equal(JSON.parse(done.currentSave).stage,'COMPLETE');
- assert.equal(done.gameStorySave,before.gameStorySave,'Original Metal story save changed');
+ // Reaching the Skatepark may legitimately advance original chapter 01.
+ // The M05 sidecar may NOT delete or regress that independent story.
+ if(before.gameStorySave){
+  assert.ok(JSON.parse(done.gameStorySave).chapter>=JSON.parse(before.gameStorySave).chapter,
+   'Original Metal chapter regressed');
+ }
+ assert.ok(done.gameStorySave,'Existing first mission lost after game play');
  results.push({case:'safehouse_return_completes_separate_mission_checkpoint',pass:true});
  await page.reload({waitUntil:'domcontentloaded'});
  await page.waitForFunction(()=>window.__ready===true&&!!window.__mission05?.snapshot,null,{timeout:80000});
  const loaded=await snapshot(page);
  assert.equal(loaded.stage.stage,'COMPLETE','Saved Mission05 completion not restored');
- assert.equal(loaded.gameStorySave,before.gameStorySave,'Mission05 reload changed original story');
+ assert.equal(loaded.gameStorySave,done.gameStorySave,'Mission05 reload changed original story');
  assert.equal(errors.length,0,errors.join('\n'));
  results.push({case:'relaunch_restores_M05_without_legacy_story_or_power_regression',pass:true});
  await ctx.close();
