@@ -277,7 +277,7 @@ async function spawnLife(){const tints=[0xd9a066,0x5ea1d6,0xc85a5a,0x7bc47f,0xe0
 // ---------- input: keyboard, touch, gamepad (one scheme for the whole world) ----------
 const keys={},pressed={};
 // SkyLab V3 gamepad controls are optional and do not write Metal mission saves.
-const metalPadV3=createSavannahMetalController({onMessage:m=>toast(m)});
+const metalPadV3=createSavannahMetalController({onMessage:m=>toast(String(m).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'))});
 let v3PrevFlight=false,v3GrabHeld=false,v3SpinTime=0,v3KickflipTime=0;
 addEventListener('keydown',e=>{if(/^F[1-4]$/.test(e.code))e.preventDefault();if(!keys[e.code])pressed[e.code]=true;keys[e.code]=true;if(e.code.startsWith('Numpad')||e.code==='Space')e.preventDefault();});
 addEventListener('keyup',e=>keys[e.code]=false);
