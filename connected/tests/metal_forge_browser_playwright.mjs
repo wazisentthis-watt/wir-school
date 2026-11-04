@@ -25,6 +25,10 @@ try{
  results.push({case:'B_starts_forge',pass:true,phase:start.phase});
  await page.waitForFunction(()=>{const f=window.__game?.forge?.();return f&&f.state.elapsed>=2.18&&f.state.elapsed<3.3;},null,{timeout:23000});
  const assembly=await page.evaluate(()=>window.__game.forge().snapshot());
+ const performance=await page.evaluate(()=>window.__game.forgePerformance?.());
+ assert.ok(performance&&performance.appliedBones>0,'actual current METAL rig needs mapped upper-body bones during forge');
+ assert.ok(performance.roles.length>0,'no bones found on current METAL rig');
+ results.push({case:'original_procedural_character_reaches_during_forge',pass:true,phase:performance.phase,bones:performance.appliedBones,roles:performance.roles});
  assert.ok(assembly.deck>.6,'deck must substantially form before wheels complete');
  assert.equal(assembly.wheels,4);assert.equal(assembly.originalBoardVisible,false);
  results.push({case:'rig_safe_staged_assembly',pass:true,deck:assembly.deck,trucks:assembly.truck,wheels:assembly.wheels});
