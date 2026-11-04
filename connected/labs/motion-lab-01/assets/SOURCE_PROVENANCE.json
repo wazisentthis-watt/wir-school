@@ -1,0 +1,24 @@
+{
+  "status": "PROPOSAL / PUBLISH HOLD",
+  "source": "Google Drive /1010/METAL_MINI_MORROW_CITY_3D_v18_PLAYABLE.html",
+  "drive_url": "https://drive.google.com/file/d/1yMPANwYJ89CVTCqifvX1PSOeYIP_xecc/view",
+  "assets": [
+    {
+      "path": "assets/ramp.glb",
+      "sha256": "87a373eb956a746cf7bc2b6355f73942edbbe2c4ac2a68864f6d5576f1b615e0",
+      "bytes": 11236,
+      "original_id": "skate_ramp",
+      "original_path": "models/skate/ramp.glb"
+    },
+    {
+      "path": "assets/Textures/colormap.png",
+      "sha256": "806ff16fd46a2a259485672edfdc71c3d1bce255db71c01abda9a095b5e661d2",
+      "bytes": 10860,
+      "original_id": "skate_Textures_colormap.png",
+      "original_path": "models/skate/Textures/colormap.png"
+    }
+  ],
+  "rights": "Source labels are not independent ownership or license verification; final publication on HOLD.",
+  "saves": "Lab writes only wir_motion_lab01_progress_v1",
+  "live": "No edits to connected/index.html or connected/assets/main.js"
+}
