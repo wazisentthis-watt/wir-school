@@ -1,5 +1,5 @@
 import {createCharge,stepCharge} from './merkabah_charge.js';
-import {createSavannahMetalController} from './metal_skylab_v3_bridge.mjs';
+import {createSavannahMetalController,shouldGripWorld} from './metal_skylab_v3_bridge.mjs';
 import {loadMissionAsset,createMissionFallback,MISSION_ASSET_TIMEOUTS} from './mission_asset_recovery.js';
 import {readMetalCheckpoint,writeMetalCheckpoint,advanceMetalStory,metalStoryChapter} from './metal_story_engine.js';
 import {createCombatBody,applyCombatHit,stepCombatBody,blastDirection} from './metal_combat_physics.js';
@@ -1267,7 +1267,7 @@ function update(dt){
  // Controller contract: LB grabs, RB swings, LT charges, RT RIFFT Steps; LB+RT throws a held car.
  const gpWorld=metalPadV3.mode==='skylab'?null:(navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null);
  const lt=!!(gpWorld?.buttons[6]?.pressed||gpWorld?.buttons[6]?.value>.35||gpWorld?.axes?.[4]>.35),lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!(gpWorld?.buttons[7]?.pressed||gpWorld?.buttons[7]?.value>.35);
- updateCrownCharge(dt,gpWorld);const gripDown=lb||!!keys.KeyU||(metalPadV3.mode==='skylab'&&v3GrabHeld);worldGripActive=gripDown;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
+ updateCrownCharge(dt,gpWorld);const gripDown=shouldGripWorld({mode:metalPadV3.mode,lb,keyboard:!!keys.KeyU,v3Held:v3GrabHeld});worldGripActive=gripDown;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
  if(rt&&!lt&&!gripDown){riftPressTime+=dt;if(riftPressTime>=.16&&!combatBlastLatch){riffStep();combatBlastLatch=true;}}else{riftPressTime=0;combatBlastLatch=false;}if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
  if(rb&&!gripDown&&!worldSwingLatch){if(slottaSnare>0)toast('Circuit Serpents: swing disabled');else{pressed.KeyQ=true;keys.KeyQ=true;}}if(!rb||gripDown||slottaSnare>0)keys.KeyQ=false;worldSwingLatch=rb&&!gripDown&&slottaSnare<=0;
  if(gripDown&&!heldCar&&!heldCitizen&&!heldActor&&!gripTarget&&worldGripRetry<=0){if(slottaSnare>0)toast('Circuit Serpents disrupting Galaxy Gallium');else galliumGrabWorld();worldGripRetry=.4;}else worldGripRetry=Math.max(0,worldGripRetry-dt);
