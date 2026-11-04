@@ -15,12 +15,19 @@ try{
  assert.equal(init.ready,true,JSON.stringify(init.boot));
  assert.equal(init.board,false,'board cannot render on METAL chest/back while walking');
  assert.equal(init.flag,'IDLE');results.push({case:'walking_no_board',pass:true});
+ const parts=await page.evaluate(()=>({wheels:window.__game.forge().parts.filter(p=>p.kind==='wheel').length,trucks:window.__game.forge().parts.filter(p=>p.kind==='truck').length,decks:window.__game.forge().parts.filter(p=>p.kind==='deck').length}));
+ assert.deepEqual(parts,{wheels:4,trucks:2,decks:1});results.push({case:'all_seven_parts_exist',pass:true});
  await page.evaluate(()=>{const g=window.__game;g.P.o.position.set(175,.25,175);g.pressed.KeyB=true;});
  await page.waitForFunction(()=>window.__game?.forge?.()?.state.phase!=='IDLE',null,{timeout:6000});
  const start=await page.evaluate(()=>({phase:window.__game.forge().state.phase,st:window.__game.st.board,visible:window.__game.board.visible,gal:window.__game.st.gal}));
  assert.equal(start.st,false,'forge may not skate before animation finishes');
  assert.equal(start.visible,false,'real board must stay hidden until mounting');
  results.push({case:'B_starts_forge',pass:true,phase:start.phase});
+ await page.waitForFunction(()=>{const f=window.__game?.forge?.();return f&&f.state.elapsed>=2.18&&f.state.elapsed<3.3;},null,{timeout:23000});
+ const assembly=await page.evaluate(()=>window.__game.forge().snapshot());
+ assert.ok(assembly.deck>.6,'deck must substantially form before wheels complete');
+ assert.equal(assembly.wheels,4);assert.equal(assembly.originalBoardVisible,false);
+ results.push({case:'rig_safe_staged_assembly',pass:true,deck:assembly.deck,trucks:assembly.truck,wheels:assembly.wheels});
  await page.waitForFunction(()=>window.__game?.forge?.()?.state.phase==='SKATING'&&window.__game.st.board===true,null,{timeout:23000});
  const built=await page.evaluate(()=>({phase:window.__game.forge().state.phase,board:window.__game.board.visible,st:window.__game.st.board,gal:window.__game.st.gal,errors:window.__errors||[],story:localStorage.getItem('wir_metal_story_v1'),profile:localStorage.getItem('wir_valence_profile_v1')}));
  assert.equal(built.board,true);
@@ -33,7 +40,8 @@ try{
  await page.waitForFunction(()=>!window.__game.st.board&&window.__game.forge().state.phase==='DISSOLVING',null,{timeout:4000});
  assert.equal(await page.evaluate(()=>window.__game.board.visible),false);
  results.push({case:'B_dismount_no_board_carry',pass:true});
- await page.waitForFunction(()=>window.__game.forge().state.phase==='IDLE',null,{timeout:3500});
+ // Heavy software-WebGL frames can take multiple real seconds to simulate 0.55s of game time.
+ await page.waitForFunction(()=>window.__game.forge().state.phase==='IDLE',null,{timeout:15000});
  assert.equal(errors.length,0,'runtime errors '+JSON.stringify(errors));
  await page.screenshot({path:'test-results/metal_gallium_forge_chromium.png'});
  console.log('METAL GALLIUM FORGE BROWSER QA PASS',JSON.stringify(results));
