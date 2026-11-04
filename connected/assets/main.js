@@ -44,8 +44,8 @@ const LITE=new URLSearchParams(location.search).get('lite')==='1';
 // Opt-in, isolated browser QA only. Normal gameplay never exposes this interface.
 const SLOTTA_BROWSER_QA=new URLSearchParams(location.search).get('slotta_qa')==='1';
 // Explicit opt-in training arena; inactive normal Savannah remains fully unchanged.
-const AERIAL_DUEL_PILOT=new URLSearchParams(location.search).get('aerial_duel')==='1';
 const MISSION05=new URLSearchParams(location.search).get('mission05')==='1'; // PUBLISH HOLD
+const AERIAL_DUEL_PILOT=new URLSearchParams(location.search).get('aerial_duel')==='1'&&!MISSION05;
 const TEST_YARD_SKATE=new URLSearchParams(location.search).get('skate_yard')==='1'||MISSION05; // fix missing flag from merged PR34; preserve default
 if(SLOTTA_BROWSER_QA)window.__testHold=true;
 const boot=window.__bootRecovery||{stage:()=>{},warning:()=>{},failed:()=>{},ready:()=>{},getStatus:()=>({warnings:[]})};
@@ -1847,7 +1847,7 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   }});P.handBone=P.o.getObjectByName('DEF-handR')||P.o.getObjectByName('DEF-hand.R')||P.o.getObjectByName('DEF-forearmR');/* three.js strips '.' from node names */
   // stand on the board: lift player
   msg('Traffic & residents…');await spawnLife();
-  if(AERIAL_DUEL_PILOT&&!MISSION05)initAerialDuelPilot(); // alternate pilot disabled while M05 owns encounter
+  if(AERIAL_DUEL_PILOT)initAerialDuelPilot(); // legacy pilot stays isolated from Mission05 by flag
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
   boot.ready();
   if(boot.getStatus().warnings.length)toast('Mission running with '+boot.getStatus().warnings.length+' art fallbacks · PROPOSAL');
