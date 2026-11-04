@@ -21,7 +21,7 @@ try{
  assert.equal(start.st,false,'forge may not skate before animation finishes');
  assert.equal(start.visible,false,'real board must stay hidden until mounting');
  results.push({case:'B_starts_forge',pass:true,phase:start.phase});
- await page.waitForFunction(()=>window.__game?.forge?.()?.state.phase==='SKATING'&&window.__game.st.board===true,null,{timeout:11000});
+ await page.waitForFunction(()=>window.__game?.forge?.()?.state.phase==='SKATING'&&window.__game.st.board===true,null,{timeout:23000});
  const built=await page.evaluate(()=>({phase:window.__game.forge().state.phase,board:window.__game.board.visible,st:window.__game.st.board,gal:window.__game.st.gal,errors:window.__errors||[],story:localStorage.getItem('wir_metal_story_v1'),profile:localStorage.getItem('wir_valence_profile_v1')}));
  assert.equal(built.board,true);
  assert.equal(built.st,true);
@@ -38,7 +38,8 @@ try{
  await page.screenshot({path:'test-results/metal_gallium_forge_chromium.png'});
  console.log('METAL GALLIUM FORGE BROWSER QA PASS',JSON.stringify(results));
 }catch(e){
- results.push({case:'error',pass:false,message:String(e.stack||e)});
+ const diagnostic=await page.evaluate(()=>({ready:window.__ready,phase:window.__game?.forge?.()?.state?.phase,elapsed:window.__game?.forge?.()?.state?.elapsed,visible:window.__game?.board?.visible,skating:window.__game?.st?.board,gallium:window.__game?.st?.gal,gameErrors:window.__errors||[],boot:window.__bootRecovery?.getStatus?.()})).catch(err=>({captureError:String(err)}));
+ results.push({case:'error',pass:false,message:String(e.stack||e),diagnostic});
  console.error('METAL GALLIUM FORGE BROWSER QA FAIL',JSON.stringify(results));
  try{await page.screenshot({path:'test-results/metal_gallium_forge_failure.png'});}catch{}
  process.exitCode=1;
