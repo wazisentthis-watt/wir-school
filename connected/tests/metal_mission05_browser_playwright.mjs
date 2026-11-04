@@ -57,7 +57,18 @@ try{
  await page.evaluate(()=>{const g=window.__game;const r=window.__mission05.snapshot().roof;
   g.teleportForTest({x:r.x,y:r.y+.08,z:r.z});g.vel.set(0,-.5,0);
  });
- await stage(page,'DUEL',12000);
+ try{await stage(page,'DUEL',14000);}
+ catch(e){
+  const diag=await page.evaluate(()=>{
+   const g=window.__game,m=window.__mission05,top=m?.snapshot().roof,p=g?.P.o.position;
+   return {stage:m?.snapshot(),pos:p?{x:p.x,y:p.y,z:p.z}:null,
+    grounded:g?.ground?.(),board:g?.st.board,wall:!!g?.st.wall,
+    flying:g?.st.flying,swinging:!!g?.st.swing,errors:window.__errors,
+    roofInColliders:g?.colliders?.some(b=>Math.abs(b.max.y-(top?.y||0))<.01&&
+      top.x>=b.min.x&&top.x<=b.max.x&&top.z>=b.min.z&&top.z<=b.max.z)};
+  });
+  throw Error('REAL ROOFTOP GROUNDING CHECK: '+JSON.stringify(diag)+' '+String(e));
+ }
  const roofState=await snapshot(page);
  assert.equal(roofState.stage.stage,'DUEL');
  const top=await page.evaluate(()=>window.__game.P.o.position.y);
