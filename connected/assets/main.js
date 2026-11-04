@@ -862,10 +862,24 @@ const physicsTelemetry=new PhysicsTelemetry();let physicsTime=0;
 
 const crownCharge=createCharge();let chargeLeftPrev=false,chargeRightPrev=false,chargeChordPrev=false;
 const crownOrbits=[];const crownStreams=[];let crownPanel=null,crownStructureBase=null;
+let metalChargePulse=0;
 function initCrownVisual(){if(crownOrbits.length)return;const mat=new THREE.MeshStandardMaterial({color:0xcbb5ff,emissive:0x873cff,emissiveIntensity:2,metalness:.75});for(let i=0;i<18;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.09+(i%3)*.035,6,6),mat);scene.add(m);crownOrbits.push(m);}for(let i=0;i<24;i++){const p=new THREE.Mesh(new THREE.SphereGeometry(.055,5,5),new THREE.MeshStandardMaterial({color:0xc2c7df,emissive:0x8145cf,emissiveIntensity:1.4,metalness:1}));scene.add(p);crownStreams.push(p);}crownPanel=document.createElement('div');crownPanel.style.cssText='position:fixed;left:50%;bottom:18%;transform:translateX(-50%);z-index:19;pointer-events:none;text-align:center;background:#120e20d9;color:#e7d9ff;border:1px solid #8f64d0;border-radius:8px;padding:7px 12px;font:12px/1.5 system-ui;display:none';document.body.append(crownPanel);}
 function crownMetalSupply(){if(!P)return 0;let total=0;for(const b of colliders){const x=(b.min.x+b.max.x)*.5,z=(b.min.z+b.max.z)*.5;if(Math.hypot(x-P.o.position.x,z-P.o.position.z)<48)total+=.12;}for(const car of cars){if(car.position.distanceTo(P.o.position)<25)total+=.22;}return Math.min(4,total);}
 function updateCrownCharge(dt,gp){initCrownVisual();const lt=!!(gp?.buttons?.[6]?.pressed||gp?.buttons?.[6]?.value>.35),rt=!!(gp?.buttons?.[7]?.pressed||gp?.buttons?.[7]?.value>.35),chord=lt&&rt;const left=false,right=false;const events=stepCharge(crownCharge,dt,{charging:chord,left:chord&&left&&!chargeLeftPrev,right:chord&&right&&!chargeRightPrev,metalNearby:crownMetalSupply()});chargeLeftPrev=left;chargeRightPrev=right;chargeChordPrev=chord;
  if(chord&&crownCharge.time<.07)toast('KODA · CHARGING · DRAWING NEARBY METAL');
+ // Opt-in: charging is a performed, rhythmic load against the street, not a static squat.
+ // Nearby civilians and lamps respond visually. No fabricated permanent structural damage.
+ if(METAL_FULL&&crownCharge.active&&P?.o){
+  metalChargePulse+=dt;
+  if(metalChargePulse>.52){metalChargePulse=0;
+   const energy=Math.min(1,.25+crownCharge.stress*.7+crownCharge.metal*.16);
+   slottaEffect('pulse',P.o.position,1.8+energy*2.2,.52);
+   for(const n of npcs){if(n.o.position.distanceTo(P.o.position)<11)n.wait=Math.max(n.wait||0,.20+energy*.25);}
+   for(const lamp of lamps){if(lamp.position.distanceTo(P.o.position)<14)
+    lamp.material.emissiveIntensity=Math.max(lamp.material.emissiveIntensity,1.4+energy);}
+   if(crownCharge.stress>.7)toast('KODA · CITY LOAD STRESS · REBALANCE GALLIUM');
+  }
+ }else metalChargePulse=0;
  for(const e of events)if(e==='STRUCTURES RESTORED'||e==='CROWN OVERLOAD · FIVE STAR RESPONSE')toast('KODA · '+e);
  const show=crownCharge.active||crownCharge.metal>.03;
  crownPanel.style.display=show?'block':'none';if(show){const c=crownCharge;const instruction=c.emergency?'KODA: STRUCTURES FAILING · METAL RETURNING':c.unstable?'KODA: CROWN UNSTABLE · REINFORCEMENTS INBOUND':c.balance<-.35?'KODA: STRUCTURAL LOAD HIGH':c.balance>.35?'KODA: CROWN LOAD HIGH':'KODA: METAL FLOW STABILIZING';crownPanel.textContent=instruction+' | METAL '+c.metal.toFixed(1)+' | BALANCE '+c.balance.toFixed(2)+' | STRESS '+Math.round(c.stress*100)+'%';}
@@ -1457,6 +1471,14 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  bodyTilt+=(tiltGoal-bodyTilt)*Math.min(1,dt*8);
  P.model.rotation.x=bodyTilt*bodyMachine.fallDirection.z;
  P.model.rotation.z=bodyTilt*bodyMachine.fallDirection.x;
+ if(METAL_FULL&&crownCharge.active){
+  const intensity=THREE.MathUtils.clamp(.18+crownCharge.metal*.28+crownCharge.stress*.4,0,1);
+  const performance=chargePose(crownCharge.time,intensity);
+  P.model.rotation.x+=performance.lean;
+  P.model.rotation.y+=performance.twist;
+  P.model.rotation.z+=performance.side;
+  P.model.position.y-=performance.lower;
+ }
  physicsTime+=dt;
  physicsTelemetry.sample({time:physicsTime,dt,position:P.o.position,velocity:vel,grounded:onGround,board:st.board,wall:st.wall,swing:st.swing,flying:st.flying,body:bodyMachine});
 }
