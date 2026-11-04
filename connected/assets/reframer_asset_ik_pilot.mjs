@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {CCDIKSolver} from './lib/addons/animation/CCDIKSolver.js';
-import {compatibleBonePairs,evaluateRetargetCoverage} from './reframer_bone_mapping.mjs';
+import {SOURCE_TARGET_BONES,compatibleBonePairs,evaluateRetargetCoverage} from './reframer_bone_mapping.mjs';
 const pos=o=>o.getWorldPosition(new THREE.Vector3());
 const rot=o=>o.getWorldQuaternion(new THREE.Quaternion());
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
@@ -80,6 +80,26 @@ export class ReframerAssetIKPilot{
    const s=this.sourceBones.get(p.source),t=this.targetBones.get(p.target);
    return {s,t,sRest:s.quaternion.clone(),sParent:rot(s.parent),tParent:rot(t.parent)};
   });
+ }
+ // Source-pose diagnostic only, using small rotation samples extracted from the user's
+ // actual uploads. This cannot replace full File-based motion playback.
+ applyUploadedSample(channels){
+  if(!this.live||!channels)return {applied:0,meanAngle:0};
+  let applied=0,sum=0;
+  for(const [src,frame] of Object.entries(channels)){
+   const mapping=SOURCE_TARGET_BONES.find(pair=>pair[0]===src);
+   const target=mapping&&this.targetBones.get(mapping[1]);if(!target)continue;
+   if(frame.rest?.length!==4||frame.key?.length!==4)continue;
+   const q0=new THREE.Quaternion().fromArray(frame.rest).normalize();
+   const q1=new THREE.Quaternion().fromArray(frame.key).normalize();
+   const delta=q1.multiply(q0.invert()).normalize();
+   const angle=2*Math.acos(clamp(Math.abs(delta.w),0,1));
+   if(!Number.isFinite(angle))continue;
+   const before=target.quaternion.clone(),desired=delta.multiply(before.clone());
+   target.quaternion.slerp(desired,.23);
+   sum+=before.angleTo(target.quaternion);applied++;
+  }
+  return {applied,meanAngle:applied?sum/applied:0,diagnosticOnly:true};
  }
  chooseClip(name){const action=this.actions.get(name);if(!action)return false;
   this.sourceMixer.stopAllAction();action.reset().play();this.clip=name;this.status();return true;}
