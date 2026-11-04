@@ -6,10 +6,10 @@
 
 - Repo: `wazisentthis-watt/wir-school`
 - Branch: `feature/metal-mission05-rooftop-pursuit-20261104-hold`
-- Immutable branch base: `2222afb4af87c83c62262e458487661062754d98` (existing merged Test Yard PR #35).
+- Immutable branch base: `fad85c02504b2c7167d4e70e41445325a3604aeb` (merged PR #35 Test Yard and PR #34 ReFramer duel).
 - Skate / grabs / cause-specific falls: reuses `connected/assets/testyard_skate_adapter.mjs` from PR #35. The existing four-wheel skate, grind/landing, Gallium board forging, movement solver and controller remain authoritative.
-- Aerial rooftop combat: selectively imports the **tested** original combat physics core and Three.js arena from unmerged draft [PR #34](https://github.com/wazisentthis-watt/wir-school/pull/34), head `f37a493da23f69fa32523cc214e271bdd8f6d86b`. The duel core is not changed. The pilot adapter adds an opt-in physically reached roof entry and hides the earlier training START button.
-- **No merge of PR #34**, no changes to `metal_story_engine.js`, current rigs/GLBs, original save schema, original powers, controller profiles, publishing settings, or `wir-school/main`.
+- Aerial rooftop combat: selectively imports the **tested** original combat physics core and Three.js arena from [PR #34](https://github.com/wazisentthis-watt/wir-school/pull/34), already merged by an external action during this build, head `f37a493da23f69fa32523cc214e271bdd8f6d86b`. The duel core is not changed. The pilot adapter adds an opt-in physically reached roof entry and hides the earlier training START button.
+- **No merge was performed by Mission05 work**; PR #34 had already merged on main before this rebased branch was created. No changes to `metal_story_engine.js`, current rigs/GLBs, original save schema, original powers, controller profiles, publishing settings, or `wir-school/main`.
 
 ## Play from a private checkout of this branch
 
@@ -52,3 +52,7 @@ Known limits: custom roof geometry is a proposal, not an authentic Savannah buil
 Trusted `.github/wir-hold-policy.json`: `mode=HOLD`, `allowPublicPublish=false`, `approvedMerges=[]`. **Never merge, auto-merge, mark release-ready or deploy this PR without a separate explicit owner authorization and repaired branch rule enforcement.** Current main was previously merged/published despite HOLD checks; red CI is not an effective branch protection without ruleset.
 
 Rollback: close the unmerged draft PR or discard this scoped feature branch. Default `/connected/` remains unchanged.
+
+## Rebase provenance and baseline warning
+
+The original Mission05 PR #37 was closed **unmerged** when PR #34 was merged into main concurrently, making that first branch conflict with newly merged duel files. This branch was recreated cleanly from `fad85c...`, reuses the exact merged ReFramer source, adds only opt-in `useWorldEntry`/`hideEntry` parameters, and keeps the original `?aerial_duel=1` training route backward compatible. The merged PR #34 had accidentally omitted its earlier `TEST_YARD_SKATE` feature flag while leaving references to it; this branch restores the feature flag (default false) so the merged Test Yard code can initialize safely. Do not infer that live `main` has been repaired; this correction is unmerged and within the new draft only.
