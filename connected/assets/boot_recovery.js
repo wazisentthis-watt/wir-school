@@ -5,7 +5,7 @@
  'use strict';
  const panel=document.getElementById('load'),label=document.getElementById('loadmsg');
  if(!panel||!label)return;
- const state={phase:'Boot script',warnings:[],error:null,ready:false,started:Date.now(),last:Date.now()};
+ const state={phase:'Boot script',warnings:[],error:null,ready:false,rescueShown:false,started:Date.now(),last:Date.now()};
  const detail=document.createElement('p');detail.id='loadDetail';
  detail.style.cssText='max-width:480px;margin:12px auto 4px;font:13px/1.5 system-ui;color:#d9ddf8;white-space:pre-wrap;text-align:center';
  detail.setAttribute('role','status');
@@ -32,6 +32,12 @@
    '\nYour saved progress is preserved. Retry or use Lite Mode.';
   actions.style.display='flex';
  }
+ function offerRescue(){
+  if(state.ready||state.error||state.rescueShown)return;
+  state.rescueShown=true;
+  actions.style.display='flex';detail.hidden=false;
+  detail.textContent='Still loading '+state.phase+'. You can retry or switch to Lite Mode without clearing your saved progress.';
+ }
  function ready(){
   state.ready=true;state.phase='Mission ready';state.last=Date.now();
   clearInterval(watchdog);
@@ -53,8 +59,9 @@
  });
  const watchdog=setInterval(()=>{
   if(state.ready||state.error){clearInterval(watchdog);return;}
-  if(Date.now()-state.last>60000||Date.now()-state.started>150000)
-   failed('Loading stopped responding. Connection or model download may have stalled.');
+  if(Date.now()-state.started>18000)offerRescue();
+  if(Date.now()-state.last>45000||Date.now()-state.started>110000)
+   failed('Loading stopped responding. Network, a model download or WebGL may be stalled.');
  },3000);
  stage('Preparing WIR Connected mission…');
 })();

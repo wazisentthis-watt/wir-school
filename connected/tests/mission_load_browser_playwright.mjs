@@ -99,7 +99,7 @@ try{
  // before any main.js code can execute. Retry must keep existing save bytes.
  current=await context.newPage();await observe(current);
  let failOnce=true;
- await current.route('**/connected/assets/main.js',route=>{
+ await current.route(url=>new URL(url).pathname.endsWith('/connected/assets/main.js'),route=>{
   if(failOnce){failOnce=false;return route.abort('failed');}
   return route.continue();
  });

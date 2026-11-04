@@ -31,7 +31,7 @@ import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 
 const $=id=>document.getElementById(id);
 const VIOLET=0x9b5cff, GUN=0x4a4f57;
-const LITE=/lite/.test(location.search);
+const LITE=new URLSearchParams(location.search).get('lite')==='1';
 // Opt-in, isolated browser QA only. Normal gameplay never exposes this interface.
 const SLOTTA_BROWSER_QA=new URLSearchParams(location.search).get('slotta_qa')==='1';
 if(SLOTTA_BROWSER_QA)window.__testHold=true;
@@ -54,9 +54,10 @@ renderer.shadowMap.enabled=!LITE;if(LITE)renderer.setPixelRatio(1);renderer.shad
 document.body.prepend(renderer.domElement);
 const scene=new THREE.Scene();scene.fog=new THREE.Fog(0x9fb6c8,60,260);
 const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,0.1,600);
-const composer=new EffectComposer(renderer);composer.addPass(new RenderPass(scene,camera));
-const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.55,0.5,0.86);composer.addPass(bloom);composer.addPass(new OutputPass());
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);});
+// Lite skips post-processing render targets entirely to reduce iPhone GPU memory.
+const composer=LITE?null:new EffectComposer(renderer);if(composer)composer.addPass(new RenderPass(scene,camera));
+const bloom=LITE?null:new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.55,0.5,0.86);if(composer){composer.addPass(bloom);composer.addPass(new OutputPass());}
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);if(composer)composer.setSize(innerWidth,innerHeight);});
 const hemi=new THREE.HemisphereLight(0xcfe6ff,0x3a3020,0.5);scene.add(hemi);
 const sun=new THREE.DirectionalLight(0xffffff,2.2);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);
 Object.assign(sun.shadow.camera,{left:-70,right:70,top:70,bottom:-70,near:1,far:300});sun.shadow.bias=-0.0005;scene.add(sun,sun.target);
@@ -71,7 +72,7 @@ const missionAsset=(u,type,critical=false)=>loadMissionAsset(loadG,u,{
 function rep(t,r){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(r,r);t.colorSpace=THREE.SRGBColorSpace;return t;}
 
 // ---------- city layout: Savannah [S3 start city]. Grid streets PROPOSAL. ----------
-const BLOCK=44,ROAD=12,N=3; // blocks -N..N
+const BLOCK=44,ROAD=12,N=LITE?2:3; // Lite keeps all special lots while reducing surrounding city memory
 const colliders=[];const anchors=[];const structureBodies=new Map();
 function registerGrippableStructure(mesh){
  const box=new THREE.Box3().setFromObject(mesh);
@@ -99,7 +100,7 @@ const lotCenter=(bx,by)=>new THREE.Vector3(bx*(BLOCK+ROAD),0,by*(BLOCK+ROAD));
 
 async function buildWorld(setMsg){
  setMsg('Lighting (Poly Haven HDRI)…');
- try{const hdr=await new RGBELoader().loadAsync('assets/hdri/venice_sunset_1k.hdr');hdr.mapping=THREE.EquirectangularReflectionMapping;scene.environment=hdr;scene.background=hdr;scene.backgroundBlurriness=0.25;}catch(e){scene.background=new THREE.Color(0x8fb0d0);}
+ if(LITE){scene.background=new THREE.Color(0x8fb0d0);}else try{const hdr=await new RGBELoader().loadAsync('assets/hdri/venice_sunset_1k.hdr');hdr.mapping=THREE.EquirectangularReflectionMapping;scene.environment=hdr;scene.background=hdr;scene.backgroundBlurriness=0.25;}catch(e){scene.background=new THREE.Color(0x8fb0d0);}
  const asphalt=rep(tl.load('assets/tex/asphalt_diff.jpg'),60);
  const ground=new THREE.Mesh(new THREE.PlaneGeometry(500,500),new THREE.MeshStandardMaterial({map:asphalt,roughness:.95}));
  ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
@@ -109,7 +110,7 @@ async function buildWorld(setMsg){
   for(const v of [0,1]){const l=new THREE.Mesh(new THREE.PlaneGeometry(v?0.3:400,v?400:0.3),lineM);l.rotation.x=-Math.PI/2;l.position.set(v?(i+.5)*(BLOCK+ROAD):0,0.02,v?0:(i+.5)*(BLOCK+ROAD));scene.add(l);}
  }
  setMsg('Kenney city kit…');
- const names='abcdefghij'.split('').map(c=>'building-'+c).concat(['building-skyscraper-a','building-skyscraper-b','building-skyscraper-c']);
+ const names=(LITE?'abcd':'abcdefghij').split('').map(c=>'building-'+c).concat(LITE?[]:['building-skyscraper-a','building-skyscraper-b','building-skyscraper-c']);
  const bmods=await Promise.all(names.map(n=>missionAsset('assets/models/city/'+n+'.glb','city').then(g=>g.scene)));
  const special=Object.values(SPOTS);let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
  for(let bx=-N;bx<=N;bx++)for(let by=-N;by<=N;by++){
@@ -136,7 +137,7 @@ async function buildWorld(setMsg){
  buildSkatepark(SPOTS.skate.c);buildField(SPOTS.field.c);buildFight(SPOTS.fight.c);buildDojo(SPOTS.dojo.c);buildForge(SPOTS.forge.c);buildPluto(SPOTS.pluto.c);buildHome(SPOTS.home.c);
  // trees
  const trunkM=new THREE.MeshStandardMaterial({color:0x5a3d22}),leafM=new THREE.MeshStandardMaterial({color:0x3c6b2c,roughness:1});
- for(let k=0;k<40;k++){const x=(rnd()-.5)*360,z=(rnd()-.5)*360; if(Math.abs(((x%56)+56)%56-28)<8)continue;
+ for(let k=0;k<(LITE?16:40);k++){const x=(rnd()-.5)*360,z=(rnd()-.5)*360; if(Math.abs(((x%56)+56)%56-28)<8)continue;
   const t=new THREE.Group();const tr=new THREE.Mesh(new THREE.CylinderGeometry(.25,.35,3),trunkM);tr.position.y=1.5;const lf=new THREE.Mesh(new THREE.IcosahedronGeometry(1.8,1),leafM);lf.position.y=3.8;t.add(tr,lf);
   t.traverse(o=>o.castShadow=true);t.position.set(x,0.25,z);if(!colliders.some(b=>b.containsPoint(new THREE.Vector3(x,1,z))))scene.add(t);}
 }
@@ -1320,7 +1321,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  tod=(tod+dt*24/600)%24; // 10-minute day (PROPOSAL)
  const sunA=(tod-6)/12*Math.PI;const day=Math.max(0,Math.sin(sunA));sun.position.set(pp.x+Math.cos(sunA)*80,Math.max(8,Math.sin(sunA)*100),pp.z+30);sun.target.position.copy(pp);
  sun.intensity=.15+day*2.3*(weather==='rain'?.45:1);hemi.intensity=.12+day*.5;renderer.toneMappingExposure=.45+day*.6;scene.backgroundIntensity=.15+day*.85;scene.environmentIntensity=.25+day*.75;
- const night=day<.15;lamps.forEach(l=>l.material.emissiveIntensity=night?3:0);bloom.strength=night?.9:.45;
+ const night=day<.15;lamps.forEach(l=>l.material.emissiveIntensity=night?3:0);if(bloom)bloom.strength=night?.9:.45;
  const fogC=new THREE.Color(0x0b0c18).lerp(new THREE.Color(weather==='rain'?0x7d8894:0xa9bccb),day);scene.fog.color.copy(fogC);scene.fog.far=weather==='rain'?140:260;
  weatherT-=dt;if(weatherT<=0){weather=weather==='rain'?'clear':(Math.random()<.5?'rain':'clear');weatherT=50+Math.random()*60;if(weather==='rain')plog('log','Rain started');}
  rain.visible=weather==='rain';if(rain.visible){rain.position.set(pp.x,0,pp.z);const a=rain.geometry.attributes.position;for(let i=1;i<a.array.length;i+=3){a.array[i]-=dt*30;if(a.array[i]<0)a.array[i]=40;}a.needsUpdate=true;}
