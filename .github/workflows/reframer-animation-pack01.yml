@@ -1,0 +1,41 @@
+name: ReFramer Pack 01 · Actual Rival Rig Inventory (HOLD)
+on:
+  push:
+    paths:
+      - 'connected/tests/reframer_rig_inventory_browser.mjs'
+      - '.github/workflows/reframer-animation-pack01.yml'
+  pull_request:
+    paths:
+      - 'connected/tests/reframer_rig_inventory_browser.mjs'
+      - '.github/workflows/reframer-animation-pack01.yml'
+permissions:
+  contents: read
+jobs:
+  rig-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check connected/tests/reframer_rig_inventory_browser.mjs
+      - name: Install Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Start local original Savannah
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/reframer-rig-server.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:8765/connected/ >/dev/null
+      - name: Read authentic rival_sparring_hero.glb skeleton and clips
+        run: node connected/tests/reframer_rig_inventory_browser.mjs
+      - name: Save bone map and clip lengths
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reframer-pack01-rig-provenance
+          path: test-results/reframer_runtime_rig_inventory.json
+          retention-days: 10
+          if-no-files-found: warn
