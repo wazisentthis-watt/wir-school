@@ -7,7 +7,8 @@ const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 test('opt-in prototype explicitly gated and only overrides input when active',()=>{
  assert.match(main,/get\('aerial_duel'\)==='1'/);
  assert.match(main,/if\(aerialDuel\?\.active\)\{aerialDuel\.update\(dt\);return;\}/);
- assert.match(main,/if\(AERIAL_DUEL_PILOT\)initAerialDuelPilot\(\)/);
+ assert.match(main,/if\(AERIAL_DUEL_PILOT\)\s*\{\s*initAerialDuelPilot\(\)/);
+ assert.ok(main.includes('if(REFRAMER_IK_PROBE&&aerialDuel)'),'Experimental extension stays inside the opt-in rooftop gate');
  assert.ok(pilot.includes('if(!this.active)return;'));
 });
 test('real first mission, actual METAL rig and model remain mounted',()=>{
