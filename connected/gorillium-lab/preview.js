@@ -29,9 +29,37 @@ const state={source:null,gltf:null,rig:null,sha256:null,identityVerified:false,
  skinBones:[],mapped:[],neutral:[],game:null,mixer:null,activeEvent:null,
  renderReady:!!renderer,loadError:null};
 const loader=new GLTFLoader();
+const tour={playing:false,index:0,elapsed:0};
+const clipPicker=get('clipSelect');
+function populateClipPicker(){
+ clipPicker.replaceChildren();
+ for(const [i,clip] of (state.gltf?.animations||[]).entries()){
+  const opt=document.createElement('option');opt.value=String(i);
+  opt.textContent=(i+1)+'. '+clip.name;clipPicker.append(opt);
+ }
+ clipPicker.disabled=!state.gltf?.animations?.length;
+ button('playAllClips').disabled=clipPicker.disabled;
+ button('stopClips').disabled=clipPicker.disabled;
+}
+function playEmbeddedClip(index,{tourStep=false}={}){
+ if(!state.mixer||!state.gltf?.animations?.[index]||state.activeEvent)return false;
+ if(!tourStep)tour.playing=false;
+ const clip=state.gltf.animations[index];
+ state.mixer.stopAllAction();
+ const action=state.mixer.clipAction(clip);
+ action.reset().setLoop(THREE.LoopOnce,1).play();
+ action.clampWhenFinished=true;
+ clipPicker.value=String(index);
+ setStatus('Playing real GLB clip '+(index+1)+'/'+state.gltf.animations.length+': '+clip.name+
+  ' · original geometry/skin, no gameplay hit asserted.');
+ return true;
+}
 const setStatus=s=>{msg.textContent=s;};
 const setActions=active=>{button('lash').disabled=!active;button('tether').disabled=!active;};
 function clearModel(){
+ tour.playing=false;tour.index=0;tour.elapsed=0;
+ clipPicker.replaceChildren();clipPicker.disabled=true;
+ button('playAllClips').disabled=true;button('stopClips').disabled=true;
  setActions(false);button('bind').disabled=true;button('playClip').disabled=true;
  if(state.mixer)state.mixer.stopAllAction();
  if(state.gltf?.scene)scene.remove(state.gltf.scene);
@@ -99,6 +127,7 @@ async function loadParsedGLB(bytes,{source,name}){
  state.skinBones=activeJointBones(gltf.scene);
  state.mixer=gltf.animations.length?new THREE.AnimationMixer(gltf.scene):null;
  button('playClip').disabled=!state.mixer;
+ populateClipPicker();
  sourceLabel.textContent=source==='device-glb'
   ?'Selected original candidate: '+name+' · Provenance unverified'
   :'Live Metal S1 comparison rig. NOT a Gorillium model.';
@@ -125,15 +154,17 @@ get('glbUpload').addEventListener('change',async e=>{
  try{await loadParsedGLB(await file.arrayBuffer(),{source:'device-glb',name:file.name});}
  catch(error){state.loadError=String(error);setStatus('Model rejected: '+String(error.message||error));}
 });
-button('playClip').addEventListener('click',()=>{
- if(!state.mixer||!state.gltf?.animations?.length)return;
- if(state.activeEvent)return;
- state.mixer.stopAllAction();
- const clip=state.gltf.animations[0];
- state.mixer.clipAction(clip).reset().play();
- setStatus('Playing embedded original clip: '+clip.name+' (not guaranteed to be a tentacle move)');
+button('playClip').addEventListener('click',()=>playEmbeddedClip(Number(clipPicker.value||0)));
+button('playAllClips').addEventListener('click',()=>{
+ if(!state.mixer||!state.gltf?.animations?.length||state.activeEvent)return;
+ tour.playing=true;tour.index=0;tour.elapsed=0;playEmbeddedClip(0,{tourStep:true});
+});
+button('stopClips').addEventListener('click',()=>{
+ tour.playing=false;tour.elapsed=0;state.mixer?.stopAllAction();
+ setStatus('Original clip playback stopped; rig remains in lab only.');
 });
 function bind(){
+ tour.playing=false;state.mixer?.stopAllAction();
  if(state.source!=='device-glb')return {ok:false,reason:'baseline-not-gorillium'};
  const ids=[...get('limbMap').querySelectorAll('select')].map(s=>s.value);
  if(ids.length!==8||ids.some(id=>!id)||new Set(ids).size!==8)
@@ -212,13 +243,24 @@ function frame(now){
  const dt=Math.min(.05,Math.max(0,(now-last)/1000));last=now;
  resize();updateCamera();
  if(state.mixer)state.mixer.update(dt);
+ if(tour.playing&&state.gltf?.animations?.length){
+  tour.elapsed+=dt;const clip=state.gltf.animations[tour.index];
+  if(tour.elapsed>=Math.min(2,Math.max(.65,clip?.duration||1.5))){
+   tour.elapsed=0;tour.index=(tour.index+1)%state.gltf.animations.length;
+   if(!playEmbeddedClip(tour.index,{tourStep:true}))tour.playing=false;
+  }
+ }
  if(state.game){stepGorillium(state.game,dt);updatePose();}
  renderer.render(scene,camera);
 }
 if(renderer)requestAnimationFrame(frame);
 window.__gorilliumLab={ready:!!renderer,loadBaseline,bind,cast,
  getSnapshot:()=>({source:state.source,sha256:state.sha256,renderReady:state.renderReady,
-  clipCount:state.rig?.clips?.length??null,boneCount:state.rig?.bones?.length??null,
+  clipCount:state.rig?.clips?.length??null,
+  selectedClip:state.gltf?.animations?.[Number(clipPicker.value)]?.name||null,
+  clipTourPlaying:tour.playing,
+  exactUploadedRigHash:state.sha256==='8495a8c5e727bf64244a1235e58fb655c4c4cae91ac46e18206e668ae154cd81',
+  boneCount:state.rig?.bones?.length??null,
   skinJointCount:state.skinBones.length,boundCount:state.mapped.length,
   poseDeltaRadians:state.mapped.length?Math.max(...state.mapped.map((bone,i)=>bone.quaternion.angleTo(state.neutral[i]))):0,
   lastAbility:state.game?.lastEvent?.ability||null,error:state.loadError})};
