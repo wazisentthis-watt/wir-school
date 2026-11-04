@@ -16,3 +16,25 @@ canvas{display:block}#load{position:fixed;inset:0;display:flex;flex-direction:co
 #tbtn{position:absolute;right:10px;bottom:16px;display:grid;grid-template-columns:repeat(4,58px);gap:6px;pointer-events:auto}#tbtn button{height:46px;border-radius:12px;border:1px solid rgba(155,92,255,.5);background:rgba(20,14,36,.7);color:#eee;font-weight:700;font-size:11px}
 .panel{position:fixed;inset:6% 8%;background:rgba(10,8,18,.94);border:1px solid #9b5cff;border-radius:16px;padding:14px;display:none;z-index:20;overflow:auto}.ph{display:flex;justify-content:space-between;margin-bottom:8px}.ph span{opacity:.6;font-size:12px}
 #mapc{width:100%;max-height:70%;background:#0c0a16;border-radius:10px}#profBody{font-size:13px;line-height:1.5}.lic{opacity:.55;font-size:11px}
+
+/* METAL Forge Phase 5: readable progress and non-overlapping iPhone touch controls. */
+#forgeHud{position:absolute;top:115px;left:50%;transform:translateX(-50%);width:min(290px,78vw);padding:8px 12px;background:rgba(12,10,24,.88);border:1px solid #9f80df;border-radius:12px;text-align:center;box-shadow:0 3px 18px #0007;pointer-events:none}
+#forgeHud[hidden]{display:none}
+#forgeStage{font-size:11px;letter-spacing:.07em;font-weight:800;color:#e9d9ff}
+#forgeTrack{margin-top:5px;height:8px;background:#242232;border:1px solid #6f608f;border-radius:6px;overflow:hidden}
+#forgeFill{display:block;height:100%;width:0;background:linear-gradient(90deg,#a5aab1,#ab80ed,#d4bdff)}
+#tbtn button,#stick{touch-action:none;user-select:none;-webkit-user-select:none}
+@media (max-width:480px){
+ #topl{left:7px;max-width:calc(100vw - 175px)}
+ #place{font-size:14px}
+ #meters{width:155px;right:7px;top:6px;gap:3px}
+ .mg{padding:4px 5px;font-size:9px}
+ #forgeHud{top:100px;width:min(245px,76vw);padding:7px 9px}
+ #stick{left:10px;bottom:calc(20px + env(safe-area-inset-bottom));width:106px;height:106px}
+ #nub{width:38px;height:38px;left:34px;top:34px}
+ #tbtn{right:8px;bottom:calc(8px + env(safe-area-inset-bottom));grid-template-columns:repeat(4,44px);gap:4px}
+ #tbtn button{min-width:44px;min-height:44px;height:44px;padding:0 1px;font-size:9px;border-radius:9px}
+ #metalV3ControllerButton{bottom:calc(260px + env(safe-area-inset-bottom))!important;right:8px!important;font-size:10px!important;padding:7px!important}
+ #metalV3ControllerPanel{bottom:calc(300px + env(safe-area-inset-bottom))!important;max-height:40vh!important}
+ #toast{top:24%;font-size:15px}
+}

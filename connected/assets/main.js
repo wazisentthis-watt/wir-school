@@ -24,6 +24,8 @@ import {makeGalliumLimb,galliumLiquidMat,GU} from './gallium_limb.js';
 import {MetalForgeController,FORGE_COST,FORGE_REFUND} from './metal_forge_controller.js';
 import {selectForgePose} from './metal_forge_choreography.mjs';
 import {ForgePerformanceOverlay} from './metal_forge_performance.js';
+import {createPointerLatch,touchStickVector} from './metal_touch_input.mjs';
+import {forgeDisplay} from './metal_forge_hud.mjs';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RGBELoader} from 'three/addons/loaders/RGBELoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
@@ -288,16 +290,43 @@ addEventListener('keyup',e=>keys[e.code]=false);
 let drag=null;renderer.domElement.addEventListener('pointerdown',e=>{if(e.button===2){pressed.KeyQ=true;return;}drag={x:e.clientX,y:e.clientY,id:e.pointerId};});
 addEventListener('pointermove',e=>{if(drag&&drag.id===e.pointerId){camYaw-=(e.clientX-drag.x)*.005;camPitch=THREE.MathUtils.clamp(camPitch+(e.clientY-drag.y)*.004,-.1,1.1);drag.x=e.clientX;drag.y=e.clientY;}});
 addEventListener('pointerup',e=>{if(drag&&drag.id===e.pointerId)drag=null;});renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
-const stick={x:0,y:0};{const s=$('stick'),n=$('nub');let id=null;const mv=e=>{const r=s.getBoundingClientRect();let x=(e.clientX-r.left-65)/55,y=(e.clientY-r.top-65)/55;const l=Math.hypot(x,y);if(l>1){x/=l;y/=l;}stick.x=x;stick.y=y;n.style.left=40+x*45+'px';n.style.top=40+y*45+'px';};
- s.addEventListener('pointerdown',e=>{id=e.pointerId;s.setPointerCapture(id);mv(e);});s.addEventListener('pointermove',e=>{if(e.pointerId===id)mv(e);});s.addEventListener('pointerup',()=>{id=null;stick.x=stick.y=0;n.style.left=n.style.top='40px';});}
-document.querySelectorAll('#tbtn button').forEach(b=>{b.addEventListener('pointerdown',e=>{e.preventDefault();pressed[b.dataset.k]=true;keys[b.dataset.k]=true;});b.addEventListener('pointerup',()=>{keys[b.dataset.k]=false;if(b.dataset.k==='KeyX')xRel=true;});});
+const stick={x:0,y:0};
+const touchButtonLatches=[];
+{const s=$('stick'),n=$('nub');let activeId=null;
+ const center=()=>{n.style.left=((s.clientWidth-n.offsetWidth)/2)+'px';n.style.top=((s.clientHeight-n.offsetHeight)/2)+'px';};
+ const move=e=>{
+  const v=touchStickVector(s.getBoundingClientRect(),e.clientX,e.clientY);stick.x=v.x;stick.y=v.y;
+  const travel=Math.max(0,(Math.min(s.clientWidth-n.offsetWidth,s.clientHeight-n.offsetHeight))/2-7);
+  n.style.left=((s.clientWidth-n.offsetWidth)/2+v.x*travel)+'px';
+  n.style.top=((s.clientHeight-n.offsetHeight)/2+v.y*travel)+'px';
+ };
+ const reset=()=>{activeId=null;stick.x=stick.y=0;center();};
+ s.addEventListener('pointerdown',e=>{if(activeId!==null)return;e.preventDefault();activeId=e.pointerId;try{s.setPointerCapture(activeId);}catch{}move(e);});
+ s.addEventListener('pointermove',e=>{if(e.pointerId===activeId)move(e);});
+ for(const kind of ['pointerup','pointercancel','lostpointercapture'])s.addEventListener(kind,e=>{if(e.pointerId===activeId)reset();});
+ addEventListener('blur',reset);addEventListener('pagehide',reset);
+ center();
+}
+document.querySelectorAll('#tbtn button').forEach(b=>{
+ const code=b.dataset.k,latch=createPointerLatch();touchButtonLatches.push({code,latch});
+ b.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  if(latch.down(e.pointerId)){pressed[code]=true;keys[code]=true;}
+  try{b.setPointerCapture(e.pointerId);}catch{}
+ });
+ const release=e=>{if(latch.up(e.pointerId)){keys[code]=false;if(code==='KeyX')xRel=true;}};
+ for(const kind of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(kind,release);
+ b.addEventListener('contextmenu',e=>e.preventDefault());
+});
+const clearTouchKeys=()=>{for(const {code,latch} of touchButtonLatches)if(latch.clear())keys[code]=false;};
+addEventListener('blur',clearTouchKeys);addEventListener('pagehide',clearTouchKeys);
 // Xbox layout [S5]: A jump, B board, X 4-hand, Y 6-hand, LB grapple, RB fly, LT block, RT charge, Back map, Start profile, dpad interact
 // Controller legend is intentionally visible on first connection and can be toggled with H.
 let controllerLegend=null,controllerSeen=false;
 function showControllerLegend(){
  if(!controllerLegend){controllerLegend=document.createElement('div');controllerLegend.id='controllerLegend';
  controllerLegend.style.cssText='position:fixed;right:12px;top:62px;z-index:20;max-width:240px;background:#10131fee;color:#f4f1ff;border:1px solid #9876e8;border-radius:12px;padding:12px;font:12px/1.6 system-ui;box-shadow:0 4px 20px #0008';
- controllerLegend.innerHTML='<b>🎮 METAL · CONTROLLER</b><br>Left stick: move · Right stick: camera<br>A: jump / recover · B: dodge / combat<br>X: left combat action · Y: right combat action<br>LB: Gallium grab · RB: Gallium swing<br>LT: valence charge · RT: RIFFT Step<br><b>LB + right stick:</b> move suspended car<br><b>LB + RT:</b> throw held car<br>D-pad: actions · Menu: profile<br><small>H: hide/show this guide · Keyboard U/I: car grab/throw</small>';
+ controllerLegend.innerHTML='<b>🎮 METAL · CONTROLLER</b><br>Left stick: move · Right stick: camera<br>A: jump / recover · B: forge on ground / dodge in combat or air<br>X: left combat action · Y: right combat action<br>LB: Gallium grab · RB: Gallium swing<br>LT: valence charge · RT: RIFFT Step<br><b>LB + right stick:</b> move suspended car<br><b>LB + RT:</b> throw held car<br>D-pad: actions · Menu: profile<br><small>H: hide/show this guide · Keyboard U/I: car grab/throw</small>';
  document.body.append(controllerLegend);}
  controllerLegend.style.display=controllerLegend.style.display==='none'?'block':'none';
 }
@@ -312,7 +341,13 @@ function pollPad(dt=1/60){
   const held=new Set(v3.held||[]),edges=new Set(v3.edges||[]),combo=v3.combo||{};
   if(v3.paused)return {x:0,y:0};
   if(edges.has('jump'))pressed.Space=true;
-  if(edges.has('dash'))pressed.Semicolon=true;
+  if(edges.has('dash')){
+   // SkyLab B forges/dissolves on grounded non-combat streets; B remains dodge in combat/air.
+   // One controller edge = one request, never repeat while B stays held.
+   if(GAL_FORGE_ENABLED&&forgeController?.busy){/* ignore B while the forge is forming */}
+   else if(GAL_FORGE_ENABLED&&!FG.inFight&&onGround&&!st.flying&&!st.swing)pressed.KeyB=true;
+   else pressed.Semicolon=true;
+  }
   if(edges.has('roar'))pressed.Numpad4=true;
   if(edges.has('slam')){if(!onGround)v3SpinTime=.75;else toast('Jump or swing before a 360 aerial spin');}
   if(edges.has('grapple'))pressed.KeyQ=true;
@@ -874,6 +909,19 @@ function swingTilted(){return !!(st.swing||SWS.flip>0||SWS.blend>0);}
 const GAL_FORGE_ENABLED=new URLSearchParams(location.search).get('gal_forge')!=='0';
 let forgeController=null;
 const forgePerformance=new ForgePerformanceOverlay();
+// Accessible compact Forge progress status. Read-only; cannot advance missions.
+const forgeHud=$('forgeHud'),forgeStage=$('forgeStage'),forgeTrack=$('forgeTrack'),forgeFill=$('forgeFill');
+let lastForgePercent=-1;
+function updateForgeHud(){
+ const d=forgeDisplay(forgeController?.state);forgeHud.hidden=!d.visible;
+ if(!d.visible){lastForgePercent=-1;return;}
+ if(forgeStage.textContent!==d.label)forgeStage.textContent=d.label;
+ if(lastForgePercent!==d.percent){
+  forgeFill.style.width=d.percent+'%';forgeTrack.setAttribute('aria-valuenow',String(d.percent));
+  lastForgePercent=d.percent;
+ }
+}
+
 
 // ---------- main loop ----------
 const clock=new THREE.Clock();let camPos=new THREE.Vector3();
@@ -1250,6 +1298,7 @@ function update(dt){
  if(metalPadV3.paused){pollPad(dt);return;}
  st.grinding=false;
  if(forgeController?.update(dt,P.o.position,floorAt(P.o.position))){st.board=true;board.visible=true;toast('FORGE COMPLETE · FOUR WHEELS');}
+ updateForgeHud();
  // Single external-root physics step. The actual movement solver owns Metal's position.
  bodyMachine.step(dt,0,true);
  bodyMachine.position.x=P.o.position.x;bodyMachine.position.z=P.o.position.z;
