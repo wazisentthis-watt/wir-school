@@ -34,6 +34,7 @@ import {chooseGrappleAnchor} from './metal_grapple_aim.mjs';
 import {SkateStrokeChoreo,PairedThrowChoreo} from './metal_motion_choreo.mjs';
 import {makeRampSurface,pickRampSupport,blendTerrainNormal,correctedFootHeight} from './metal_terrain_contact.mjs';
 import {alignHeldTarget,approachActorFacing} from './metal_paired_contact.mjs';
+import {classifyFingerBone,plannedFingerCurl,GripChoreo,stableKneePole,EnemyImpactChoreo} from './metal_grip_impact_v4.mjs';
 
 const $=id=>document.getElementById(id);
 const VIOLET=0x9b5cff, GUN=0x4a4f57;
@@ -525,7 +526,10 @@ function legIK(L,target,pole){const [up,lo,ft]=L;if(!up||!lo||!ft)return;
  const l1=_iA.distanceTo(_iB),l2=_iB.distanceTo(_iC);_iT.copy(target);
  const dir=_iU.subVectors(_iT,_iA);const d=THREE.MathUtils.clamp(dir.length(),.02,l1+l2-.002);dir.normalize();
  const a=(l1*l1-l2*l2+d*d)/(2*d),h=Math.sqrt(Math.max(0,l1*l1-a*a));
- _iP.copy(pole).addScaledVector(dir,-pole.dot(dir)).normalize();
+ if(METAL_FULL){
+  const stable=stableKneePole(_iA,_iT,pole);
+  _iP.set(stable.x,stable.y,stable.z);
+ }else _iP.copy(pole).addScaledVector(dir,-pole.dot(dir)).normalize();
  _iK.copy(_iA).addScaledVector(dir,a).addScaledVector(_iP,h);
  turnBone(up,_iV.subVectors(_iB,_iA),_iU.copy(_iK).sub(_iA));
  lo.getWorldPosition(_iB);ft.getWorldPosition(_iC);
@@ -973,6 +977,37 @@ let structureGrip=null;const riftMarks=[];
 const pressureStep=new PressureStep(),comboInput=new ComboInput();
 const skateChoreo=new SkateStrokeChoreo(),pairedThrow=new PairedThrowChoreo();
 let latestHandContact='none';
+let gripPose=new GripChoreo(),gripRigModel=null,gripJointEntries=[],gripBoneCount=0;
+const gripCurlAxis=new THREE.Vector3(1,0,0),gripCurlQuat=new THREE.Quaternion();
+function bindGripRig(){
+ if(!P?.model||gripRigModel===P.model)return;
+ gripRigModel=P.model;gripJointEntries=[];gripPose=new GripChoreo();
+ P.model.traverse(b=>{
+  if(!b.isBone)return;
+  const info=classifyFingerBone(b.name);
+  if(!info||info.side==='unknown')return; // never animate a guessed anatomical joint
+  gripJointEntries.push({bone:b,info,rest:b.quaternion.clone(),target:new THREE.Quaternion()});
+ });
+ gripBoneCount=gripJointEntries.length;
+}
+function updateGripRig(dt){
+ if(!METAL_FULL||!P?.model)return;
+ bindGripRig();
+ const grabbing=!!(heldActor||heldCar||heldCitizen||gripTarget||worldGripActive);
+ const loading=pairedThrow.active?pairedThrow.pose().load:0;
+ const pose=gripPose.step(dt,{grabbing,loading});
+ if(!gripJointEntries.length)return;
+ const easing=1-Math.exp(-Math.min(Math.max(dt,0),.065)*16);
+ for(const entry of gripJointEntries){
+  const amount=plannedFingerCurl(entry.info,pose.strength);
+  const handed=entry.info.side==='left'?-1:1;
+  gripCurlQuat.setFromAxisAngle(gripCurlAxis,amount*handed);
+  entry.target.copy(entry.rest).multiply(gripCurlQuat);
+  if(!pose.active){entry.bone.quaternion.copy(entry.rest);continue;}
+  entry.bone.quaternion.slerp(entry.target,easing);
+ }
+}
+
 const metalNextHUD={lastAction:'coast',bank:'Movement',power:0};
 function clearGripVisual(){structureGrip=null;gripFollow=null;gripTarget=null;}
 function showGalliumHand(target,height=0){
@@ -1119,20 +1154,23 @@ function metalEnemyPower(a,event,range,delta){
 }
 function factionActor(label,color,x,z,kind){
  const root=kind==='slotta'?createSlottaBossAsset():new THREE.Group();root.name=label;
+ const visual=METAL_FULL&&kind!=='slotta'?new THREE.Group():null;
+ if(visual)root.add(visual);
+ const appearance=visual||root;
  if(kind!=='slotta'){
   const mat=new THREE.MeshStandardMaterial({color,metalness:kind==='reframer'?.85:.25,roughness:.4});
-  const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.43,.9,4,8),mat);torso.position.y=1.15;root.add(torso);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),mat);head.position.y=2.08;root.add(head);
+  const torso=new THREE.Mesh(new THREE.CapsuleGeometry(.43,.9,4,8),mat);torso.position.y=1.15;appearance.add(torso);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.3,10,8),mat);head.position.y=2.08;appearance.add(head);
   if(kind==='reframer'){for(let j=0;j<6;j++){const a=j*Math.PI/3;
    const arm=new THREE.Mesh(new THREE.CylinderGeometry(.09,.16,2.4,6),mat);
    arm.position.set(Math.cos(a)*.95,1.2,Math.sin(a)*.95);
-   arm.rotation.z=Math.cos(a)*.8;arm.rotation.x=Math.sin(a)*.8;root.add(arm);
+   arm.rotation.z=Math.cos(a)*.8;arm.rotation.x=Math.sin(a)*.8;appearance.add(arm);
   }}
  }
  root.position.set(x,groundY,z);scene.add(root);
  factionActors.push({root,label,kind,home:root.position.clone(),phase:Math.random()*6.28,
   attackCooldown:1.2+Math.random()*1.5,body:createCombatBody({x,y:groundY,z}),
-  powerState:{cooldown:3+Math.random()*1.4,telegraph:0}});
+  powerState:{cooldown:3+Math.random()*1.4,telegraph:0},visual,recovery:visual?new EnemyImpactChoreo():null,impactPhase:'idle'});
  return root;
 }
 function updateFactionActors(dt){if(!P)return;for(const a of factionActors){if(a.kind==='slotta'&&(slottaCombat.defeated||morrow.slotta.captured||morrow.slotta.escaped)){a.root.visible=false;continue;}if(a===heldActor){a.attackCooldown=1;if(a.kind==='slotta')animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));continue;}a.attackCooldown=Math.max(0,(a.attackCooldown||0)-dt);const hostile=a.kind==='framebreaker'||a.kind==='reframer'||a.kind==='slotta'||
@@ -1143,7 +1181,16 @@ function updateFactionActors(dt){if(!P)return;for(const a of factionActors){if(a
  }
  const aiMoveAllowed=a.kind!=='slotta'||(SLOTTA_ACTIONS[slottaAnimator.state].loop&&!slottaDash);if(hostile&&aiMoveAllowed&&a.root.visible&&range<17&&a.body.state==='standing'){if(range>3&&range>0.01){a.home.addScaledVector(delta.normalize(),dt*(a.kind==='reframer'?1.8:2.5));}else if(a.attackCooldown<=0){const dir=delta.lengthSq()>.01?delta.normalize():new THREE.Vector3(0,0,1);vel.addScaledVector(dir,5);vel.y=Math.max(vel.y,1.8);a.attackCooldown=a.kind==='reframer'?2.8:1.8;toast(a.kind==='reframer'?'REFRAMER · kinetic strike':'FRAMEBREAKER · counterattack');}}a.phase+=dt*(a.kind==='reframer'?1.4:.7);if(a.kind==='slotta'){const locomotion=range<17?'walking':'idle';if(SLOTTA_ACTIONS[slottaAnimator.state].loop)startSlottaAction(slottaAnimator,locomotion);animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));}if(a.body.state!=='standing'){stepCombatBody(a.body,dt,groundY);a.root.position.set(a.body.position.x,a.body.position.y,a.body.position.z);a.root.rotation.z=Math.min(1.1,Math.hypot(a.body.velocity.x,a.body.velocity.z)*.07);if(a.body.state==='standing'){a.home.copy(a.root.position);a.root.rotation.z=0;}}else{
  // SLOTTA keeps a stable home/world transform between attacks; the other factions retain their patrol bob.
- const slottaSteady=a.kind==='slotta';a.root.position.x=a.home.x+(slottaSteady?0:Math.sin(a.phase)*2);a.root.position.z=a.home.z+(slottaSteady?0:Math.cos(a.phase)*2);a.root.rotation.y+=dt*.3;a.body.position.x=a.root.position.x;a.body.position.z=a.root.position.z;}}}
+ const slottaSteady=a.kind==='slotta';a.root.position.x=a.home.x+(slottaSteady?0:Math.sin(a.phase)*2);a.root.position.z=a.home.z+(slottaSteady?0:Math.cos(a.phase)*2);a.root.rotation.y+=dt*.3;a.body.position.x=a.root.position.x;a.body.position.z=a.root.position.z;}
+ if(METAL_FULL&&a.recovery&&a.visual){
+  const reaction=a.recovery.step(dt,a.body,groundY);
+  const lateral=a.body.velocity?.x<0?-1:1;
+  a.visual.rotation.z=reaction.tilt*.7*lateral;
+  a.visual.rotation.x=reaction.lean;
+  a.visual.position.y=-reaction.compress;
+  a.impactPhase=reaction.phase;
+ }
+}}
 
 // SLOTTA's backpack console: autonomous first-boss combat encounter.
 const slottaConsole=createSlottaLoadout(),slottaMinions=[];let slottaSummonSerial=0;const slottaAnimator=createSlottaAnimator();let slottaPendingGame=null,slottaSelectedSlot=0,slottaDash=null,slottaDashGhostClock=0;let slottaAttackClock=2,slottaSnare=0,slottaAnnounced=false,slottaTurn=0,slottaSwapClock=0;const slottaEffects=[];
@@ -1554,7 +1601,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  const pairedPose=METAL_FULL?pairedThrow.pose():null;
  P.model.rotation.y+=((st.board&&!st.flying?(P.rotBoard??-1.35):(P.rotWalk??0))+(pairedPose?.twist||0)-P.model.rotation.y)*Math.min(1,dt*10); // sideways skate stance on the deck
  if(st.board&&(st.wall||swingTilted())&&P.footL&&!(st.boardFree>0)){P.o.updateMatrixWorld(true);P.footL.getWorldPosition(_bf);_bu.set(0,1,0).applyQuaternion(board.quaternion);const h=_bf.sub(board.position).dot(_bu);P.model.position.y+=THREE.MathUtils.clamp(DECK_TOP+Math.max(0,P.soleGap)-h,-2,2);P.o.updateMatrixWorld(true);st.boardGap=P.footL.getWorldPosition(_bf).distanceTo(board.position);} else if(onGround||st.board)seatFeet(dt);else P.model.position.y+=(P.footY+(st.board?DECK_TOP:0)-P.model.position.y)*Math.min(1,dt*8);
- p6Pose(dt);sk.rail=st.grinding;
+ p6Pose(dt);if(METAL_FULL)updateGripRig(dt);sk.rail=st.grinding;
  // Fall is a visual overlay, never a replacement for the root position controller.
  const tiltGoal=bodyMachine.mode==='fallen'?1.05:bodyMachine.mode==='falling'?.45:bodyMachine.mode==='recovering'?.3:0;
  bodyTilt+=(tiltGoal-bodyTilt)*Math.min(1,dt*8);
@@ -1792,6 +1839,8 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
    swingActive:!!st.swing,pressureCount:pressureStep.count,cooldown:pressureStep.cooldown,
    skateAnimation:skateChoreo.pose(),throwAnimation:pairedThrow.pose(),throwCompletions:pairedThrow.completed,
    contactMode:latestHandContact,
+   fingerGrip:{detected:gripBoneCount,strength:gripPose.grip,animatedOnlyIfPresent:true},
+   enemyRecovery:factionActors.filter(a=>a.recovery).map(a=>({kind:a.kind,phase:a.impactPhase,impacts:a.recovery.impacts,recoveries:a.recovery.recoveries})),
    terrain:{surfaceCount:terrainSurfaces.length,surface:terrainInfo?.id||null,rootGround:floorAt(P.o.position),
     normal:{...terrainNormal},boardUp:board?new THREE.Vector3(0,1,0).applyQuaternion(board.quaternion).toArray():null},
    action:metalNextHUD.lastAction,powerBank:metalNextHUD.bank,powerIndex:metalNextHUD.power,
