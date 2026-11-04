@@ -40,9 +40,9 @@ canvas{display:block}#load{position:fixed;inset:0;display:flex;flex-direction:co
 }
 
 /* METAL Rooftop Duel Pilot 01. Shown only when ?aerial_duel=1 and user enters encounter. */
-#aerialDuelStart{position:fixed;z-index:36;left:50%;bottom:22px;transform:translateX(-50%);border:1px solid #bd94ff;background:#1a102de8;color:#f2e6ff;border-radius:14px;padding:13px 18px;font:800 13px system-ui;box-shadow:0 4px 24px #0009;cursor:pointer;max-width:calc(100vw - 32px)}
+#aerialDuelStart{position:fixed;z-index:100001;left:50%;bottom:22px;transform:translateX(-50%);border:1px solid #bd94ff;background:#1a102de8;color:#f2e6ff;border-radius:14px;padding:13px 18px;font:800 13px system-ui;box-shadow:0 4px 24px #0009;cursor:pointer;max-width:calc(100vw - 32px)}
 #aerialDuelStart[hidden],#aerialDuelPanel[hidden]{display:none}
-#aerialDuelPanel{position:fixed;inset:0;z-index:35;pointer-events:none;font:600 12px system-ui;color:#f7edff;text-shadow:0 1px 2px #000}
+#aerialDuelPanel{position:fixed;inset:0;z-index:100000;pointer-events:none;font:600 12px system-ui;color:#f7edff;text-shadow:0 1px 2px #000}
 #aerialDuelPanel button{pointer-events:auto;cursor:pointer;border:1px solid #a88cc7;border-radius:9px;padding:9px 10px;font:750 12px system-ui;color:#fff;background:#281945ed;touch-action:manipulation;user-select:none;-webkit-user-select:none}
 .ad-head{position:absolute;top:max(8px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;border-radius:12px;padding:8px 10px;background:#100e1de9;border:1px solid #8463b6;min-width:min(90vw,420px)}
 .ad-head b{font:900 15px system-ui;letter-spacing:.04em}
