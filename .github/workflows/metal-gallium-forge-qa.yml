@@ -6,6 +6,7 @@ on:
       - 'connected/assets/metal_forge_*'
       - 'connected/tests/metal_forge_state.test.mjs'
       - 'connected/tests/metal_forge_choreography.test.mjs'
+      - 'connected/tests/metal_forge_performance.test.mjs'
       - 'connected/tests/metal_forge_browser_playwright.mjs'
       - 'connected/tests/frame_startup_regression.test.mjs'
       - 'connected/tests/metal_boardback_swing_contract.test.mjs'
@@ -16,6 +17,7 @@ on:
       - 'connected/assets/metal_forge_*'
       - 'connected/tests/metal_forge_state.test.mjs'
       - 'connected/tests/metal_forge_choreography.test.mjs'
+      - 'connected/tests/metal_forge_performance.test.mjs'
       - 'connected/tests/metal_boardback_swing_contract.test.mjs'
       - '.github/workflows/metal-gallium-forge-qa.yml'
 permissions:
@@ -33,7 +35,9 @@ jobs:
           node --check connected/assets/metal_forge_controller.js
           node --check connected/assets/metal_forge_state.mjs
           node --check connected/assets/metal_forge_choreography.mjs
-          node --test connected/tests/metal_forge_state.test.mjs connected/tests/metal_forge_choreography.test.mjs connected/tests/metal_boardback_swing_contract.test.mjs
+          node --check connected/assets/metal_forge_pose.mjs
+          node --check connected/assets/metal_forge_performance.js
+          node --test connected/tests/metal_forge_state.test.mjs connected/tests/metal_forge_choreography.test.mjs connected/tests/metal_forge_performance.test.mjs connected/tests/metal_boardback_swing_contract.test.mjs
       - name: Install Chromium QA runner
         run: |
           npm install --no-save --no-audit --no-fund playwright
