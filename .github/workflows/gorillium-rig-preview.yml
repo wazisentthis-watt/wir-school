@@ -28,9 +28,10 @@ jobs:
         run: |
           mkdir -p test-results
           node --check connected/gorillium-lab/glb_intake.mjs
+          node --check connected/gorillium-lab/local_glb_guard.mjs
           node --check connected/gorillium-lab/preview.js
           node --check connected/gorillium-lab/gorillium_animation_contract.mjs
-          node --test connected/tests/gorillium_ability_core.test.mjs connected/tests/gorillium_glb_intake.test.mjs connected/tests/gorillium_animation_contract.test.mjs
+          node --test connected/tests/gorillium_ability_core.test.mjs connected/tests/gorillium_glb_intake.test.mjs connected/tests/gorillium_animation_contract.test.mjs connected/tests/gorillium_local_glb_guard.test.mjs
       - name: Inspect actual existing Metal GLB sources (NOT Gorillium)
         run: |
           node connected/gorillium-lab/glb_intake.mjs \
