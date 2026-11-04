@@ -31,7 +31,9 @@ jobs:
           node --check connected/gorillium-lab/preview.js
           node --check connected/gorillium-lab/gorillium_animation_contract.mjs
           node --check connected/gorillium-lab/controller_core.mjs
-          node --test connected/tests/gorillium_ability_core.test.mjs connected/tests/gorillium_glb_intake.test.mjs connected/tests/gorillium_animation_contract.test.mjs connected/tests/gorillium_controller_core.test.mjs
+          node --check connected/assets/controller_v3_bridge.mjs
+          node --check connected/assets/main.js
+          node --test connected/tests/gorillium_ability_core.test.mjs connected/tests/gorillium_glb_intake.test.mjs connected/tests/gorillium_animation_contract.test.mjs connected/tests/gorillium_controller_core.test.mjs connected/tests/controller_v3_bridge.test.mjs
       - name: Inspect actual existing Metal GLB sources (NOT Gorillium)
         run: |
           node connected/gorillium-lab/glb_intake.mjs \
