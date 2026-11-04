@@ -33,7 +33,7 @@ try{
  const names=['combat_idle','melee_three','uppercut_launcher','aerial_pursuit','airborne_tumble','rooftop_recovery','shield_formation','aerial_counter'];
  for(const name of names){
   await desktop.locator('[data-refmotion="'+name+'"]').click();
-  await desktop.waitForFunction(id=>window.__aerialPilot?.reframerPack?.snapshot()?.current===id,id,{timeout:12000});
+  await desktop.waitForFunction(id=>window.__aerialPilot?.reframerPack?.snapshot()?.current===id,name,{timeout:12000});
   const info=await desktop.evaluate(id=>{
    const p=window.__aerialPilot.reframerPack,clip=p.ownedClips.get(id);
    return {current:p.current,preview:p.preview,overlay:clip?.tracks?.length||0,
