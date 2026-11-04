@@ -48,8 +48,14 @@ try{
  assert.equal(forged.board,true,'Original seven-piece Galaxy Gallium board not equipped');
  results.push({case:'real_original_four_wheel_Forge',pass:true,phase:forged.forge});
  await page.evaluate(()=>{const g=window.__game;g.pressed.BracketLeft=true;});
- await page.waitForFunction(()=>window.__game?.testYard?.()?.flip==='Kickflip',null,{timeout:10000});
- await stage(page,'ROOFTOP',22000);
+ try{await stage(page,'ROOFTOP',25000);}catch(e){
+  const diag=await page.evaluate(()=>({stage:window.__mission05?.snapshot(),
+    board:window.__game?.st?.board,position:window.__game?.P?.o?.position,
+    skate:window.__game?.testYard?.(),body:window.__game?.bodyMachine?.mode,
+    grounded:window.__game?.ground?.(),forge:window.__game?.forge?.()?.state?.phase,
+    errors:window.__errors}));
+  throw Error('REAL SKATE LANDING CHECK: '+JSON.stringify(diag)+' '+String(e));
+ }
  const trick=await snapshot(page);
  assert.equal(trick.stage.flip,'Kickflip');assert.ok(trick.stage.points>=150);
  results.push({case:'real_TestYard_directional_flip_caught_on_original_landing',pass:true,points:trick.stage.points});
