@@ -1448,7 +1448,8 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   const up=_bu.set(0,1,0).applyQuaternion(board.quaternion);const fl=P.footL;
   if(fl){P.o.updateMatrixWorld(true);fl.getWorldPosition(_bf);const rel=_bf.sub(pp);const along=rel.dot(up);rel.addScaledVector(up,-along);rel.multiplyScalar(.5);board.position.copy(pp).add(rel);}else board.position.copy(pp);
   st.boardGap=fl?fl.getWorldPosition(_bf).distanceTo(board.position):0;}}
- if(!st.board){board.visible=false;if(yard)yard.resetRide();} // Walking/swinging never displays the board
+ if(!st.board)board.visible=false; // Walking/swinging never displays the board
+  if(yard&&!st.board)yard.resetRide();
  // Model-space aerial turn (visual only); original physics and true X/Y/Z are unchanged.
  if(v3SpinTime>0){
   if(onGround)v3SpinTime=0;
