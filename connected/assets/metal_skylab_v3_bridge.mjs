@@ -7,6 +7,10 @@ export const SKYLAB_BUTTONS=Object.freeze({
   jump:0,dash:1,roar:2,slam:3,tentacle:4,grapple:5,sprint:6,glide:7,
   pause:9,cataclysm:12,rage:13,footIK:14,tentIK:15,mode:8
 });
+// A held SkyLab-only grab must never leak when the player selects Classic controls.
+export function shouldGripWorld({mode='classic',lb=false,keyboard=false,v3Held=false}={}){
+ return !!(lb||keyboard||(mode==='skylab'&&v3Held));
+}
 export const SKYLAB_MOVES=Object.freeze([
   {id:'grapple',label:'Gallium tether · supported anchor'},
   {id:'pulse',label:'Gallium pulse · grounded'},
