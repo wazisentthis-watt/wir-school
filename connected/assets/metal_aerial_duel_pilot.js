@@ -13,7 +13,8 @@ export class MetalRooftopDuelPilot{
   this.advanceMixers=advanceMixers;this.onEnter=onEnter;this.onExit=onExit;
   this.active=false;this.state=null;this.lastEventId=0;this.actions=[];this.held=new Set();
   this.previousButtons={};this.effects=[];this.enemy=null;this.uiTick=0;
-  this.packEnabled=new URLSearchParams(location.search).get('reframer_pack')==='1';
+  this.pack2Enabled=new URLSearchParams(location.search).get('reframer_pack2')==='1';
+  this.packEnabled=this.pack2Enabled||new URLSearchParams(location.search).get('reframer_pack')==='1';
   this.reframerPack=null;
   this.roof=new THREE.Group();this.roof.position.copy(this.origin);this.roof.visible=false;
   scene.add(this.roof);this.buildRoof();this.buildControls();
@@ -84,11 +85,12 @@ export class MetalRooftopDuelPilot{
  start(){
   if(this.active)return false;
   if(!this.onEnter())return false;
-  this.state=createRooftopDuel();this.actions.length=0;this.held.clear();this.previousButtons={};this.lastEventId=0;
+  this.state=createRooftopDuel({airCounter:this.pack2Enabled});this.actions.length=0;this.held.clear();this.previousButtons={};this.lastEventId=0;
   if(!this.enemy){this.enemy=this.makeOpponent();this.scene.add(this.enemy.o);}
   if(this.packEnabled&&!this.reframerPack&&this.enemy?.mixer){
    this.reframerPack=new ReframerAnimationPack01({
-    enemy:this.enemy,scene:this.scene,playSource:(fighter,alias)=>this.playOpponent(fighter,alias)
+    enemy:this.enemy,scene:this.scene,phase2:this.pack2Enabled,
+    playSource:(fighter,alias)=>this.playOpponent(fighter,alias)
    });
    this.reframerPack.attachUI(this.panel);
   }
@@ -135,16 +137,16 @@ export class MetalRooftopDuelPilot{
   for(const event of this.state.events){
    if(event.id<=this.lastEventId)continue;
    this.lastEventId=event.id;
-   if(['light-hit','launch','aerial-finisher','roof-floor-impact','roof-wall-impact','reframer-strike','perfect-evade'].includes(event.type)){
-    const around=event.type==='reframer-strike'||event.type==='perfect-evade'?this.state.player:this.state.enemy;
-    const color=event.type==='reframer-strike'?0xffa46b:event.type==='roof-floor-impact'?0xb3b5c9:0xaa70ff;
+   if(['light-hit','launch','aerial-finisher','roof-floor-impact','roof-wall-impact','reframer-strike','perfect-evade','reframer-air-counter-telegraph','reframer-air-counter-hit','reframer-air-counter-evaded'].includes(event.type)){
+    const around=['reframer-strike','perfect-evade','reframer-air-counter-hit','reframer-air-counter-evaded'].includes(event.type)?this.state.player:this.state.enemy;
+    const color=event.type==='reframer-strike'?0xffa46b:event.type==='roof-floor-impact'?0xb3b5c9:event.type.startsWith('reframer-air-counter')?0x64e9f7:0xaa70ff;
     const ring=new THREE.Mesh(new THREE.TorusGeometry(1,.045,6,28),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false}));
     ring.rotation.x=Math.PI/2;ring.position.set(this.origin.x+around.x,this.origin.y+(event.type.includes('roof-')?.1:around.y+1.1),this.origin.z+around.z);
     this.scene.add(ring);this.effects.push({mesh:ring,life:.65,total:.65});
    }
    const handled=this.reframerPack?.onEvent(event.type)||false;
    if(event.type==='light-hit')this.playOpponent(this.enemy,'HitChest');
-   if(!handled&&event.type==='launch'||event.type==='aerial-finisher')this.playOpponent(this.enemy,'Knock');
+   if(!handled&&(event.type==='launch'||event.type==='aerial-finisher'))this.playOpponent(this.enemy,'Knock');
    if(!handled&&event.type==='reframer-telegraph')this.playOpponent(this.enemy,'Guard');
    if(!handled&&event.type==='reframer-strike')this.playOpponent(this.enemy,'Jab');
    if(!handled&&event.type==='roof-floor-impact')this.playOpponent(this.enemy,'GetUp');
@@ -179,6 +181,7 @@ export class MetalRooftopDuelPilot{
   this.panel.querySelector('#adThemBar').style.width=pct(s.enemy.hp)+'%';
   this.panel.querySelector('#adPhase').textContent=s.mode==='ACTIVE'?'COMBO '+s.combo+' · ENERGY '+pct(s.energy)+'%':s.mode;
   if(s.mode==='ACTIVE'){
+   if(this.pack2Enabled&&s.airCounterWindup>0){this.message.textContent='REFRAMER AIR COUNTER · B TO EVADE!';return;}
    this.message.textContent=s.enemy.y>.55?(s.player.y>.55?'AIRBORNE · Q / LT+RT FINISH':'ENEMY LAUNCHED · SPACE / RT PURSUE'):
     (s.combo>=2?'CHAIN READY · K / Y TO LAUNCH':'J / X STRIKE TWICE · K / Y LAUNCH');
   }
@@ -190,6 +193,7 @@ export class MetalRooftopDuelPilot{
   // Savannah's main game and save formats are never touched.
   if(this.reframerPack?.preview){
    this.actions.length=0;this.advanceMixers(dt);this.reframerPack.update(dt);
+   this.reframerPack.syncPhysicalPresentation(this.state.enemy);
    this.updateCamera(dt);return;
   }
   const stick=this.pollPad();
@@ -207,7 +211,8 @@ export class MetalRooftopDuelPilot{
    f.mesh.scale.setScalar(1+(1-f.life/f.total)*2.5);f.mesh.material.opacity=Math.max(0,f.life/f.total);
    if(f.life<=0){this.scene.remove(f.mesh);f.mesh.geometry.dispose();f.mesh.material.dispose();this.effects.splice(i,1);}
   }
-  this.advanceMixers(dt);this.reframerPack?.update(dt);this.updateCamera(dt);
+  this.advanceMixers(dt);this.reframerPack?.update(dt);
+  this.reframerPack?.syncPhysicalPresentation(this.state.enemy);this.updateCamera(dt);
   this.uiTick-=dt;if(this.uiTick<=0){this.uiTick=.1;this.refreshHUD();}
  }
  snapshot(){return this.state?{...duelSnapshot(this.state),active:this.active,enemyVisible:this.enemy?.o.visible,roofVisible:this.roof.visible,playerWorld:{x:this.player.o.position.x,y:this.player.o.position.y,z:this.player.o.position.z},reframerPack:this.reframerPack?.snapshot()||null}:null;}
