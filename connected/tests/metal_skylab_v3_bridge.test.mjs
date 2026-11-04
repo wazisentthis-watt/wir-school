@@ -60,3 +60,8 @@ test('controller settings use separate storage key, not story checkpoints',()=>{
  assert.ok(keys.some(k=>k==='wir-connected-metal-v3-settings'));
  assert.ok(keys.every(k=>!/^wir_metal_story_v1$/.test(k)));
 });
+
+test('Bluetooth loss clears even a deliberate pause, allowing keyboard/touch fallback',()=>{
+ const c=fresh();c.poll(pad());for(let i=0;i<13;i++)c.poll(pad([9]),.08);
+ assert.equal(c.paused,true);const s=c.poll(null);assert.equal(c.paused,false);assert.equal(s.paused,false);
+});
