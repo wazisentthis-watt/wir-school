@@ -42,8 +42,26 @@ try{
   g.teleportForTest({x:c.x,y:.25,z:c.z});g.vel.set(0,0,0);
  });
  await stage(page,'TRICK');
+ // QA-only: forge at the previously verified clear asphalt test space,
+ // then restore to Skatepark for the REAL ollie, flip and landing.
+ await page.evaluate(()=>{const g=window.__game;
+  g.teleportForTest({x:175,y:.25,z:175});g.vel.set(0,0,0);
+ });
+ await page.waitForFunction(()=>window.__game?.ground?.()===true,null,{timeout:7000});
  await page.evaluate(()=>{window.__game.pressed.KeyB=true;});
- await page.waitForFunction(()=>window.__game?.st.board===true,null,{timeout:27000});
+ try{await page.waitForFunction(()=>window.__game?.st.board===true,null,{timeout:27000});}
+ catch(e){
+  const diag=await page.evaluate(()=>{
+   const g=window.__game;
+   return {board:g?.st.board,grounded:g?.ground?.(),forge:g?.forge?.()?.state?.phase,
+    forgeError:g?.forge?.()?.state?.error,position:g?.P?.o?.position,
+    body:g?.bodyMachine?.mode,gal:g?.st.gal,errors:window.__errors}
+  });
+  throw Error('REAL BOARD FORGE CHECK: '+JSON.stringify(diag)+' '+String(e));
+ }
+ await page.evaluate(()=>{const g=window.__game;const c=g.SPOTS.skate.c;
+  g.teleportForTest({x:c.x+5,y:.25,z:c.z+5});g.vel.set(0,0,0);
+ });
  const forged=await snapshot(page);
  assert.equal(forged.board,true,'Original seven-piece Galaxy Gallium board not equipped');
  results.push({case:'real_original_four_wheel_Forge',pass:true,phase:forged.forge});
