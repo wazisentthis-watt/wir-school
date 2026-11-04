@@ -832,8 +832,11 @@ function pickAnchor(pp){if(!swingAnchors)buildSwingAnchors();const hv=_sw1.set(v
  if(!a)for(const an of swingAnchors){const d=an.distanceTo(pp);if(d<SW.MIN_D||d>SW.MAX_D||an.y-pp.y<2.5)continue;const sc=-Math.abs(d-15);if(sc>bs){bs=sc;a=an;}} /* nothing ahead: best line in any direction */
  return a;}
 function startSwing(pp){const a=pickAnchor(pp);if(!a||st.gal<=.04){toast(st.gal<=.04?'Out of Gallium — bank combos to refill':'No anchor in range');return;}
- if(!st.board){st.board=true;board.visible=true;toast('Board under his feet — Gallium swing');}
- const d=a.distanceTo(pp);st.swing={a:a.clone(),len:d*SW.REEL,len0:d,spent:0,t:0,held:!!keys.KeyQ};SWS.q.copy(P.o.quaternion);SWS.flip=0;SWS.swings++;
+ // Preserve the player's choice: a swing does NOT teleport the four-wheel board to his feet.
+ // When walking it remains an attached back-mounted route instrument (PROPOSAL).
+ const boardBack=!st.board;
+ if(boardBack){boardOnBack();toast('BOARD ON BACK · GALAXY GALLIUM SWING');}
+ const d=a.distanceTo(pp);st.swing={a:a.clone(),len:d*SW.REEL,len0:d,spent:0,t:0,held:!!keys.KeyQ,boardBack};SWS.q.copy(P.o.quaternion);SWS.flip=0;SWS.swings++;
  play(P,'Swing');tether.visible=true;onGround=false;vel.y=Math.max(vel.y,4);plog('discoveries','Grapple swing');setViolet(1);beep(330,.1,'triangle');}
 function releaseSwing(why,landed){const s=st.swing;if(!s)return;st.gal=Math.min(1,st.gal+s.spent*.5);st.swing=null;tether.visible=false;st.comboPend++;
  const hs=Math.hypot(vel.x,vel.z);if(hs>.5)yaw=Math.atan2(vel.x,vel.z);SWS.blend=.35;SWS.air=3;
@@ -864,9 +867,20 @@ function swingOrient(dt){const pp=P.o.position;if(SWS.air>0)SWS.air-=dt;
  if(SWS.flip>0){SWS.flip-=dt;if(onGround)SWS.flip=0;const a=Math.PI*2*(1-Math.max(0,SWS.flip)/SW.FLIP_T);P.o.quaternion.multiply(_swq.setFromAxisAngle(_sw1.set(1,0,0),-a));}}  // backflip on release
 function swingTilted(){return !!(st.swing||SWS.flip>0||SWS.blend>0);}
 // board on his back while he walks or fights (it never vanishes); B or a swing puts it back under his shoes
-function boardOnBack(){if(!board)return;if(!P.p6){board.visible=false;return;}const ch=P.legs&&P.legs.chest;if(!ch)return;board.visible=true;
- P.o.updateMatrixWorld(true);ch.getWorldPosition(_sw1);const f=_sw2.set(Math.sin(yaw),0,Math.cos(yaw));board.position.copy(_sw1).addScaledVector(f,-.32);board.position.y-=.2;
- const z=_sw3.set(0,1,0),y=f.clone(),x=new THREE.Vector3().crossVectors(y,z).normalize();_swm.makeBasis(x,y,z);board.quaternion.setFromRotationMatrix(_swm);}
+function boardOnBack(){if(!board||!P)return;
+ // Non-S1 rigs may not expose P.legs; fall back to a named chest/spine or root.
+ // The carried board follows the actual torso orientation while swinging.
+ const ch=P.legs?.chest||P.model?.getObjectByName('Chest')||P.model?.getObjectByName('Spine')||P.o;
+ if(!ch){board.visible=false;return;}board.visible=true;
+ P.o.updateMatrixWorld(true);ch.getWorldPosition(_sw1);ch.getWorldQuaternion(_swq2);
+ const f=_sw2.set(0,0,1).applyQuaternion(_swq2).normalize();
+ board.position.copy(_sw1).addScaledVector(f,-.32);board.position.y-=.2;
+ const up=_sw3.set(0,1,0).applyQuaternion(_swq2).normalize();
+ const x=new THREE.Vector3().crossVectors(f,up).normalize();
+ if(x.lengthSq()<.01)x.set(1,0,0);
+ const y=new THREE.Vector3().crossVectors(up,x).normalize();
+ _swm.makeBasis(x,y,up);board.quaternion.setFromRotationMatrix(_swm);
+}
 
 // ---------- main loop ----------
 const clock=new THREE.Clock();let camPos=new THREE.Vector3();
