@@ -68,7 +68,7 @@ export function createSavannahMetalController({storage=(typeof localStorage==='u
   frames++;
   const prior=core.padId;
   const s=core.poll(pad,dt);
-  if(!s.connected){if(connected){note('Bluetooth disconnected; movement cleared, world remains running.');}connected=false;menuSeconds=0;menuFired=false;if(frames%10===0)refreshPanel();return {active:mode==='skylab',connected:false,x:0,y:0,lookX:0,lookY:0,held:[],edges:[],combo:{},paused,move:SKYLAB_MOVES[selected]};}
+  if(!s.connected){if(connected){note('Bluetooth disconnected; movement cleared, world remains running.');}connected=false;paused=false;menuSeconds=0;menuFired=false;if(frames%10===0)refreshPanel();return {active:mode==='skylab',connected:false,x:0,y:0,lookX:0,lookY:0,held:[],edges:[],combo:{},paused,move:SKYLAB_MOVES[selected]};}
   connected=true;
   if(core.padId!==prior){
    // Give this game its own baseline so the separate Gorillium animation lab retains its mapping.
