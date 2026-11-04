@@ -217,4 +217,5 @@ window.__gorilliumLab={ready:!!renderer,loadBaseline,bind,cast,
  getSnapshot:()=>({source:state.source,sha256:state.sha256,renderReady:state.renderReady,
   clipCount:state.rig?.clips?.length??null,boneCount:state.rig?.bones?.length??null,
   skinJointCount:state.skinBones.length,boundCount:state.mapped.length,
+  poseDeltaRadians:state.mapped.length?Math.max(...state.mapped.map((bone,i)=>bone.quaternion.angleTo(state.neutral[i]))):0,
   lastAbility:state.game?.lastEvent?.ability||null,error:state.loadError})};
