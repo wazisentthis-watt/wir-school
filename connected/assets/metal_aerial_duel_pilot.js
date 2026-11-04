@@ -6,10 +6,11 @@ import {createRooftopDuel,duelAction,stepRooftopDuel,duelSnapshot,DUEL_ROOF} fro
 const keyActions=Object.freeze({KeyJ:'light',KeyK:'launch',KeyF:'pursue',Space:'pursue',KeyQ:'finisher',KeyB:'dodge'});
 const motion={light:'Punch',launch:'Kick',pursue:'Flight',finisher:'Blast',dodge:'Block'};
 export class MetalRooftopDuelPilot{
- constructor({scene,camera,player,origin,makeOpponent,playPlayer,playOpponent,advanceMixers,onEnter=()=>true,onExit=()=>{}}){
+ constructor({scene,camera,player,origin,makeOpponent,playPlayer,playOpponent,advanceMixers,onEnter=()=>true,onExit=()=>{},useWorldEntry=false,hideEntry=false}){
   this.scene=scene;this.camera=camera;this.player=player;this.origin=origin.clone();
   this.makeOpponent=makeOpponent;this.playPlayer=playPlayer;this.playOpponent=playOpponent;
   this.advanceMixers=advanceMixers;this.onEnter=onEnter;this.onExit=onExit;
+  this.useWorldEntry=useWorldEntry;this.hideEntry=hideEntry;
   this.active=false;this.state=null;this.lastEventId=0;this.actions=[];this.held=new Set();
   this.previousButtons={};this.effects=[];this.enemy=null;this.uiTick=0;
   this.roof=new THREE.Group();this.roof.position.copy(this.origin);this.roof.visible=false;
@@ -55,6 +56,7 @@ export class MetalRooftopDuelPilot{
   start.textContent='⚡ REFRAMER ROOFTOP DUEL · TRAINING';start.type='button';
   start.setAttribute('aria-label','Enter METAL rooftop aerial combat training');
   start.onclick=()=>this.start();document.body.append(start);this.startButton=start;
+  if(this.hideEntry)start.hidden=true;
   const panel=document.createElement('section');panel.id='aerialDuelPanel';panel.hidden=true;panel.setAttribute('aria-label','METAL ReFramer Rooftop Duel');
   panel.innerHTML='<div class="ad-head"><b>METAL ⚡ REFRAMER</b><span id="adPhase">ROOFTOP SPAR · PROPOSAL</span><button id="adExit" type="button">EXIT</button></div>'+
    '<div class="ad-bars"><span>METAL <b id="adMe">100%</b></span><span>REFRAMER <b id="adThem">78%</b></span></div>'+
@@ -80,8 +82,20 @@ export class MetalRooftopDuelPilot{
  }
  start(){
   if(this.active)return false;
+  const position=this.player?.o?.position;
+  // Strict physical entry: Mission05 never transports Metal to an unrelated roof.
+  if(this.useWorldEntry&&(!position||!Number.isFinite(position.x+position.y+position.z)
+   ||Math.abs(position.x-this.origin.x)>DUEL_ROOF.halfX-3
+   ||Math.abs(position.z-this.origin.z)>DUEL_ROOF.halfZ-3
+   ||Math.abs(position.y-this.origin.y)>.9))return false;
   if(!this.onEnter())return false;
-  this.state=createRooftopDuel();this.actions.length=0;this.held.clear();this.previousButtons={};this.lastEventId=0;
+  this.state=createRooftopDuel();
+  if(this.useWorldEntry){
+   this.state.player.x=position.x-this.origin.x;
+   this.state.player.z=position.z-this.origin.z;
+   this.state.enemy.x=Math.min(DUEL_ROOF.halfX-1.3,this.state.player.x+2.4);
+   this.state.enemy.z=this.state.player.z;
+  }this.actions.length=0;this.held.clear();this.previousButtons={};this.lastEventId=0;
   if(!this.enemy){this.enemy=this.makeOpponent();this.scene.add(this.enemy.o);}
   this.enemy.o.visible=true;this.roof.visible=true;this.active=true;this.uiTick=0;
   document.body.classList.add('aerial-duel-active');this.panel.hidden=false;this.startButton.hidden=true;
@@ -91,7 +105,7 @@ export class MetalRooftopDuelPilot{
  stop(){
   if(!this.active)return;
   this.active=false;this.roof.visible=false;this.enemy.o.visible=false;
-  this.panel.hidden=true;this.startButton.hidden=false;
+  this.panel.hidden=true;this.startButton.hidden=this.hideEntry;
   this.actions.length=0;this.held.clear();this.previousButtons={};
   document.body.classList.remove('aerial-duel-active');
   for(const effect of this.effects){this.scene.remove(effect.mesh);effect.mesh.geometry.dispose();effect.mesh.material.dispose();}
