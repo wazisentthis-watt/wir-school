@@ -19,12 +19,12 @@ export function gamepadV3Enabled(search=''){
 export function createConnectedControllerV3({storage=null}={}){
  const adapter=new ControllerAdapter({storage});
  let prevKeys=new Set(),currentPad=null,frames=0,lastMove={x:0,y:0};
- let learningAction=null,learningPrev=new Set();
+ let learningAction=null,learningPrev=new Set(),suppressUntilRelease=false;
  const release=keys=>{for(const k of prevKeys)keys[k]=false;prevKeys.clear();};
  function poll(pad,dt,{keys,pressed,lookEnabled=true,applyCamera=()=>{}}={}){
   if(!keys||!pressed)throw Error('Key and press tables are required');
   if(!pad||pad.connected===false){release(keys);adapter.disconnect();currentPad=null;
-   learningAction=null;learningPrev.clear();lastMove={x:0,y:0};return null;}
+   learningAction=null;learningPrev.clear();suppressUntilRelease=false;lastMove={x:0,y:0};return null;}
   currentPad=pad;
   if(learningAction){
    const down=new Set(Array.from(pad.buttons||[],(b,i)=>b?.pressed||b?.value>.6?i:null)
@@ -34,17 +34,24 @@ export function createConnectedControllerV3({storage=null}={}){
    const report=adapter.poll(pad,dt,{suppressActions:true});
    release(keys);lastMove={x:0,y:0};
    if(candidate!==undefined){adapter.configure({bindings:{[learningAction]:candidate}});
-    adapter.save();learningAction=null;learningPrev.clear();}
+    adapter.save();learningAction=null;learningPrev.clear();suppressUntilRelease=true;}
    return {...lastMove,id:pad.id,calibrating:true,profile:report.profile};
   }
-  const report=adapter.poll(pad,dt);
+  if(suppressUntilRelease){
+   const down=Array.from(pad.buttons||[]).some(b=>b?.pressed||b?.value>.6);
+   if(down){adapter.poll(pad,dt,{suppressActions:true});release(keys);
+    lastMove={x:0,y:0};return {...lastMove,id:pad.id,calibrating:true};}
+   suppressUntilRelease=false;
+  }
+  const previousPad=adapter.padId,report=adapter.poll(pad,dt);
+  const justConnected=previousPad!==adapter.padId;
   const next=new Set();
   for(const action of report.held){
    const idx=adapter.profile.bindings[action],key=CONNECTED_ACTION_KEYS[action];
    if(key&&!RESERVED.has(idx))next.add(key);
   }
   for(const key of prevKeys)if(!next.has(key))keys[key]=false;
-  for(const key of next){if(!prevKeys.has(key))pressed[key]=true;keys[key]=true;}
+  for(const key of next){if(!prevKeys.has(key)&&!justConnected)pressed[key]=true;keys[key]=true;}
   prevKeys=next;lastMove={x:report.x,y:report.y};
   if(lookEnabled)applyCamera(report.lookX,report.lookY,dt);
   frames++;return {...lastMove,id:pad.id,calibrating:false,profile:report.profile};
@@ -55,7 +62,7 @@ export function createConnectedControllerV3({storage=null}={}){
   learningPrev=new Set(Array.from(currentPad.buttons||[],(b,i)=>b?.pressed||b?.value>.6?i:null)
    .filter(i=>i!==null));return true;
  }
- function cancelLearning(){learningAction=null;learningPrev.clear();}
+ function cancelLearning(){learningAction=null;learningPrev.clear();suppressUntilRelease=false;}
  return {
   adapter,poll,startLearning,cancelLearning,
   configure:update=>{cancelLearning();const p=adapter.configure(update);adapter.save();return p;},
