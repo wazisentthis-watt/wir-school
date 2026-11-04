@@ -1,0 +1,42 @@
+name: METAL Savannah · SkyLab V3 controller integration QA
+on:
+  push:
+    paths:
+      - 'connected/assets/main.js'
+      - 'connected/assets/metal_skylab_v3_bridge.mjs'
+      - 'connected/gorillium-lab/controller_core.mjs'
+      - 'connected/tests/metal_skylab_v3_bridge.test.mjs'
+      - '.github/workflows/metal-skylab-v3.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/main.js'
+      - 'connected/assets/metal_skylab_v3_bridge.mjs'
+      - 'connected/gorillium-lab/controller_core.mjs'
+      - 'connected/tests/metal_skylab_v3_bridge.test.mjs'
+      - '.github/workflows/metal-skylab-v3.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  controller-and-save-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Parse unchanged world plus new Xbox input bridge
+        run: |
+          node --check connected/assets/main.js
+          node --check connected/assets/metal_skylab_v3_bridge.mjs
+          node --check connected/gorillium-lab/controller_core.mjs
+      - name: Run isolated controller regression suite
+        run: |
+          node --test connected/tests/gorillium_controller_core.test.mjs connected/tests/metal_skylab_v3_bridge.test.mjs
+      - name: Verify mission save contract is preserved
+        run: |
+          node --check connected/assets/metal_story_engine.js
+          grep -q "window.__game.metalControllerV3=metalPadV3" connected/assets/main.js
+          grep -q "wir-connected-metal-v3-settings" connected/assets/metal_skylab_v3_bridge.mjs
+          grep -q "wir_metal_story_v1" connected/assets/metal_story_engine.js
