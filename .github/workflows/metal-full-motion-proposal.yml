@@ -3,12 +3,16 @@ on:
   push:
     paths:
       - 'connected/assets/metal_full_motion.mjs'
+      - 'connected/assets/metal_grapple_aim.mjs'
+      - 'connected/tests/metal_grapple_aim.test.mjs'
       - 'connected/assets/main.js'
       - 'connected/tests/metal_full_motion*'
       - '.github/workflows/metal-full-motion-proposal.yml'
   pull_request:
     paths:
       - 'connected/assets/metal_full_motion.mjs'
+      - 'connected/assets/metal_grapple_aim.mjs'
+      - 'connected/tests/metal_grapple_aim.test.mjs'
       - 'connected/assets/main.js'
       - 'connected/tests/metal_full_motion*'
       - '.github/workflows/metal-full-motion-proposal.yml'
@@ -27,9 +31,10 @@ jobs:
         run: |
           mkdir -p test-results
           node --check connected/assets/metal_full_motion.mjs
+          node --check connected/assets/metal_grapple_aim.mjs
           node --check connected/assets/main.js
           node --check connected/tests/metal_full_motion_browser_playwright.mjs
-          node --test connected/tests/metal_full_motion.test.mjs
+          node --test connected/tests/metal_full_motion.test.mjs connected/tests/metal_grapple_aim.test.mjs
       - name: Install headless Chromium
         run: |
           npm install --no-save --no-audit --no-fund playwright
