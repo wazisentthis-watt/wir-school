@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import {ControllerAdapter,controllerFamily,radialStick,buttonDown,DEFAULT_BINDINGS,PAD_ACTIONS} from '../gorillium-lab/controller_core.mjs';
+const pad=(id='Xbox Wireless Controller',axes=[0,0,0,0],pressed=[])=>({id,mapping:'standard',axes,connected:true,buttons:Array.from({length:18},(_,i)=>({pressed:pressed.includes(i),value:pressed.includes(i)?1:0}))});
+test('standard layout preserves 14 gameplay actions',()=>{assert.equal(PAD_ACTIONS.length,14);assert.equal(DEFAULT_BINDINGS.jump,0)});
+test('family detection remains a hint',()=>{assert.equal(controllerFamily('DualSense'),'PlayStation');assert.equal(controllerFamily('Xbox Controller'),'Xbox / XInput');assert.equal(controllerFamily('Switch Pro Controller'),'Nintendo / Switch');assert.equal(controllerFamily('unrecognized pad'),'Gamepad API / custom')});
+test('radial deadzone blocks drift',()=>{assert.deepEqual(radialStick(.06,.07,.18),{x:0,y:0});assert.ok(radialStick(.9,0,.18).x>.8)});
+test('radial stick normalizes diagonals',()=>{const a=radialStick(1,1);assert.ok(Math.hypot(a.x,a.y)<=1.00001)});
+test('edges are debounced across frames',()=>{const c=new ControllerAdapter();c.poll(pad());assert.deepEqual(c.poll(pad('Xbox Wireless Controller',[0,0,0,0],[1])).edges,['dash']);assert.deepEqual(c.poll(pad('Xbox Wireless Controller',[0,0,0,0],[1])).edges,[])});
+test('held press on first connect is not a phantom dash',()=>{const c=new ControllerAdapter();assert.deepEqual(c.poll(pad('Xbox Wireless Controller',[0,0,0,0],[1])).edges,[])});
+test('disconnect removes camera momentum and latches',()=>{const c=new ControllerAdapter();c.poll(pad());c.poll(pad('Xbox Wireless Controller',[0,0,1,0]));assert.equal(c.poll(null).connected,false);assert.equal(c.lookX,0)});
+test('custom action mappings are independent',()=>{const c=new ControllerAdapter();c.poll(pad());c.configure({bindings:{dash:4}});c.poll(pad('Xbox Wireless Controller',[0,0,0,0],[4]));assert.ok(c.prev.has('dash'))});
+test('calibration suppresses movement action presses',()=>{const c=new ControllerAdapter();c.poll(pad());const x=c.poll(pad('Xbox Wireless Controller',[1,1,1,1],[1]),.016,{suppressActions:true});assert.deepEqual(x.edges,[]);assert.deepEqual(x.held,[]);assert.equal(x.lookX,0)});
+test('one gamepad profile never overwrites another',()=>{const kv=new Map(),storage={getItem:k=>kv.get(k)||null,setItem:(k,v)=>kv.set(k,v)};const c=new ControllerAdapter({storage});c.poll(pad('Xbox'));c.configure({deadzone:.33});assert.equal(c.save(),true);c.poll(pad('DualSense'));assert.equal(c.profile.deadzone,.18);c.poll(pad('Xbox'));assert.equal(c.profile.deadzone,.33)});
+test('analog triggers supported even without pressed bit',()=>{const a=pad();a.buttons[7]={pressed:false,value:.7};assert.equal(buttonDown(a,7),true)});
+test('unrecognized pads remain configurable',()=>{const c=new ControllerAdapter();c.poll(pad('Generic USB',Array.from({length:6},()=>0)));c.configure({moveX:4,moveY:5});const z=c.poll(pad('Generic USB',[0,0,0,0,1,-1]));assert.ok(z.x>0&&z.y<0)});
