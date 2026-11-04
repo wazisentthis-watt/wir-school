@@ -29,6 +29,19 @@ try{
  assert.equal(evidence.baseline.boundCount,0);
  assert.equal(await page.locator('#lash').isDisabled(),true,'Comparison rig must not cast as Gorillium');
  console.log('BASELINE REAL-GLB RIG',JSON.stringify(evidence.baseline));
+ // Exercise the newly added real embedded-clip selector and tour on known S1 fixture.
+ // This proves the UI playback path, NOT Gorillium anatomy or gameplay integration.
+ assert.equal(await page.locator('#clipSelect option').count(),evidence.baseline.clipCount);
+ await page.locator('#clipSelect').selectOption({index:1});
+ await page.locator('#playClip').click();
+ const clipPreview=await page.evaluate(()=>window.__gorilliumLab.getSnapshot());
+ assert.ok(clipPreview.selectedClip,'Chosen original rig clip was not selected');
+ await page.locator('#playAllClips').click();
+ assert.equal((await page.evaluate(()=>window.__gorilliumLab.getSnapshot())).clipTourPlaying,true);
+ await page.locator('#stopClips').click();
+ assert.equal((await page.evaluate(()=>window.__gorilliumLab.getSnapshot())).clipTourPlaying,false);
+ evidence.clipSelectorQA={fixture:'Metal S1, not Gorillium',clipCount:evidence.baseline.clipCount,
+   selectedClip:clipPreview.selectedClip,playAll:true,stop:true};
 
  // Test local-file intake with the *existing Metal S1* as an explicit test fixture,
  // never label it as Gorillium. This verifies actual skinned-bone movement plumbing.
