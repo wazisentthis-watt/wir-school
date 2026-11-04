@@ -1,0 +1,64 @@
+name: ReFramer Animation Pack 02 · Motion / Counter / Rooftop QA (HOLD)
+on:
+  push:
+    paths:
+      - 'connected/assets/reframer_animation_pack02*'
+      - 'connected/assets/reframer_animation_pack01.js'
+      - 'connected/assets/reframer_animation_timeline.mjs'
+      - 'connected/assets/metal_aerial_duel_pilot.js'
+      - 'connected/assets/metal_aerial_duel_core.mjs'
+      - 'connected/tests/reframer_animation_pack02*'
+      - '.github/workflows/reframer-pack02-qa.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/reframer_animation_pack02*'
+      - 'connected/assets/reframer_animation_pack01.js'
+      - 'connected/assets/reframer_animation_timeline.mjs'
+      - 'connected/assets/metal_aerial_duel_pilot.js'
+      - 'connected/assets/metal_aerial_duel_core.mjs'
+      - 'connected/tests/reframer_animation_pack02*'
+      - '.github/workflows/reframer-pack02-qa.yml'
+permissions:
+  contents: read
+jobs:
+  pack02:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate module syntax
+        run: |
+          node --check connected/assets/metal_aerial_duel_core.mjs
+          node --check connected/assets/metal_aerial_duel_pilot.js
+          node --check connected/assets/reframer_animation_pack02_design.mjs
+          node --check connected/assets/reframer_animation_pack02.js
+          node --check connected/assets/reframer_animation_pack01.js
+          node --check connected/tests/reframer_animation_pack02_browser_playwright.mjs
+      - name: Unit, rig safety, counter window and original rooftop regression
+        run: |
+          node --test connected/tests/reframer_animation_pack02_core.test.mjs connected/tests/reframer_animation_pack02_integration.test.mjs
+          node --test connected/tests/reframer_animation_pack01.test.mjs connected/tests/reframer_animation_pack01_integration.test.mjs connected/tests/metal_aerial_duel_core.test.mjs connected/tests/metal_aerial_duel_integration.test.mjs
+      - name: Install Chromium for actual WebGL gameplay
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Serve current checked-out branch locally
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/reframer-pack02-server.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:8765/connected/ >/dev/null
+      - name: Verify actual 65-bone motion, training and touch on live 3D model
+        env:
+          WIR_PACK_BASE: http://127.0.0.1:8765
+        run: node connected/tests/reframer_animation_pack02_browser_playwright.mjs
+      - name: Retain animation screenshots and test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reframer-animation-pack02-qa
+          path: test-results/
+          retention-days: 10
+          if-no-files-found: warn
