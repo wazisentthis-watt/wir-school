@@ -17,6 +17,9 @@ export class RooftopPursuitMission{
   const deck=block(30,.7,24,0,11.45,0,0x373f50);deck.name='M05 REAL ROOFTOP';
   this.group.add(deck);this.roofY=11.8;
   this.roof=new THREE.Vector3(this.fight.x,this.roofY,this.fight.z);
+  // CRITICAL: Box3.setFromObject updates the child, not its untranslated parent.
+  // Propagate the Fight Lot world translation before building collision volumes.
+  this.group.updateMatrixWorld(true);
   this.colliders.push(new THREE.Box3().setFromObject(deck));
   for(const [x,z,w,d] of [[0,-11.8,30,.4],[0,11.8,30,.4],[-14.8,0,.4,24],[14.8,0,.4,24]])
    this.group.add(block(w,.4,d,x,12.12,z,0x8190a1));
@@ -27,6 +30,7 @@ export class RooftopPursuitMission{
   // Solid intermediate surfaces support original wall ride, landing and swing.
   for(const [x,y,z] of [[-17,3.2,-4],[-17,7.4,4]]){
    const step=block(7,.7,7,x,y,z,0x555b69);this.group.add(step);
+   this.group.updateMatrixWorld(true);
    this.colliders.push(new THREE.Box3().setFromObject(step));
    this.anchors.push(new THREE.Vector3(this.fight.x+x,y+1.55,this.fight.z+z));
   }
