@@ -1,0 +1,84 @@
+{
+  "schema": "wir.reframer.animation-pack-02.v1",
+  "status": "PROPOSAL / PUBLISH HOLD | separately gated optional rooftop training pilot | never publish or merge without owner approval",
+  "parent_commit": "de7f6f86a7885fe16ed99ad312cbc21c9031650d",
+  "source_rig": "connected/assets/models/rival_sparring_hero.glb",
+  "rig_provenance": {
+    "origin": "source-backed Pack 01 browser inventory",
+    "bones": 65,
+    "clips": 21,
+    "mesh_count": 3,
+    "proof": "https://github.com/wazisentthis-watt/wir-school/actions/runs/41913862680"
+  },
+  "preview": "?lite=1&aerial_duel=1&reframer_pack2=1",
+  "fallback": "?lite=1&aerial_duel=1&reframer_pack=1 (old Pack 01 only)",
+  "new_authored_motions": [
+    {
+      "id": "uppercut_launcher",
+      "name": "ReFramer uppercut with hip preload",
+      "frames": 6,
+      "bone_channels": 17,
+      "description": "Pose-keyed hip coiling, knee compression, forearm rise, shoulder drive and recovery",
+      "source_clips": [
+        "Punch_Cross"
+      ],
+      "limitations": "foot placement is visually authored FK, not real-time foot IK or physically root-motion-propelled upward punch"
+    },
+    {
+      "id": "airborne_tumble",
+      "name": "Physics-synchronized full 360° visual recovery spin",
+      "frames": 6,
+      "bone_channels": 17,
+      "description": "Visually pinned waist rotation through 360° with original knockback and roll clips, weighted by real roof-relative height",
+      "source_clips": [
+        "Hit_Knockback",
+        "Roll"
+      ],
+      "limitations": "presentation-only; center of mass remains controlled by existing bounded rooftop physics, not true ragdoll or joints constrained against collisions"
+    },
+    {
+      "id": "aerial_counter",
+      "name": "Reactive midair counterattack",
+      "frames": 6,
+      "bone_channels": 16,
+      "description": "Six-phase guard, pivot, rising counterkick and recovery keyed across real 65-bone rig, coupled to a windup/hit/evade finite-state machine",
+      "source_clips": [
+        "Shield_Dash",
+        "m_kick_r"
+      ],
+      "limitations": "one bounded counter opportunity per launched pursuit, not full autonomous multi-opponent AI"
+    }
+  ],
+  "mechanics": {
+    "air_counter_optional": true,
+    "windup_seconds": 0.48,
+    "damage_fraction": 0.105,
+    "range_m": 3.35,
+    "once_per_pursuit": true,
+    "can_dodge": true,
+    "interrupt_with_finisher": true,
+    "realistic_air_time": "existing gravity solver maintained"
+  },
+  "implementation": {
+    "new_GLBFbx_count": 0,
+    "new_additive_clip_count": 3,
+    "source_mixer_reused": true,
+    "original_source_model_unchanged": true,
+    "bound_animations": "existing 3 ReFramer Pack01 motion IDs upgraded, not new standalone characters",
+    "mobile_touch_controls": "Existing rooftop B dodge",
+    "controller": "existing Xbox B dodge",
+    "no_save_mutations": true,
+    "no_world_colliders_mutated": true,
+    "physical_controller_unverified": true
+  },
+  "release": {
+    "status": "DRAFT HOLD",
+    "known_unverified": [
+      "Real iPhone Safari and actual Bluetooth hardware",
+      "canon ReFramer character design",
+      "retargeted professionally authored mocap",
+      "collision-aware foot and palm IK",
+      "visual game director artistic approval"
+    ]
+  }
+}
