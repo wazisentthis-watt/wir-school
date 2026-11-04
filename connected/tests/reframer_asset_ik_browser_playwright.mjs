@@ -1,0 +1,61 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+import {mkdirSync,writeFileSync} from 'node:fs';
+mkdirSync('test-results',{recursive:true});
+const url=process.env.WIR_BASE||'http://127.0.0.1:8765';
+const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--no-sandbox']});
+const cases=[],errors=[];let page,mobile;
+const log=p=>p.on('pageerror',e=>errors.push(String(e.stack||e)));
+async function launch(p){log(p);await p.goto(url+'/connected/?lite=1&aerial_duel=1&reframer_ik=1',{waitUntil:'domcontentloaded',timeout:50000});
+ await p.waitForFunction(()=>window.__ready&&window.__aerialPilot&&window.__reframerAssetPilot,null,{timeout:75000});
+ await p.locator('#aerialDuelStart').click();
+ await p.waitForFunction(()=>window.__reframerAssetPilot?.live,null,{timeout:10000});
+}
+try{
+ const ctx=await browser.newContext({viewport:{width:1200,height:800},serviceWorkers:'block'});
+ page=await ctx.newPage();await launch(page);
+ const before=await page.evaluate(()=>({story:localStorage.getItem('wir_metal_story_v1'),profile:localStorage.getItem('wir_valence_profile_v1'),board:window.__game.board.visible}));
+ const rig=await page.evaluate(()=>{const p=window.__reframerAssetPilot;return {boneCount:p.targetBones.size,hasHands:p.targetBones.has('hand_l')&&p.targetBones.has('hand_r'),hasFeet:p.targetBones.has('foot_l')&&p.targetBones.has('foot_r'),source:p.source,physics:{...window.__aerialPilot.state.enemy}}});
+ assert.ok(rig.boneCount>=60&&rig.hasHands&&rig.hasFeet);assert.equal(rig.source,null);
+ cases.push({name:'Original 65 bone rival loaded with NO redistributed user files',result:'PASS',boneCount:rig.boneCount});
+ const samples=await page.evaluate(async()=>await(await fetch('/connected/labs/reframer-asset-ik-pilot/source_pose_samples.json')).json());
+ for(const file of ['Soldier.glb','Character.glb'])for(const clip of ['Punch_Right','Roll']){
+  const ret=await page.evaluate(data=>{const p=window.__reframerAssetPilot;
+    const start=JSON.stringify(window.__aerialPilot.state.enemy);
+    const result=p.applyUploadedSample(data);
+    return {result,physicsUnchanged:start===JSON.stringify(window.__aerialPilot.state.enemy)};
+  },samples.models[file].clips[clip].channels);
+  assert.ok(ret.result.applied>=3&&ret.result.meanAngle>.0001,JSON.stringify(ret));
+  assert.equal(ret.physicsUnchanged,true);
+  cases.push({name:file+' '+clip+' extracted real rotation delta on WIR rig',result:'PASS',meanAngle:ret.result.meanAngle});
+ }
+ await page.locator('#wirIkhand').click();
+ await page.waitForFunction(()=>window.__reframerAssetPilot?.handFrames>0,null,{timeout:16000});
+ const stats=await page.evaluate(()=>window.__reframerAssetPilot.snapshot());
+ assert.equal(stats.handIK,true);assert.ok(stats.handFrames>0);
+ cases.push({name:'Proxy CCDIK real ReFramer hand contact',result:'PASS',handFrames:stats.handFrames,footFrames:stats.footFrames});
+ await page.locator('#wirIkbvh').click();
+ await page.waitForFunction(()=>window.__reframerAssetPilot?.bvhStatus!=='not installed',null,{timeout:20000});
+ const bvh=await page.evaluate(()=>window.__reframerAssetPilot.snapshot());
+ assert.ok(bvh.bvhReport?.equivalent,'BVH/stock mismatch or module missing: '+bvh.bvhStatus);
+ assert.equal(bvh.bvhReport.physicsModified,false);
+ cases.push({name:'120 raycasts BVH vs stock rooftop collision parity',result:'PASS',metrics:bvh.bvhReport});
+ await page.screenshot({path:'test-results/reframer_ik_desktop.png'});
+ await page.locator('#adExit').click();
+ await page.waitForFunction(()=>!window.__reframerAssetPilot.live,null,{timeout:6000});
+ const after=await page.evaluate(()=>({story:localStorage.getItem('wir_metal_story_v1'),profile:localStorage.getItem('wir_valence_profile_v1'),board:window.__game.board.visible,roof:window.__aerialPilot.roof.visible}));
+ assert.equal(after.story,before.story);assert.equal(after.profile,before.profile);assert.equal(after.board,before.board);assert.equal(after.roof,false);
+ cases.push({name:'Duel exit preserves saves, board and world',result:'PASS'});
+ await ctx.close();
+ const phone=await browser.newContext({viewport:{width:390,height:844},screen:{width:390,height:844},hasTouch:true,isMobile:true,deviceScaleFactor:2,serviceWorkers:'block'});
+ mobile=await phone.newPage();await launch(mobile);
+ const rect=await mobile.locator('#wirIkhand').boundingBox();assert.ok(rect.width>=44&&rect.height>=44);
+ await mobile.locator('#wirIkhand').tap();
+ await mobile.waitForFunction(()=>window.__reframerAssetPilot.handFrames>0,null,{timeout:14000});
+ cases.push({name:'Mobile-size touch toggles hand IK',result:'PASS'});
+ await mobile.screenshot({path:'test-results/reframer_ik_mobile.png'});
+ await phone.close();assert.deepEqual(errors,[]);
+ console.log('WIR REFRAMER ASSET IK BVH QA PASS '+JSON.stringify(cases.map(c=>c.name)));
+}catch(e){console.error('WIR REFRAMER ASSET IK BVH QA FAIL '+String(e.stack||e));console.error('CASES '+JSON.stringify(cases));console.error('JS ERRORS '+JSON.stringify(errors));
+ try{await (mobile||page)?.screenshot({path:'test-results/reframer_ik_failure.png'});}catch{}process.exitCode=1;
+}finally{writeFileSync('test-results/reframer_asset_ik_results.json',JSON.stringify({cases,errors},null,2));await browser.close();}
