@@ -1,0 +1,58 @@
+name: METAL Aerial Combat Rooftop Pilot 01 QA (HOLD)
+on:
+  push:
+    paths:
+      - 'connected/assets/metal_aerial_duel_*'
+      - 'connected/assets/main.js'
+      - 'connected/assets/style.css'
+      - 'connected/index.html'
+      - 'connected/tests/metal_aerial_duel_*'
+      - '.github/workflows/metal-aerial-duel-qa.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/metal_aerial_duel_*'
+      - 'connected/assets/main.js'
+      - 'connected/assets/style.css'
+      - 'connected/index.html'
+      - 'connected/tests/metal_aerial_duel_*'
+      - '.github/workflows/metal-aerial-duel-qa.yml'
+permissions:
+  contents: read
+jobs:
+  rooftop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Parse original game and new modules
+        run: |
+          node --check connected/assets/main.js
+          node --check connected/assets/metal_aerial_duel_core.mjs
+          node --check connected/assets/metal_aerial_duel_pilot.js
+          node --check connected/tests/metal_aerial_duel_browser_playwright.mjs
+      - name: Deterministic combat, physics, lifecycle and save isolation tests
+        run: node --test connected/tests/metal_aerial_duel_core.test.mjs connected/tests/metal_aerial_duel_integration.test.mjs
+      - name: Install actual WebGL browser runner
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Serve current branch (not GitHub Pages)
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/aerial-duel-http.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:8765/connected/ > /dev/null
+      - name: Play real 3D duel with keyboard, virtual Xbox and touch
+        env:
+          WIR_DUEL_BASE: http://127.0.0.1:8765
+        run: node connected/tests/metal_aerial_duel_browser_playwright.mjs
+      - name: Archive actual screenshots and checks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metal-aerial-duel-pilot01-qa
+          path: test-results/
+          if-no-files-found: warn
+          retention-days: 7
