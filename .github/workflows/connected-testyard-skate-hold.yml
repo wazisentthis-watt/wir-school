@@ -1,0 +1,55 @@
+name: WIR Connected Test Yard Skate + Falls QA (HOLD)
+
+on:
+  pull_request:
+    paths:
+      - 'connected/assets/main.js'
+      - 'connected/assets/testyard_skate_adapter.mjs'
+      - 'connected/tests/testyard_*'
+      - 'connected/TESTYARD_SKATE_IMPORT_V01_HOLD.md'
+      - '.github/workflows/connected-testyard-skate-hold.yml'
+  push:
+    branches:
+      - 'feature/connected-testyard-skate-falls-*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testyard-adapter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax, deterministic trick/fall QA and existing safety regressions
+        run: |
+          set -euo pipefail
+          node --check connected/assets/main.js
+          node --check connected/assets/testyard_skate_adapter.mjs
+          node --check connected/tests/testyard_connected_browser_playwright.mjs
+          node --test connected/tests/testyard_skate_adapter.test.mjs connected/tests/metal_skylab_v3_bridge.test.mjs connected/tests/body_machine.test.mjs connected/tests/mission_asset_recovery.test.mjs
+      - name: Install browser QA runtime
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Serve exact branch checkout locally (no GitHub Pages deployment)
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/wir-testyard-http.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:8765/connected/ >/dev/null
+      - name: Real connected-game Chromium / simulated mobile / original mission smoke
+        env:
+          METAL_BOOT_BASE: http://127.0.0.1:8765
+        run: node connected/tests/testyard_connected_browser_playwright.mjs
+      - name: Preserve test evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: connected-testyard-skate-hold-evidence
+          path: test-results/
+          if-no-files-found: warn
+          retention-days: 7
