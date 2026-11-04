@@ -29,10 +29,12 @@ import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
+import {PressureStep,ComboInput,safeThrow,chargePose,enemyAbilityTick} from './metal_full_motion.mjs';
 
 const $=id=>document.getElementById(id);
 const VIOLET=0x9b5cff, GUN=0x4a4f57;
 const LITE=new URLSearchParams(location.search).get('lite')==='1';
+const METAL_FULL=new URLSearchParams(location.search).get('metal_next')==='1'; // opt-in / publish hold
 // Opt-in, isolated browser QA only. Normal gameplay never exposes this interface.
 const SLOTTA_BROWSER_QA=new URLSearchParams(location.search).get('slotta_qa')==='1';
 if(SLOTTA_BROWSER_QA)window.__testHold=true;
@@ -73,7 +75,7 @@ const missionAsset=(u,type,critical=false)=>loadMissionAsset(loadG,u,{
 function rep(t,r){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(r,r);t.colorSpace=THREE.SRGBColorSpace;return t;}
 
 // ---------- city layout: Savannah [S3 start city]. Grid streets PROPOSAL. ----------
-const BLOCK=44,ROAD=12,N=LITE?2:3; // Lite keeps all special lots while reducing surrounding city memory
+const BLOCK=44,ROAD=12,N=LITE?2:(METAL_FULL?4:3); // desktop opt-in: 9x9 blocks // Lite keeps all special lots while reducing surrounding city memory
 const colliders=[];const anchors=[];const structureBodies=new Map();
 function registerGrippableStructure(mesh){
  const box=new THREE.Box3().setFromObject(mesh);
@@ -103,7 +105,7 @@ async function buildWorld(setMsg){
  setMsg('Lighting (Poly Haven HDRI)…');
  if(LITE){scene.background=new THREE.Color(0x8fb0d0);}else try{const hdr=await new RGBELoader().loadAsync('assets/hdri/venice_sunset_1k.hdr');hdr.mapping=THREE.EquirectangularReflectionMapping;scene.environment=hdr;scene.background=hdr;scene.backgroundBlurriness=0.25;}catch(e){scene.background=new THREE.Color(0x8fb0d0);}
  const asphalt=rep(tl.load('assets/tex/asphalt_diff.jpg'),60);
- const ground=new THREE.Mesh(new THREE.PlaneGeometry(500,500),new THREE.MeshStandardMaterial({map:asphalt,roughness:.95}));
+ const ground=new THREE.Mesh(new THREE.PlaneGeometry(METAL_FULL?560:500,METAL_FULL?560:500),new THREE.MeshStandardMaterial({map:asphalt,roughness:.95}));
  ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
  const walkM=new THREE.MeshStandardMaterial({color:0xb8b2a6,roughness:.9}), grassM=new THREE.MeshStandardMaterial({color:0x4f7a3a,roughness:1});
  const lineM=new THREE.MeshBasicMaterial({color:0xe8d27a});
@@ -803,8 +805,9 @@ function pickAnchor(pp){if(!swingAnchors)buildSwingAnchors();const hv=_sw1.set(v
  if(!a)for(const an of swingAnchors){const d=an.distanceTo(pp);if(d<SW.MIN_D||d>SW.MAX_D||an.y-pp.y<2.5)continue;const sc=-Math.abs(d-15);if(sc>bs){bs=sc;a=an;}} /* nothing ahead: best line in any direction */
  return a;}
 function startSwing(pp){const a=pickAnchor(pp);if(!a||st.gal<=.04){toast(st.gal<=.04?'Out of Gallium — bank combos to refill':'No anchor in range');return;}
- if(!st.board){st.board=true;board.visible=true;toast('Board under his feet — Gallium swing');}
- const d=a.distanceTo(pp);st.swing={a:a.clone(),len:d*SW.REEL,len0:d,spent:0,t:0,held:!!keys.KeyQ};SWS.q.copy(P.o.quaternion);SWS.flip=0;SWS.swings++;
+ if(!METAL_FULL&&!st.board){st.board=true;board.visible=true;toast('Board under his feet — Gallium swing');}
+ if(METAL_FULL&&!st.board){boardOnBack();toast('BOARD ON BACK · GALAXY GALLIUM SWING');}
+ const d=a.distanceTo(pp);st.swing={a:a.clone(),len:d*SW.REEL,len0:d,spent:0,t:0,held:!!keys.KeyQ,boardBack:METAL_FULL&&!st.board};SWS.q.copy(P.o.quaternion);SWS.flip=0;SWS.swings++;
  play(P,'Swing');tether.visible=true;onGround=false;vel.y=Math.max(vel.y,4);plog('discoveries','Grapple swing');setViolet(1);beep(330,.1,'triangle');}
 function releaseSwing(why,landed){const s=st.swing;if(!s)return;st.gal=Math.min(1,st.gal+s.spent*.5);st.swing=null;tether.visible=false;st.comboPend++;
  const hs=Math.hypot(vel.x,vel.z);if(hs>.5)yaw=Math.atan2(vel.x,vel.z);SWS.blend=.35;SWS.air=3;
@@ -835,9 +838,19 @@ function swingOrient(dt){const pp=P.o.position;if(SWS.air>0)SWS.air-=dt;
  if(SWS.flip>0){SWS.flip-=dt;if(onGround)SWS.flip=0;const a=Math.PI*2*(1-Math.max(0,SWS.flip)/SW.FLIP_T);P.o.quaternion.multiply(_swq.setFromAxisAngle(_sw1.set(1,0,0),-a));}}  // backflip on release
 function swingTilted(){return !!(st.swing||SWS.flip>0||SWS.blend>0);}
 // board on his back while he walks or fights (it never vanishes); B or a swing puts it back under his shoes
-function boardOnBack(){if(!board)return;if(!P.p6){board.visible=false;return;}const ch=P.legs&&P.legs.chest;if(!ch)return;board.visible=true;
- P.o.updateMatrixWorld(true);ch.getWorldPosition(_sw1);const f=_sw2.set(Math.sin(yaw),0,Math.cos(yaw));board.position.copy(_sw1).addScaledVector(f,-.32);board.position.y-=.2;
- const z=_sw3.set(0,1,0),y=f.clone(),x=new THREE.Vector3().crossVectors(y,z).normalize();_swm.makeBasis(x,y,z);board.quaternion.setFromRotationMatrix(_swm);}
+function boardOnBack(){if(!board)return;
+ if(!METAL_FULL){if(!P.p6){board.visible=false;return;}const ch=P.legs&&P.legs.chest;if(!ch)return;board.visible=true;
+  P.o.updateMatrixWorld(true);ch.getWorldPosition(_sw1);const f=_sw2.set(Math.sin(yaw),0,Math.cos(yaw));board.position.copy(_sw1).addScaledVector(f,-.32);board.position.y-=.2;
+  const z=_sw3.set(0,1,0),y=f.clone(),x=new THREE.Vector3().crossVectors(y,z).normalize();_swm.makeBasis(x,y,z);board.quaternion.setFromRotationMatrix(_swm);return;}
+ const ch=P.legs?.chest||P.model?.getObjectByName('Chest')||P.model?.getObjectByName('Spine')||P.o;
+ if(!ch){board.visible=false;return;}board.visible=true;
+ P.o.updateMatrixWorld(true);ch.getWorldPosition(_sw1);ch.getWorldQuaternion(_swq2);
+ const f=_sw2.set(0,0,1).applyQuaternion(_swq2).normalize();
+ board.position.copy(_sw1).addScaledVector(f,-.32);board.position.y-=.2;
+ const up=_sw3.set(0,1,0).applyQuaternion(_swq2).normalize(),x=new THREE.Vector3().crossVectors(f,up).normalize();
+ if(x.lengthSq()<.01)x.set(1,0,0);const y=new THREE.Vector3().crossVectors(up,x).normalize();
+ _swm.makeBasis(x,y,up);board.quaternion.setFromRotationMatrix(_swm);
+}
 
 // ---------- main loop ----------
 const clock=new THREE.Clock();let camPos=new THREE.Vector3();
@@ -1287,7 +1300,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  if(!st.wall&&pp.y<=gY&&!st.swing){if(wasAir&&!st.flying){if(!st.board){bodyMachine.impact=Math.max(0,-vel.y);footLand(vel.y);}if(st.board){if(Math.abs(vel.y)>(SWS.air>0?28:18)){skBail('HARD LANDING');bodyMachine.impact=Math.max(0,-vel.y);bodyMachine.fall(vel.x,vel.z);}else{bank();sk.landT=0;sk.flash=1;if(P.acts.Land){play(P,'Land',true);actT=.16;}}}}pp.y=gY;if(vel.y<0)vel.y=0;onGround=true;if(st.flying)st.flying=false;}
  else if(!st.wall&&pp.y>gY+.05&&!st.swing&&!st.flying){if(!st.board||pp.y>gY+1.15)onGround=false;}
  }
- pp.x=THREE.MathUtils.clamp(pp.x,-200,200);pp.z=THREE.MathUtils.clamp(pp.z,-200,200);
+ pp.x=THREE.MathUtils.clamp(pp.x,METAL_FULL?-240:-200,METAL_FULL?240:200);pp.z=THREE.MathUtils.clamp(pp.z,METAL_FULL?-240:-200,METAL_FULL?240:200);
  const hs=Math.hypot(vel.x,vel.z);yaw=faceYaw(dt,hs,yaw);P.o.rotation.set(0,yaw,0);
  if(st.wall){const w=st.wall;const f=new THREE.Vector3().copy(w.t).multiplyScalar(w.side).setY(w.up);if(f.lengthSq()<.01)f.set(0,1,0);f.normalize();const x=new THREE.Vector3().crossVectors(w.n,f).normalize();f.crossVectors(x,w.n);_wm.makeBasis(x,w.n,f);_wq.setFromRotationMatrix(_wm);P.o.quaternion.slerp(_wq,1);}
  swingOrient(dt);
