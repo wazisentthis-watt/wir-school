@@ -1,0 +1,58 @@
+name: ReFramer Animation Pack 01 · Rooftop + Browser QA (HOLD)
+on:
+  push:
+    paths:
+      - 'connected/assets/reframer_animation_*'
+      - 'connected/assets/metal_aerial_duel_pilot.js'
+      - 'connected/assets/style.css'
+      - 'connected/labs/reframer-animation-pack-01/**'
+      - 'connected/tests/reframer_animation_pack01*'
+      - '.github/workflows/reframer-pack01-integration-qa.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/reframer_animation_*'
+      - 'connected/assets/metal_aerial_duel_pilot.js'
+      - 'connected/assets/style.css'
+      - 'connected/labs/reframer-animation-pack-01/**'
+      - 'connected/tests/reframer_animation_pack01*'
+      - '.github/workflows/reframer-pack01-integration-qa.yml'
+permissions:
+  contents: read
+jobs:
+  eight-motions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Parse all authored and original rig modules
+        run: |
+          node --check connected/assets/reframer_animation_pack01.js
+          node --check connected/assets/reframer_animation_timeline.mjs
+          node --check connected/assets/metal_aerial_duel_pilot.js
+          node --check connected/tests/reframer_animation_pack01_browser_playwright.mjs
+      - name: Test eight motions, actual clip names and safe integration
+        run: node --test connected/tests/reframer_animation_pack01.test.mjs connected/tests/reframer_animation_pack01_integration.test.mjs
+      - name: Install Chromium and Gamepad/touch browser runner
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Serve original 3D Savannah locally on HEAD
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/reframer-pack01-server.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:8765/connected/ >/dev/null
+      - name: Play eight authored performances, VFX and original collision game
+        env:
+          WIR_PACK_BASE: http://127.0.0.1:8765
+        run: node connected/tests/reframer_animation_pack01_browser_playwright.mjs
+      - name: Save screenshots and structured QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reframer-animation-pack01-qa
+          path: test-results/
+          retention-days: 10
+          if-no-files-found: warn

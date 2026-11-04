@@ -1,0 +1,246 @@
+{
+  "schema": "wir.reframer.animation-pack-01.v1",
+  "project": "WIR Connected Savannah | METAL aerial combat",
+  "status": "PROPOSAL / PUBLISH HOLD, stacked on rooftop duel PR #34, not canon approved, not shipped",
+  "source_asset": "connected/assets/models/rival_sparring_hero.glb",
+  "source_git_blob_sha": "9471879c0fdbaf2aed65d8c239228b07cafcd354",
+  "verification": {
+    "method": "real locally served WebGL Chromium, enemy SkeletonUtils.clone runtime",
+    "workflow_run": 41913862680,
+    "bone_count": 65,
+    "skinned_meshes": 3,
+    "unique_animations": 21,
+    "action_alias_count": 40,
+    "verified_mesh_names": [
+      "SuperHero_Male",
+      "Eyes",
+      "Eyebrows"
+    ],
+    "verified_bones": [
+      "root",
+      "pelvis",
+      "spine_01",
+      "spine_02",
+      "spine_03",
+      "neck_01",
+      "Head",
+      "clavicle_l",
+      "upperarm_l",
+      "lowerarm_l",
+      "hand_l",
+      "clavicle_r",
+      "upperarm_r",
+      "lowerarm_r",
+      "hand_r",
+      "thigh_l",
+      "calf_l",
+      "foot_l",
+      "thigh_r",
+      "calf_r",
+      "foot_r"
+    ]
+  },
+  "source_clips": [
+    {
+      "name": "Idle_Loop",
+      "duration_s": 2.5
+    },
+    {
+      "name": "Punch_Jab",
+      "duration_s": 0.867
+    },
+    {
+      "name": "Punch_Cross",
+      "duration_s": 1
+    },
+    {
+      "name": "Melee_Hook",
+      "duration_s": 0.467
+    },
+    {
+      "name": "Shield_Dash",
+      "duration_s": 1.1
+    },
+    {
+      "name": "Idle_Shield_Loop",
+      "duration_s": 2.5
+    },
+    {
+      "name": "Hit_Knockback",
+      "duration_s": 0.833
+    },
+    {
+      "name": "Roll",
+      "duration_s": 1.467
+    },
+    {
+      "name": "LayToIdle",
+      "duration_s": 1.533
+    },
+    {
+      "name": "m_kick_r",
+      "duration_s": 0.3
+    },
+    {
+      "name": "m_kick_l",
+      "duration_s": 0.3
+    },
+    {
+      "name": "Hit_Chest",
+      "duration_s": 0.333
+    },
+    {
+      "name": "Hit_Head",
+      "duration_s": 0.433
+    },
+    {
+      "name": "Idle_Shield_Break",
+      "duration_s": 1.067
+    },
+    {
+      "name": "Jog_Fwd_Loop",
+      "duration_s": 0.933
+    },
+    {
+      "name": "Walk_Loop",
+      "duration_s": 1.333
+    },
+    {
+      "name": "m_block",
+      "duration_s": 0.4
+    },
+    {
+      "name": "m_charge",
+      "duration_s": 0.3
+    },
+    {
+      "name": "m_dodge",
+      "duration_s": 0.3
+    },
+    {
+      "name": "Idle_No_Loop",
+      "duration_s": 2.5
+    },
+    {
+      "name": "Yes",
+      "duration_s": 2.5
+    }
+  ],
+  "motions": [
+    {
+      "id": "combat_idle",
+      "reuse": [
+        "Idle_Loop"
+      ],
+      "new": "Additive breathing and guard keys",
+      "pending": [
+        "reactive eye tracking",
+        "canonical character-specific guard posture"
+      ]
+    },
+    {
+      "id": "melee_three",
+      "reuse": [
+        "Punch_Jab",
+        "Punch_Cross",
+        "Melee_Hook"
+      ],
+      "new": "Three-stage crossfades and torso torque",
+      "pending": [
+        "three-hit contact timing",
+        "planted-feet transitions",
+        "second/third contact damage logic"
+      ]
+    },
+    {
+      "id": "uppercut_launcher",
+      "reuse": [
+        "Punch_Cross"
+      ],
+      "new": "New shoulder/forearm/torso quaternion keyframes",
+      "pending": [
+        "true grounded uppercut root motion",
+        "IK foot plant",
+        "launch contact alignment"
+      ]
+    },
+    {
+      "id": "aerial_pursuit",
+      "reuse": [
+        "Shield_Dash"
+      ],
+      "new": "Flight-lean additively animated upper body and teal pursuit trails",
+      "pending": [
+        "true takeoff and air brake",
+        "flight locomotion clips"
+      ]
+    },
+    {
+      "id": "airborne_tumble",
+      "reuse": [
+        "Hit_Knockback",
+        "Roll"
+      ],
+      "new": "Additive pelvis, spine, shoulder, leg stagger",
+      "pending": [
+        "360-degree center-of-mass tumble",
+        "airborne recovery and collision matching"
+      ]
+    },
+    {
+      "id": "rooftop_recovery",
+      "reuse": [
+        "Hit_Knockback",
+        "LayToIdle"
+      ],
+      "new": "Recoil keyframes and temporary floor ring",
+      "pending": [
+        "dedicated concrete-ground shoulder/palm contact",
+        "locked ankles through stand-up"
+      ]
+    },
+    {
+      "id": "shield_formation",
+      "reuse": [
+        "Idle_Shield_Loop"
+      ],
+      "new": "Five separate structural-steel plates and original grasp/guard keyframes",
+      "pending": [
+        "finger IK around construct",
+        "physical shield hitbox and guard-break timing"
+      ]
+    },
+    {
+      "id": "aerial_counter",
+      "reuse": [
+        "Shield_Dash",
+        "m_kick_r"
+      ],
+      "new": "Original dash-kick body keyframes and streaks",
+      "pending": [
+        "actual aerial enemy counter AI and attack damage",
+        "custom counter impact animation"
+      ]
+    }
+  ],
+  "integration": {
+    "feature_gate": "?aerial_duel=1&reframer_pack=1",
+    "fallback": "?aerial_duel=1 runs unchanged PR #34 pilot",
+    "entry": "REFRAMER · 8 MOTIONS button in rooftop training HUD",
+    "module": "connected/assets/reframer_animation_pack01.js",
+    "timeline": "connected/assets/reframer_animation_timeline.mjs",
+    "changes_to_source_model": false,
+    "changes_to_saves": false,
+    "collidable_shield": false,
+    "destructible_city": false,
+    "animation_mixer": "reuse existing one; no second AnimationMixer",
+    "imported_external_FBX_count": 0
+  },
+  "license": "Existing WIR repository asset reused in-place. Original attribution/commercial-use rights of this GLB not independently verified in this build. No external animation files bundled.",
+  "notes": [
+    "The existing source model is a rival sparring hero and is a ReFramer training placeholder, not final canon character art.",
+    "Procedural bone keyframes are original WIR authored approximations, not replacement for polished motion capture.",
+    "Three-hit animation currently plays three source strikes as a performance; pilot core registers its existing attack count separately.",
+    "Shield assembly is visual structural metal only and does not deflect Gallium or change combat damage."
+  ]
+}
