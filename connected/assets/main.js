@@ -19,6 +19,7 @@ import {BodyMachine} from './body_machine.js';
 import {WorldBody} from './world_body.js';
 import {chooseGripTarget,stepStructureOffset,gripHeldPosition} from './gallium_grip_core.js';
 import {PhysicsTelemetry} from './physics_telemetry.js';
+import {createTestYardSkateAdapter,trickDirection,fightClipHint} from './testyard_skate_adapter.mjs';
 import {analyzePhysics} from './physics_analysis.js';
 import {makeGalliumLimb,galliumLiquidMat,GU} from './gallium_limb.js';
 import {MetalForgeController,FORGE_COST,FORGE_REFUND} from './metal_forge_controller.js';
@@ -40,6 +41,7 @@ const VIOLET=0x9b5cff, GUN=0x4a4f57;
 const LITE=new URLSearchParams(location.search).get('lite')==='1';
 // Opt-in, isolated browser QA only. Normal gameplay never exposes this interface.
 const SLOTTA_BROWSER_QA=new URLSearchParams(location.search).get('slotta_qa')==='1';
+const TEST_YARD_SKATE=new URLSearchParams(location.search).get('skate_yard')==='1'; // HOLD; existing default remains unchanged
 if(SLOTTA_BROWSER_QA)window.__testHold=true;
 const boot=window.__bootRecovery||{stage:()=>{},warning:()=>{},failed:()=>{},ready:()=>{},getStatus:()=>({warnings:[]})};
 const safeStorage=(()=>{try{return window.localStorage}catch(e){boot.warning({asset:'localStorage',reason:String(e)});return {getItem:()=>null,setItem:()=>{throw Error('Storage is unavailable')}};}})();
@@ -505,11 +507,37 @@ $('mapc').addEventListener('pointerdown',()=>{zoom=(zoom+1)%5;drawMap();});
 // Stroke cadence 0.62 s is tuned so hold-to-push still lands on the v7 parity curve (~5.8 m/s at 1 s, ~8.2 m/s at 2 s).
 const MSK={CRUISE:8.5,TOP:16,PUSH:4.1,STROKE:.62,DRIVE:[.18,.52],ROLL:.35,DRAG:.1,BRAKE:13,STEER:3.4,OLLIE:5.875,POP:.12,COMP:1.125,CARVE_PUMP:1.6,WALL_BAIL:7.5};
 const sk={h:0,s:0,stroke:-1,pw:0,comp:0,manual:null,slide:false,landT:9,airT:0,carve:0,bailT:0,pushes:0,flash:0,rail:false};
+// The Test Yard is a visual/trick sidecar. Existing movement and powers own the scene.
+const yard=TEST_YARD_SKATE?createTestYardSkateAdapter():null;
+if(yard){
+ const ui=document.createElement('div');ui.id='testyardSkateActions';
+ ui.style.cssText='position:fixed;z-index:24;left:max(8px,env(safe-area-inset-left));bottom:calc(108px + env(safe-area-inset-bottom));display:flex;gap:5px;flex-wrap:wrap;max-width:min(78vw,410px);pointer-events:auto';
+ for(const [code,label] of [['BracketLeft','FLIP'],['BracketRight','GRAB'],['Quote','MANUAL']]){
+  const b=document.createElement('button');b.type='button';b.textContent=label;
+  b.setAttribute('aria-label','Test Yard '+label);
+  b.style.cssText='font:700 12px system-ui;background:#271c40e8;color:#f0e6ff;border:1px solid #aa90db;border-radius:10px;padding:12px 14px;touch-action:none;user-select:none';
+  const ids=new Set();
+  b.addEventListener('pointerdown',e=>{e.preventDefault();ids.add(e.pointerId);keys[code]=true;pressed[code]=true;try{b.setPointerCapture(e.pointerId);}catch{}});
+  const done=e=>{ids.delete(e.pointerId);if(ids.size===0)keys[code]=false;};
+  for(const evt of ['pointerup','pointercancel','lostpointercapture'])b.addEventListener(evt,done);
+  addEventListener('blur',()=>{ids.clear();keys[code]=false;});
+  ui.appendChild(b);
+ }
+ document.body.append(ui);
+}
+function finishYardAir(){
+ if(!yard)return true;
+ const landed=yard.land();
+ if(landed.failed){skBail(landed.reason);bodyMachine.fall(vel.x,vel.z);return false;}
+ if(landed.points>0){st.comboPend+=Math.min(4,landed.points/120);toast(landed.names.join(' + ')+' · LANDED');}
+ return true;
+}
+
 function angDiff(a,b){let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;}
 function plA(n,fb){play(P,P.acts[n]?n:fb);}
 function skateGround(dt,wish,il){
  let s=Math.hypot(vel.x,vel.z);if(s>.1)sk.h=Math.atan2(vel.x,vel.z);
- const pump=!!(keys.ShiftLeft||keys.ShiftRight);
+ const pump=!!(keys.ShiftLeft||keys.ShiftRight||(yard&&keys.Quote));
  sk.slide=false;sk.carve=0;
  if(il>.2&&!sk.manual){
   const ad=Math.atan2(wish.x,wish.z);
@@ -530,10 +558,10 @@ function skateGround(dt,wish,il){
    sk.stroke=b>=1?-1:b;}
  }
  if(pump){sk.comp=Math.min(1,sk.comp+dt/.35);
-  if(!sk.manual&&s>2.25&&(st.comboPend>0||sk.landT<.5))sk.manual={t:0,bal:(Math.random()-.5)*.3,v:0};}
+  if(!sk.manual&&s>2.25&&(st.comboPend>0||sk.landT<.5||(yard&&keys.Quote)))sk.manual={t:0,bal:(Math.random()-.5)*.3,v:0};}
  else{if(sk.manual)endManual();sk.comp=0;}
  if(sk.manual){const m=sk.manual;m.t+=dt;const fb=il>.2?fwdIn*il:0;
-  m.v+=(m.bal*2.1+(Math.random()-.5)*2.2)*dt-fb*3.4*dt;m.bal+=m.v*dt;
+  if(yard){const next=yard.manualBalance(m.bal,m.v,dt,fb);m.v=next.velocity;m.bal=next.balance;}else{m.v+=(m.bal*2.1+(Math.random()-.5)*2.2)*dt-fb*3.4*dt;m.bal+=m.v*dt;}
   if(Math.abs(m.bal)>1){sk.manual=null;skBail('MANUAL BAIL');return;}}
  const dec=(MSK.ROLL+MSK.DRAG*s)*dt*(sk.manual?.6:1);s=Math.min(Math.max(0,s-dec),MSK.TOP);
  sk.s=s;vel.x=Math.sin(sk.h)*s;vel.z=Math.cos(sk.h)*s;sk.landT+=dt;
@@ -541,7 +569,13 @@ function skateGround(dt,wish,il){
 function endManual(){const t=sk.manual.t;sk.manual=null;if(t>.35){st.comboPend++;toast('Manual '+t.toFixed(1)+' s');}}
 function skOllie(){const s=Math.hypot(vel.x,vel.z);vel.y=MSK.OLLIE+s*MSK.POP+sk.comp*MSK.COMP;if(sk.manual)endManual();
  sk.comp=0;sk.stroke=-1;sk.airT=0;onGround=false;st.comboPend++;play(P,P.acts.Ollie?'Ollie':'Jump',true);}
-function skBail(why){bail();toast(why);sk.stroke=-1;sk.manual=null;vel.x*=.2;vel.z*=.2;sk.bailT=.9;if(P.acts.Bail){play(P,'Bail',true);actT=.6;}}
+function skBail(why){
+ if(sk.bailT>0)return;
+ bail();toast(why);sk.stroke=-1;sk.manual=null;vel.x*=.2;vel.z*=.2;
+ const fall=yard?.startFall(why);sk.bailT=fall?.duration??.9;
+ const clip=fall?.clip&&P.acts[fall.clip]?fall.clip:P.acts.Bail?'Bail':null;
+ if(clip){play(P,clip,true);actT=fall?Math.min(fall.duration*.75,1.4):.6;}
+}
 function skateAnim(gnd){
  if(sk.bailT>0)return;
  if(!gnd){plA('Air','Jump');return;}
@@ -760,7 +794,10 @@ function startStrike(k){
  FG.chain=FG.lastT<.55?FG.chain+1:1;if(id==='hook')FG.chain=0;
  let amt=0;if(id!=='blast'&&st.charge>.25){amt=st.charge;st.charge=0;}
  if(FG.lock){const v=toTarget();yaw=Math.atan2(v.x,v.z);P.o.rotation.y=yaw;}
- FG.act={id,s,t:0,hits:new Set(),amt,fired:false};if(!playT(P,s.a,s.end))play(P,'Punch',true);actT=s.end;setViolet(1);
+ FG.act={id,s,t:0,hits:new Set(),amt,fired:false};
+ const visualClip=yard&&P.p6?fightClipHint(id):null;
+ if(!(visualClip&&P.acts[visualClip]&&playT(P,visualClip,s.end))&&!playT(P,s.a,s.end))play(P,'Punch',true);
+ actT=s.end;setViolet(1);
  beep(id==='blast'?120:200+Math.random()*90,.05,'sawtooth',.04);}
 function tickStrike(dt){const a=FG.act,s=a.s;a.t+=dt;const pp=P.o.position,f=_fv3.set(Math.sin(yaw),0,Math.cos(yaw));
  if(a.t<s.t0&&s.step)pp.addScaledVector(f,s.step/s.t0*dt);
@@ -1332,6 +1369,12 @@ function update(dt){
  const fwd=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw)),right=new THREE.Vector3(-fwd.z,0,fwd.x);
  const wish=new THREE.Vector3().addScaledVector(right,ix).addScaledVector(fwd,-iz);if(wish.lengthSq()>1)wish.normalize();
  const bPressed=tap('KeyB');
+  // Classic X/Y have no foot-combat effect while riding; opt-in board-only mapping.
+  const yardEligible=!!(yard&&st.board&&!st.wall&&!st.swing&&!st.flying);
+  const yardFlipPulse=yardEligible?(tap('BracketLeft')||tap('Numpad4')):false;
+  const yardDir=yard?trickDirection(ix,-iz):'N';
+  const yardGrabHeld=!!(yardEligible&&(keys.BracketRight||keys.Numpad6));
+  if(yardFlipPulse)yard.queueFlip(yardDir);
  if(st.wall&&st.board&&bPressed){st.wall=null;onGround=false;st.board=false;board.visible=false;if(GAL_FORGE_ENABLED&&forgeController?.dissolve())st.gal=Math.min(1,st.gal+FORGE_REFUND);toast('Bail (B) · board released');}
  else if(bPressed&&onGround&&!st.swing){
   if(st.board){st.board=false;board.visible=false;if(GAL_FORGE_ENABLED&&forgeController?.dissolve())st.gal=Math.min(1,st.gal+FORGE_REFUND);toast(GAL_FORGE_ENABLED?'GALAXY GALLIUM · BOARD DISSOLVING':'Board up');}
@@ -1363,7 +1406,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   if(st.board&&onGround){ // METAL SKATE CORE (v7 feel port): heading-based board, stroke pushes, carve, powerslide, pump, manual
    if(sk.bailT>0){sk.bailT-=dt;vel.x*=Math.exp(-3*dt);vel.z*=Math.exp(-3*dt);sk.stroke=-1;}else skateGround(dt,wish,il);
    vel.y-=SK.grav*dt;st.ori=Math.min(1,st.ori+dt*.3);hv=new THREE.Vector3(vel.x,0,vel.z);
-   if(tap('Space')&&sk.bailT<=0)skOllie();
+   if((tap('Space')||(yardEligible&&yardFlipPulse))&&sk.bailT<=0)skOllie();
   } else if(!st.board){ footMove(dt,wish,il,run);hv=new THREE.Vector3(vel.x,0,vel.z);st.ori=Math.min(1,st.ori+dt*.3);
   } else {
   const acc=st.board?(onGround?SK.acc:2):(onGround?18:4);hv=new THREE.Vector3(vel.x,0,vel.z);const target=wish.clone().multiplyScalar((st.board?SK.cruise:maxS)*il);
@@ -1376,13 +1419,18 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   if(st.board&&onGround){for(const r of ramps)if(r.p.distanceTo(new THREE.Vector3(pp.x,0,pp.z))<r.r&&hv.length()>6){vel.y=r.kick;onGround=false;st.comboPend+=2;toast('Air!');plog('discoveries','Skatepark kicker air');}
    for(const r of rails){const ab=r.b.clone().sub(r.a);const t=THREE.MathUtils.clamp(pp.clone().sub(r.a).dot(ab)/ab.lengthSq(),0,1);const cp=r.a.clone().addScaledVector(ab,t);if(new THREE.Vector2(cp.x-pp.x,cp.z-pp.z).length()<.6&&vel.y<=0&&pp.y<1.3){pp.y=cp.y;vel.y=0;st.comboPend+=dt*3;setViolet(.7);st.grinding=true;}}}
  }
- // Gallium brace (S1: 1/3 bar) — Shift+Space while flying/swinging cancels momentum
+ if(yard&&st.board&&!st.swing&&!st.wall&&!st.flying){
+   if(!onGround)yard.onAir(dt,{grabHeld:yardGrabHeld,dir:yardDir});
+   const line=yard.grind(dt,{active:st.grinding,dir:yardDir,speed:Math.hypot(vel.x,vel.z)});
+   if(line&&line.points){st.comboPend+=Math.min(2.5,line.points/150);toast(line.name+' · GRIND LINE');}
+  }
+  // Gallium brace (S1: 1/3 bar) — Shift+Space while flying/swinging cancels momentum
  if(!st.flying&&!st.swing)pp.addScaledVector(vel,dt);else if(st.flying)pp.addScaledVector(vel,dt);
  const preHit=collide(pp);if(preHit&&lastHit&&st.swing&&st.board&&lastHit.b.max.y>3&&lastHit.into>3){releaseSwing('wall');startWall(lastHit);}if(preHit&&lastHit&&!st.board&&!onGround&&!st.flying&&!st.swing&&!st.wall)tryClimb(lastHit,wish);if(preHit&&lastHit&&st.board&&!st.flying&&!st.swing&&lastHit.into>=WR.minInto&&lastHit.b.max.y>3){const sp=lastHit.hv.length();if(st.gal>=WR.rampCost&&sp>=WR.rampMinSpeed){lastHit.ramp=true;startWall(lastHit);}else if(sp>=WR.minSpeed)startWall(lastHit);}
  if(preHit&&lastHit&&st.board&&onGround&&!st.wall&&!st.flying&&!st.swing&&lastHit.into>MSK.WALL_BAIL){skBail('SLAMMED A WALL');bodyMachine.fall(vel.x,vel.z);bodyMachine.impact=Math.max(bodyMachine.impact,lastHit.into);}
  if(preHit&&lastHit&&st.board&&onGround&&!st.wall&&!st.flying&&!st.swing&&lastHit.into>MSK.WALL_BAIL){skBail('SLAMMED A WALL');bodyMachine.impact=lastHit.into;bodyMachine.fall(vel.x,vel.z);}
  const gY=floorAt(pp);const wasAir=!onGround;
- if(!st.wall&&pp.y<=gY&&!st.swing){if(wasAir&&!st.flying){if(!st.board){bodyMachine.impact=Math.max(0,-vel.y);footLand(vel.y);}if(st.board){if(Math.abs(vel.y)>(SWS.air>0?28:18)){skBail('HARD LANDING');bodyMachine.impact=Math.max(0,-vel.y);bodyMachine.fall(vel.x,vel.z);}else{bank();sk.landT=0;sk.flash=1;if(P.acts.Land){play(P,'Land',true);actT=.16;}}}}pp.y=gY;if(vel.y<0)vel.y=0;onGround=true;if(st.flying)st.flying=false;}
+ if(!st.wall&&pp.y<=gY&&!st.swing){if(wasAir&&!st.flying){if(!st.board){bodyMachine.impact=Math.max(0,-vel.y);footLand(vel.y);}if(st.board){if(Math.abs(vel.y)>(SWS.air>0?28:18)){skBail('HARD LANDING');bodyMachine.impact=Math.max(0,-vel.y);bodyMachine.fall(vel.x,vel.z);}else if(finishYardAir()){bank();sk.landT=0;sk.flash=1;if(P.acts.Land){play(P,'Land',true);actT=.16;}}}}pp.y=gY;if(vel.y<0)vel.y=0;onGround=true;if(st.flying)st.flying=false;}
  else if(!st.wall&&pp.y>gY+.05&&!st.swing&&!st.flying){if(!st.board||pp.y>gY+1.15)onGround=false;}
  }
  pp.x=THREE.MathUtils.clamp(pp.x,-200,200);pp.z=THREE.MathUtils.clamp(pp.z,-200,200);
@@ -1400,7 +1448,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   const up=_bu.set(0,1,0).applyQuaternion(board.quaternion);const fl=P.footL;
   if(fl){P.o.updateMatrixWorld(true);fl.getWorldPosition(_bf);const rel=_bf.sub(pp);const along=rel.dot(up);rel.addScaledVector(up,-along);rel.multiplyScalar(.5);board.position.copy(pp).add(rel);}else board.position.copy(pp);
   st.boardGap=fl?fl.getWorldPosition(_bf).distanceTo(board.position):0;}}
- if(!st.board)board.visible=false; // Walking/swinging never displays the board
+ if(!st.board){board.visible=false;if(yard)yard.resetRide();} // Walking/swinging never displays the board
  // Model-space aerial turn (visual only); original physics and true X/Y/Z are unchanged.
  if(v3SpinTime>0){
   if(onGround)v3SpinTime=0;
@@ -1416,7 +1464,11 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   v3KickflipTime=Math.max(0,v3KickflipTime-dt);
   if(st.board&&!onGround){const a=(1-v3KickflipTime/.75)*Math.PI*2;board.rotateZ(a);}
  }
- // violet decays (only on active moves)
+ // Test Yard deck-only flip visuals: no new root or wheel-body physics.
+  if(yard&&st.board&&!onGround&&!st.wall&&!st.flying&&!st.swing){
+   const flip=yard.visual();if(flip){const a=Math.PI*2*flip.progress;board.rotateX(a*flip.rx);board.rotateY(a*flip.ry);board.rotateZ(a*flip.rz);}
+  }
+  // violet decays (only on active moves)
  for(const mt of seamMats)mt.emissiveIntensity=Math.max(0,mt.emissiveIntensity-dt*3);
  if(galLimb){const hb=P.handBone;if(hb){hb.updateMatrixWorld(true);hb.getWorldPosition(_hand);}else _hand.copy(P.o.position).setY(P.o.position.y+1.2);galLimb.tick(dt,{swing:st.swing,grip:worldGripActive&&gripTarget?gripTarget:null,hand:_hand,model:P.model,st,groundY,playerPos:P.o.position});} // PROPOSAL Gallium limb visuals
  // systems
@@ -1460,7 +1512,8 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  if(challenge){challenge.t-=dt;if(challenge.t<=0){toast('Forge recipe ended');challenge=null;}}
  // state + HUD
  st.state=st.flying?'FLIGHT · MERKABA':st.swing?'SWING':st.wall?'WALL RIDE':st.board?(onGround?'SKATE':'AIR'):(rivalSt.active?'SPAR':(lockout>0?'RECOVER':(onGround?'WALK':'AIR')));
- $('state').textContent=st.state+' · Season '+st.form+(st.comboPend>0?' · combo ×'+Math.floor(st.comboPend):'')+(challenge?` · ⏱${challenge.t|0}s ${challenge.type}`:'');
+ if(yard&&st.board&&!st.wall&&!st.swing&&!st.flying){const motion=yard.snapshot();const move=motion.flip||motion.grab||motion.grindLabel;if(move)st.state+=' · '+move;}
+  $('state').textContent=st.state+' · Season '+st.form+(st.comboPend>0?' · combo ×'+Math.floor(st.comboPend):'')+(challenge?` · ⏱${challenge.t|0}s ${challenge.type}`:'');
  $('mGal').style.width=st.gal*100+'%';$('mOri').style.width=st.ori*100+'%';$('mChg').style.width=st.charge*100+'%';$('mRoot').style.width=st.root*100+'%';$('mTeam').style.width=st.team*100+'%';$('mFoe').style.width=((FG.target?FG.target.R.stance/(FG.target.R.max||1):rivalSt.stance)*100)+'%';
  const ob=st.orbitals;const shell=(ob.work+ob.body+ob.bonds+ob.mind+ob.money)/5;$('orbs').innerHTML=Object.entries(ob).map(([k,v])=>`<b title="${k}" style="background:rgba(155,92,255,${v})"></b>`).join('')+` <small>${(shell*100|0)}% ${shell<.12?'ION':shell>.62?'NOBLE':''}</small>`;
  $('needs').textContent=`Hunger ${(st.needs.hunger*100|0)} · Energy ${(st.needs.energy*100|0)} · Social ${(st.needs.social*100|0)}`;$('score').textContent=`Pickup: ${st.score[0]} – ${st.score[1]}`;
@@ -1485,6 +1538,12 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  bodyTilt+=(tiltGoal-bodyTilt)*Math.min(1,dt*8);
  P.model.rotation.x=bodyTilt*bodyMachine.fallDirection.z;
  P.model.rotation.z=bodyTilt*bodyMachine.fallDirection.x;
+  // Supplemental body tilt/recovery only, never a second physics solver.
+  if(yard){const pose=yard.stepFall(dt);
+   if(pose.active){P.model.rotation.x+=pose.pitch*.58;P.model.rotation.z+=pose.roll*.52;}
+   if(pose.recover){const clip=P.acts[pose.recover]?pose.recover:P.acts.GetUp?'GetUp':null;
+    if(clip){play(P,clip,true);actT=.65;}}
+  }
  physicsTime+=dt;
  physicsTelemetry.sample({time:physicsTime,dt,position:P.o.position,velocity:vel,grounded:onGround,board:st.board,wall:st.wall,swing:st.swing,flying:st.flying,body:bodyMachine});
 }
