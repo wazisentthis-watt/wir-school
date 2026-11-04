@@ -1,0 +1,62 @@
+name: METAL Galaxy Gallium Phase 5 Mobile and Controller QA - HOLD
+on:
+  push:
+    paths:
+      - 'connected/assets/metal_touch_input.mjs'
+      - 'connected/assets/metal_forge_hud.mjs'
+      - 'connected/assets/metal_skylab_v3_bridge.mjs'
+      - 'connected/assets/main.js'
+      - 'connected/assets/style.css'
+      - 'connected/index.html'
+      - 'connected/tests/metal_forge_mobile_*'
+      - '.github/workflows/metal-forge-phase5-mobile-qa.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/metal_touch_input.mjs'
+      - 'connected/assets/metal_forge_hud.mjs'
+      - 'connected/assets/metal_skylab_v3_bridge.mjs'
+      - 'connected/assets/main.js'
+      - 'connected/assets/style.css'
+      - 'connected/index.html'
+      - 'connected/tests/metal_forge_mobile_*'
+      - '.github/workflows/metal-forge-phase5-mobile-qa.yml'
+permissions:
+  contents: read
+jobs:
+  input-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check modules and deterministic touch behavior
+        run: |
+          node --check connected/assets/main.js
+          node --check connected/assets/metal_touch_input.mjs
+          node --check connected/assets/metal_forge_hud.mjs
+          node --check connected/assets/metal_skylab_v3_bridge.mjs
+          node --check connected/tests/metal_forge_mobile_browser_playwright.mjs
+          node --test connected/tests/metal_forge_mobile_input.test.mjs
+      - name: Install browser runner and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Start original game with Phase 5 changes
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/metal-phase5-http.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:8765/connected/ >/dev/null
+      - name: Verify phone-size touch, progress HUD and simulated Xbox mapping in actual WebGL game
+        env:
+          METAL_BOOT_BASE: http://127.0.0.1:8765
+        run: node connected/tests/metal_forge_mobile_browser_playwright.mjs
+      - name: Archive screenshots and QA output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metal-forge-phase5-mobile-controller
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: warn
