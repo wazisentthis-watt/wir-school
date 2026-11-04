@@ -79,17 +79,19 @@ try{
  await padPage.locator('#aerialDuelStart').click();
  async function padPulse(idx,held=[]){
   await padPage.evaluate(({idx,held})=>{for(const j of held){const b=window.__virtualDuelPad.buttons[j];b.pressed=true;b.value=1;}const b=window.__virtualDuelPad.buttons[idx];b.pressed=true;b.value=1;}, {idx,held});
-  await padPage.waitForTimeout(330);
+  // Do not use wall-clock button pulses: software-rendered WebGL may skip 330 ms
+  // between frames. The real pilot must have sampled BOTH physical edges.
+  await padPage.waitForFunction(idx=>window.__aerialPilot?.previousButtons?.[idx]===true,idx,{timeout:16000});
   await padPage.evaluate(({idx,held})=>{for(const j of [idx,...held]){const b=window.__virtualDuelPad.buttons[j];b.pressed=false;b.value=0;}},{idx,held});
-  // A release frame must be sampled before a second Gamepad API edge can fire.
-  await padPage.waitForFunction(idx=>window.__aerialPilot?.previousButtons?.[idx]===false,idx,{timeout:12000});
+  await padPage.waitForFunction(idx=>window.__aerialPilot?.previousButtons?.[idx]===false,idx,{timeout:16000});
  }
  await padPulse(2);
  await padPage.waitForFunction(()=>window.__aerialPilot.state.combo>=1&&window.__aerialPilot.state.cooldown===0,null,{timeout:12000});
  await padPulse(2);
  await padPage.waitForFunction(()=>window.__aerialPilot.state.combo>=2&&window.__aerialPilot.state.cooldown===0,null,{timeout:12000});
  await padPulse(3);
- await padPage.waitForFunction(()=>window.__aerialPilot.state.enemy.y>.5,null,{timeout:10000});
+ try{await padPage.waitForFunction(()=>window.__aerialPilot.state.enemy.y>.5,null,{timeout:15000});}
+ catch(err){const snapshot=await padPage.evaluate(()=>({state:window.__aerialPilot?.snapshot(),prev:window.__aerialPilot?.previousButtons,message:document.querySelector('#adMessage')?.textContent}));throw Error('Xbox Y launcher missed after sampled button press/release: '+JSON.stringify(snapshot)+' '+String(err));}
  results.push({case:'Virtual_Xbox_X_Chain_Y_Launch',ok:true});
  await gameCtx.close();
  // Touch mode must reveal five actions without hiding scene.
