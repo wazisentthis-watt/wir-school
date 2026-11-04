@@ -7,6 +7,7 @@ import {createCombatBody,applyCombatHit,stepCombatBody,blastDirection} from './m
 // Sources: [S1] Metal InDa RIFFT, [S3] Valence Life, [S4] Retro Bowl, [S5] Stay On Page, attunement packet.
 // Anything not stated in those sources is labelled PROPOSAL. Code is original; libs MIT, assets CC0.
 import * as THREE from 'three';
+import {gamepadV3Enabled,createConnectedControllerV3,installConnectedControllerPanel} from './controller_v3_bridge.mjs';
 import {STORY_ENEMIES} from './story_enemies.js';
 import {createEncounter,stepEncounter} from './morrow_encounters.js';
 import {createSlottaLoadout,tickSlotta,swapSlot,SLOTTA_GAMES} from './slotta_slots.js';
@@ -29,10 +30,13 @@ import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
+import {PressureStep,ComboInput,safeThrow,chargePose,enemyAbilityTick} from './metal_full_motion.mjs';
+import {chooseGrappleAnchor} from './metal_grapple_aim.mjs';
 
 const $=id=>document.getElementById(id);
 const VIOLET=0x9b5cff, GUN=0x4a4f57;
 const LITE=new URLSearchParams(location.search).get('lite')==='1';
+const METAL_FULL=new URLSearchParams(location.search).get('metal_next')==='1'; // opt-in / publish hold
 // Opt-in, isolated browser QA only. Normal gameplay never exposes this interface.
 const SLOTTA_BROWSER_QA=new URLSearchParams(location.search).get('slotta_qa')==='1';
 if(SLOTTA_BROWSER_QA)window.__testHold=true;
@@ -73,7 +77,7 @@ const missionAsset=(u,type,critical=false)=>loadMissionAsset(loadG,u,{
 function rep(t,r){t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(r,r);t.colorSpace=THREE.SRGBColorSpace;return t;}
 
 // ---------- city layout: Savannah [S3 start city]. Grid streets PROPOSAL. ----------
-const BLOCK=44,ROAD=12,N=LITE?2:3; // Lite keeps all special lots while reducing surrounding city memory
+const BLOCK=44,ROAD=12,N=LITE?2:(METAL_FULL?4:3); // desktop opt-in: 9x9 blocks // Lite keeps all special lots while reducing surrounding city memory
 const colliders=[];const anchors=[];const structureBodies=new Map();
 function registerGrippableStructure(mesh){
  const box=new THREE.Box3().setFromObject(mesh);
@@ -103,7 +107,7 @@ async function buildWorld(setMsg){
  setMsg('Lighting (Poly Haven HDRI)…');
  if(LITE){scene.background=new THREE.Color(0x8fb0d0);}else try{const hdr=await new RGBELoader().loadAsync('assets/hdri/venice_sunset_1k.hdr');hdr.mapping=THREE.EquirectangularReflectionMapping;scene.environment=hdr;scene.background=hdr;scene.backgroundBlurriness=0.25;}catch(e){scene.background=new THREE.Color(0x8fb0d0);}
  const asphalt=rep(tl.load('assets/tex/asphalt_diff.jpg'),60);
- const ground=new THREE.Mesh(new THREE.PlaneGeometry(500,500),new THREE.MeshStandardMaterial({map:asphalt,roughness:.95}));
+ const ground=new THREE.Mesh(new THREE.PlaneGeometry(METAL_FULL?560:500,METAL_FULL?560:500),new THREE.MeshStandardMaterial({map:asphalt,roughness:.95}));
  ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
  const walkM=new THREE.MeshStandardMaterial({color:0xb8b2a6,roughness:.9}), grassM=new THREE.MeshStandardMaterial({color:0x4f7a3a,roughness:1});
  const lineM=new THREE.MeshBasicMaterial({color:0xe8d27a});
@@ -276,9 +280,13 @@ async function spawnLife(){const tints=[0xd9a066,0x5ea1d6,0xc85a5a,0x7bc47f,0xe0
 
 // ---------- input: keyboard, touch, gamepad (one scheme for the whole world) ----------
 const keys={},pressed={};
-// SkyLab V3 gamepad controls are optional and do not write Metal mission saves.
-const metalPadV3=createSavannahMetalController({onMessage:m=>toast(String(m).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'))});
-let v3PrevFlight=false,v3GrabHeld=false,v3SpinTime=0,v3KickflipTime=0;
+// Isolated opt-in only: no changes to legacy inputs, mission loading, saves, or defaults.
+const OPTIN_CONTROLLER_V3=gamepadV3Enabled(location.search);
+const controllerV3=OPTIN_CONTROLLER_V3?createConnectedControllerV3({storage:safeStorage}):null;
+const controllerV3Panel=controllerV3?installConnectedControllerPanel(controllerV3):null;
+if(controllerV3)window.__controllerV3={status:()=>controllerV3.status(),
+ configure:update=>controllerV3.configure(update),reset:()=>controllerV3.reset(),
+ startLearning:action=>controllerV3.startLearning(action)};
 addEventListener('keydown',e=>{if(/^F[1-4]$/.test(e.code))e.preventDefault();if(!keys[e.code])pressed[e.code]=true;keys[e.code]=true;if(e.code.startsWith('Numpad')||e.code==='Space')e.preventDefault();});
 addEventListener('keyup',e=>keys[e.code]=false);
 let drag=null;renderer.domElement.addEventListener('pointerdown',e=>{if(e.button===2){pressed.KeyQ=true;return;}drag={x:e.clientX,y:e.clientY,id:e.pointerId};});
@@ -298,46 +306,14 @@ function showControllerLegend(){
  controllerLegend.style.display=controllerLegend.style.display==='none'?'block':'none';
 }
 const padMap={0:'Space',1:'KeyB',2:'Numpad4',3:'Numpad6',4:'KeyQ',5:'KeyF',6:'Numpad2',7:'Numpad5',8:'KeyM',9:'KeyP',12:'KeyE',13:'KeyX',14:'Numpad1',15:'Numpad3'};const padPrev={};
-function pollPad(dt=1/60){
- const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g&&g.connected):null;
- const v3=metalPadV3.poll(gp,dt);
- if(metalPadV3.mode==='skylab'){
-  // Switching modes releases only keys previously synthesized by Classic.
-  for(const [i,k] of Object.entries(padMap)){if(padPrev[i])keys[k]=false;padPrev[i]=false;}
-  if(!v3.connected){if(v3PrevFlight&&st.flying)pressed.KeyF=true;v3PrevFlight=false;v3GrabHeld=false;return null;}
-  const held=new Set(v3.held||[]),edges=new Set(v3.edges||[]),combo=v3.combo||{};
-  if(v3.paused)return {x:0,y:0};
-  if(edges.has('jump'))pressed.Space=true;
-  if(edges.has('dash'))pressed.Semicolon=true;
-  if(edges.has('roar'))pressed.Numpad4=true;
-  if(edges.has('slam')){if(!onGround)v3SpinTime=.75;else toast('Jump or swing before a 360 aerial spin');}
-  if(edges.has('grapple'))pressed.KeyQ=true;
-  if(edges.has('tentacle')){if(onGround)pressed.Numpad7=true;else toast('Gallium pulse requires contact; midair platform is not yet in this build');}
-  if(combo.kickflip){pressed.Space=true;v3KickflipTime=.75;}
-  if(combo.pressure)pressed.Numpad7=true;
-  if(combo.gorillium){setViolet(1);toast('GORILLIUM: transformation animation preview pending. No unverified rig applied.');}
-  v3GrabHeld=!!combo.grab;
-  if(combo.sling){if(st.swing){releaseSwing('SkyLab aerial sling');const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));vel.addScaledVector(f,8);vel.y=Math.max(vel.y,5);}else toast('Sling requires an attached Gallium tether');}
-  if(edges.has('footIK')){camYaw=yaw+Math.PI;camPitch=.35;}
-  if(edges.has('tentIK')){
-   const move=v3.move?.id;
-   if(move==='grapple')pressed.KeyQ=true;
-   else if(move==='pulse')pressed.Numpad7=true;
-   else if(move==='flight')pressed.KeyF=true;
-   else if(move==='board')pressed.KeyB=true;
-   else if(move==='riff')riffStep();
-   else if(move==='blast')pressed.KeyZ=true;
-  }
-  const heldFlight=held.has('glide')&&!held.has('sprint');
-  if(heldFlight&&!st.flying&&!onGround&&st.ori>.2&&!st.wall)pressed.KeyF=true;
-  if(v3PrevFlight&&!heldFlight&&st.flying)pressed.KeyF=true;
-  v3PrevFlight=heldFlight;
-  if(held.has('dash')){const braking=Math.exp(-5*dt);vel.x*=braking;vel.z*=braking;}
-  if(!held.has('sprint')){camYaw-=v3.lookX*dt*2.6;camPitch=THREE.MathUtils.clamp(camPitch+v3.lookY*dt*2,-.1,1.1);}
-  return {x:v3.x,y:v3.y};
+function pollPad(dt=1/60){const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;
+ if(controllerV3){
+  const frame=controllerV3.poll(gp,dt,{keys,pressed,lookEnabled:!worldGripActive,
+   applyCamera:(x,y,step)=>{const k=Math.min(2,Math.max(.25,step*60));
+    camYaw-=x*.04*k;camPitch=THREE.MathUtils.clamp(camPitch+y*.03*k,-.1,1.1);}});
+  controllerV3Panel?.refresh(performance.now());return frame;
  }
- // Original Classic mapping is fully preserved.
- if(!gp){for(const [i,k] of Object.entries(padMap)){if(padPrev[i])keys[k]=false;padPrev[i]=false;}return null;}
+ if(!gp)return null;
  for(const [i,k] of Object.entries(padMap)){const chord=(i==='4'||i==='5'||i==='6'||i==='7');const v=!!(!chord&&gp.buttons[i]&&gp.buttons[i].pressed);if(v&&!padPrev[i])pressed[k]=true;if(v)keys[k]=true;else if(padPrev[i])keys[k]=false;padPrev[i]=v;}
  const dz=v=>Math.abs(v)<.15?0:v;if(gp.axes.length>=4&&!worldGripActive){camYaw-=dz(gp.axes[2])*.04;camPitch=THREE.MathUtils.clamp(camPitch+dz(gp.axes[3])*.03,-.1,1.1);}return {x:dz(gp.axes[0]),y:dz(gp.axes[1])};
 }
@@ -483,11 +459,11 @@ function skateGround(dt,wish,il){
  }
  const hx=Math.sin(sk.h),hz=Math.cos(sk.h),fwdIn=wish.x*hx+wish.z*hz;
  const canPush=!sk.slide&&!pump&&!sk.manual&&!sk.rail;
- if(sk.stroke<0&&canPush&&il>.2&&(fwdIn>.3||s<.55)&&s<MSK.CRUISE*.97){sk.stroke=0;sk.pushes++;}
+ if(!METAL_FULL&&sk.stroke<0&&canPush&&il>.2&&(fwdIn>.3||s<.55)&&s<MSK.CRUISE*.97){sk.stroke=0;sk.pushes++;}
  if(sk.stroke>=0){
   if(!canPush){sk.stroke=-1;}
   else{const a=sk.stroke,b=a+dt/MSK.STROKE,[D0,D1]=MSK.DRIVE;const ov=Math.max(0,Math.min(b,D1)-Math.max(a,D0))/(D1-D0);
-   if(ov>0&&s<MSK.CRUISE)s=Math.min(MSK.CRUISE,s+MSK.PUSH*(1-.45*s/MSK.CRUISE)*ov);
+   if(ov>0&&s<MSK.CRUISE&&!METAL_FULL)s=Math.min(MSK.CRUISE,s+MSK.PUSH*(1-.45*s/MSK.CRUISE)*ov);
    sk.stroke=b>=1?-1:b;}
  }
  if(pump){sk.comp=Math.min(1,sk.comp+dt/.35);
@@ -825,18 +801,20 @@ let swingAnchors=null;
 function buildSwingAnchors(){swingAnchors=anchors.slice();for(const b of colliders){if(b.max.y<6)continue;const y=b.max.y;
  for(let x=b.min.x;x<=b.max.x;x+=5)swingAnchors.push(new THREE.Vector3(x,y,b.min.z),new THREE.Vector3(x,y,b.max.z));
  for(let z=b.min.z;z<=b.max.z;z+=5)swingAnchors.push(new THREE.Vector3(b.min.x,y,z),new THREE.Vector3(b.max.x,y,z));}}
-function pickAnchor(pp){if(!swingAnchors)buildSwingAnchors();const hv=_sw1.set(vel.x,0,vel.z);const dir=hv.length()>3?hv.normalize():_sw1.set(-Math.sin(camYaw),0,-Math.cos(camYaw));
+function pickAnchor(pp){if(!swingAnchors)buildSwingAnchors();
+ if(METAL_FULL)return chooseGrappleAnchor(swingAnchors,pp,
+  {x:-Math.sin(camYaw),z:-Math.cos(camYaw)},{x:vel.x,z:vel.z},
+  {minDistance:SW.MIN_D,maxDistance:SW.MAX_D});
+ const hv=_sw1.set(vel.x,0,vel.z);const dir=hv.length()>3?hv.normalize():_sw1.set(-Math.sin(camYaw),0,-Math.cos(camYaw));
  let a=null,bs=-1e9;for(const an of swingAnchors){const vx=an.x-pp.x,vy=an.y-pp.y,vz=an.z-pp.z;const hl=Math.hypot(vx,vz);const d=Math.hypot(hl,vy);
   if(d<SW.MIN_D||d>SW.MAX_D||vy<2.5||hl<1)continue;const ahead=(vx*dir.x+vz*dir.z)/hl;if(ahead<.15)continue;
   const sc=ahead*6-Math.abs(Math.atan2(vy,hl)-.85)*4-Math.abs(d-17)*.25;if(sc>bs){bs=sc;a=an;}}
  if(!a)for(const an of swingAnchors){const d=an.distanceTo(pp);if(d<SW.MIN_D||d>SW.MAX_D||an.y-pp.y<2.5)continue;const sc=-Math.abs(d-15);if(sc>bs){bs=sc;a=an;}} /* nothing ahead: best line in any direction */
  return a;}
 function startSwing(pp){const a=pickAnchor(pp);if(!a||st.gal<=.04){toast(st.gal<=.04?'Out of Gallium — bank combos to refill':'No anchor in range');return;}
- // Preserve the player's choice: a swing does NOT teleport the four-wheel board to his feet.
- // When walking it remains an attached back-mounted route instrument (PROPOSAL).
- const boardBack=!st.board;
- if(boardBack){boardOnBack();toast('BOARD ON BACK · GALAXY GALLIUM SWING');}
- const d=a.distanceTo(pp);st.swing={a:a.clone(),len:d*SW.REEL,len0:d,spent:0,t:0,held:!!keys.KeyQ,boardBack};SWS.q.copy(P.o.quaternion);SWS.flip=0;SWS.swings++;
+ if(!METAL_FULL&&!st.board){st.board=true;board.visible=true;toast('Board under his feet — Gallium swing');}
+ if(METAL_FULL&&!st.board){boardOnBack();toast('BOARD ON BACK · GALAXY GALLIUM SWING');}
+ const d=a.distanceTo(pp);st.swing={a:a.clone(),len:d*SW.REEL,len0:d,spent:0,t:0,held:!!keys.KeyQ,boardBack:METAL_FULL&&!st.board};SWS.q.copy(P.o.quaternion);SWS.flip=0;SWS.swings++;
  play(P,'Swing');tether.visible=true;onGround=false;vel.y=Math.max(vel.y,4);plog('discoveries','Grapple swing');setViolet(1);beep(330,.1,'triangle');}
 function releaseSwing(why,landed){const s=st.swing;if(!s)return;st.gal=Math.min(1,st.gal+s.spent*.5);st.swing=null;tether.visible=false;st.comboPend++;
  const hs=Math.hypot(vel.x,vel.z);if(hs>.5)yaw=Math.atan2(vel.x,vel.z);SWS.blend=.35;SWS.air=3;
@@ -867,18 +845,17 @@ function swingOrient(dt){const pp=P.o.position;if(SWS.air>0)SWS.air-=dt;
  if(SWS.flip>0){SWS.flip-=dt;if(onGround)SWS.flip=0;const a=Math.PI*2*(1-Math.max(0,SWS.flip)/SW.FLIP_T);P.o.quaternion.multiply(_swq.setFromAxisAngle(_sw1.set(1,0,0),-a));}}  // backflip on release
 function swingTilted(){return !!(st.swing||SWS.flip>0||SWS.blend>0);}
 // board on his back while he walks or fights (it never vanishes); B or a swing puts it back under his shoes
-function boardOnBack(){if(!board||!P)return;
- // Non-S1 rigs may not expose P.legs; fall back to a named chest/spine or root.
- // The carried board follows the actual torso orientation while swinging.
+function boardOnBack(){if(!board)return;
+ if(!METAL_FULL){if(!P.p6){board.visible=false;return;}const ch=P.legs&&P.legs.chest;if(!ch)return;board.visible=true;
+  P.o.updateMatrixWorld(true);ch.getWorldPosition(_sw1);const f=_sw2.set(Math.sin(yaw),0,Math.cos(yaw));board.position.copy(_sw1).addScaledVector(f,-.32);board.position.y-=.2;
+  const z=_sw3.set(0,1,0),y=f.clone(),x=new THREE.Vector3().crossVectors(y,z).normalize();_swm.makeBasis(x,y,z);board.quaternion.setFromRotationMatrix(_swm);return;}
  const ch=P.legs?.chest||P.model?.getObjectByName('Chest')||P.model?.getObjectByName('Spine')||P.o;
  if(!ch){board.visible=false;return;}board.visible=true;
  P.o.updateMatrixWorld(true);ch.getWorldPosition(_sw1);ch.getWorldQuaternion(_swq2);
  const f=_sw2.set(0,0,1).applyQuaternion(_swq2).normalize();
  board.position.copy(_sw1).addScaledVector(f,-.32);board.position.y-=.2;
- const up=_sw3.set(0,1,0).applyQuaternion(_swq2).normalize();
- const x=new THREE.Vector3().crossVectors(f,up).normalize();
- if(x.lengthSq()<.01)x.set(1,0,0);
- const y=new THREE.Vector3().crossVectors(up,x).normalize();
+ const up=_sw3.set(0,1,0).applyQuaternion(_swq2).normalize(),x=new THREE.Vector3().crossVectors(f,up).normalize();
+ if(x.lengthSq()<.01)x.set(1,0,0);const y=new THREE.Vector3().crossVectors(up,x).normalize();
  _swm.makeBasis(x,y,up);board.quaternion.setFromRotationMatrix(_swm);
 }
 
@@ -892,10 +869,24 @@ const physicsTelemetry=new PhysicsTelemetry();let physicsTime=0;
 
 const crownCharge=createCharge();let chargeLeftPrev=false,chargeRightPrev=false,chargeChordPrev=false;
 const crownOrbits=[];const crownStreams=[];let crownPanel=null,crownStructureBase=null;
+let metalChargePulse=0;
 function initCrownVisual(){if(crownOrbits.length)return;const mat=new THREE.MeshStandardMaterial({color:0xcbb5ff,emissive:0x873cff,emissiveIntensity:2,metalness:.75});for(let i=0;i<18;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.09+(i%3)*.035,6,6),mat);scene.add(m);crownOrbits.push(m);}for(let i=0;i<24;i++){const p=new THREE.Mesh(new THREE.SphereGeometry(.055,5,5),new THREE.MeshStandardMaterial({color:0xc2c7df,emissive:0x8145cf,emissiveIntensity:1.4,metalness:1}));scene.add(p);crownStreams.push(p);}crownPanel=document.createElement('div');crownPanel.style.cssText='position:fixed;left:50%;bottom:18%;transform:translateX(-50%);z-index:19;pointer-events:none;text-align:center;background:#120e20d9;color:#e7d9ff;border:1px solid #8f64d0;border-radius:8px;padding:7px 12px;font:12px/1.5 system-ui;display:none';document.body.append(crownPanel);}
 function crownMetalSupply(){if(!P)return 0;let total=0;for(const b of colliders){const x=(b.min.x+b.max.x)*.5,z=(b.min.z+b.max.z)*.5;if(Math.hypot(x-P.o.position.x,z-P.o.position.z)<48)total+=.12;}for(const car of cars){if(car.position.distanceTo(P.o.position)<25)total+=.22;}return Math.min(4,total);}
 function updateCrownCharge(dt,gp){initCrownVisual();const lt=!!(gp?.buttons?.[6]?.pressed||gp?.buttons?.[6]?.value>.35),rt=!!(gp?.buttons?.[7]?.pressed||gp?.buttons?.[7]?.value>.35),chord=lt&&rt;const left=false,right=false;const events=stepCharge(crownCharge,dt,{charging:chord,left:chord&&left&&!chargeLeftPrev,right:chord&&right&&!chargeRightPrev,metalNearby:crownMetalSupply()});chargeLeftPrev=left;chargeRightPrev=right;chargeChordPrev=chord;
  if(chord&&crownCharge.time<.07)toast('KODA · CHARGING · DRAWING NEARBY METAL');
+ // Opt-in: charging is a performed, rhythmic load against the street, not a static squat.
+ // Nearby civilians and lamps respond visually. No fabricated permanent structural damage.
+ if(METAL_FULL&&crownCharge.active&&P?.o){
+  metalChargePulse+=dt;
+  if(metalChargePulse>.52){metalChargePulse=0;
+   const energy=Math.min(1,.25+crownCharge.stress*.7+crownCharge.metal*.16);
+   slottaEffect('pulse',P.o.position,1.8+energy*2.2,.52);
+   for(const n of npcs){if(n.o.position.distanceTo(P.o.position)<11)n.wait=Math.max(n.wait||0,.20+energy*.25);}
+   for(const lamp of lamps){if(lamp.position.distanceTo(P.o.position)<14)
+    lamp.material.emissiveIntensity=Math.max(lamp.material.emissiveIntensity,1.4+energy);}
+   if(crownCharge.stress>.7)toast('KODA · CITY LOAD STRESS · REBALANCE GALLIUM');
+  }
+ }else metalChargePulse=0;
  for(const e of events)if(e==='STRUCTURES RESTORED'||e==='CROWN OVERLOAD · FIVE STAR RESPONSE')toast('KODA · '+e);
  const show=crownCharge.active||crownCharge.metal>.03;
  crownPanel.style.display=show?'block':'none';if(show){const c=crownCharge;const instruction=c.emergency?'KODA: STRUCTURES FAILING · METAL RETURNING':c.unstable?'KODA: CROWN UNSTABLE · REINFORCEMENTS INBOUND':c.balance<-.35?'KODA: STRUCTURAL LOAD HIGH':c.balance>.35?'KODA: CROWN LOAD HIGH':'KODA: METAL FLOW STABILIZING';crownPanel.textContent=instruction+' | METAL '+c.metal.toFixed(1)+' | BALANCE '+c.balance.toFixed(2)+' | STRESS '+Math.round(c.stress*100)+'%';}
@@ -940,6 +931,8 @@ function initMetalStory(){
 // R1 and L1 share the fluid-metal renderer, with entirely separate physics.
 const galliumRibbons=[];let gripTarget=null,gripFollow=null,gripHeight=0,riftCooldown=0,riftPressTime=0;
 let structureGrip=null;const riftMarks=[];
+const pressureStep=new PressureStep(),comboInput=new ComboInput();
+const metalNextHUD={lastAction:'coast',bank:'Movement',power:0};
 function clearGripVisual(){structureGrip=null;gripFollow=null;gripTarget=null;}
 function showGalliumHand(target,height=0){
  clearGripVisual();if(!target)return;
@@ -957,6 +950,28 @@ function releaseGrip(){
  clearGripVisual();
 }
 function leaveGalliumTrail(){/* Liquid Gallium extension and retraction are rendered by makeGalliumLimb. */}
+function tossHeldEnemy(){
+ if(!heldActor)return false;
+ const a=heldActor;heldActor=null;clearGripVisual();
+ const dir=safeThrow({yaw:camYaw,targetMass:a.body?.mass||85,power:.84});
+ if(!a.body)a.body=createCombatBody({x:a.root.position.x,y:a.root.position.y,z:a.root.position.z});
+ a.body.position.x=a.root.position.x;a.body.position.y=a.root.position.y;a.body.position.z=a.root.position.z;
+ applyCombatHit(a.body,{direction:{x:dir.x,y:0,z:dir.z},impulse:Math.min(700,dir.knockback*a.body.mass),vertical:dir.y*a.body.mass});
+ a.attackCooldown=1.5;a.home.copy(a.root.position);
+ if(a.kind==='slotta')startSlottaAction(slottaAnimator,'knockdown',{force:true});
+ play(P,P.acts.Slam?'Slam':'Punch',true);toast('GALLIUM · ANCHORED ENEMY THROW');return true;
+}
+function fullMetalCombo(action){
+ if(action==='throw-person'){pressed.Numpad6=false;keys.Numpad6=false;tossHeldEnemy();}
+ if(action==='parry'){pressed.KeyB=false;keys.KeyB=false;play(P,P.acts.Block?'Block':'Idle',true);toast('GALLIUM PARRY · TIMING WINDOW');}
+ if(action==='gallium-bind'){pressed.Numpad4=false;keys.Numpad4=false;if(!gripTarget)galliumGrabWorld();}
+ if(action==='knuckle-combo'){if(st.gal>=.12){play(P,P.acts.Cross?'Cross':'Punch',true);fireMetalBlast();}else toast('COMBO · NEED GALLIUM');}
+ if(action==='power-activate'){const names=['Punch','Cross','Kick','Block','Charge','Blast','Swing','Slam'];
+  const candidate=names[comboInput.selected%names.length];
+  if(P.acts[candidate]){play(P,candidate,true);toast('ABILITY PREVIEW · '+candidate+' · original GLB clip');}
+  else toast('ABILITY SLOT '+(comboInput.selected+1)+' · 3D ANIMATION PENDING');}
+ if(action==='bank-next'||action==='power-prev'||action==='power-next')toast('POWER '+metalNextHUD.bank+' · '+(metalNextHUD.power+1)+'/31');
+}
 function riffStep(){if(!P||riftCooldown>0)return;riftCooldown=.65;const dir=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw));const launch=36;vel.x+=dir.x*launch;vel.z+=dir.z*launch;vel.y=Math.max(vel.y,6);const pos=P.o.position.clone();const crater=new THREE.Mesh(new THREE.CylinderGeometry(1.4,.9,.14,12),new THREE.MeshStandardMaterial({color:0x342847,emissive:0x4a1e80,emissiveIntensity:.6}));crater.position.set(pos.x,groundY-.08,pos.z);scene.add(crater);riftMarks.push({mesh:crater,life:3.5});toast('RIFFT STEP · RIGHT FOOT');}
 function updateGalliumPhysics(dt){
  for(let i=riftMarks.length-1;i>=0;i--){
@@ -1019,6 +1034,26 @@ function hitSlotta(damage){if(!morrow.slottaMesh||slottaCombat.defeated||morrow.
 function fireMetalBlast(){if(!P||st.gal<.12)return;st.gal-=.12;const d=blastDirection(camYaw+Math.PI,Math.max(-.3,Math.min(.3,-camPitch*.35)));const p=P.o.position.clone().add(new THREE.Vector3(0,1.3,0));const ball=new THREE.Mesh(new THREE.SphereGeometry(.38,10,8),new THREE.MeshStandardMaterial({color:0xc5a3ff,emissive:0x873aff,emissiveIntensity:2,metalness:.9}));ball.position.copy(p);scene.add(ball);metalBlasts.push({mesh:ball,dir:new THREE.Vector3(d.x,d.y,d.z),life:1.3});toast('GALAXY GALLIUM · plasma-core discharge');}
 function updateMetalBlasts(dt){for(let i=metalBlasts.length-1;i>=0;i--){const b=metalBlasts[i];b.life-=dt;b.mesh.position.addScaledVector(b.dir,dt*28);b.mesh.scale.setScalar(.65+Math.sin(b.life*25)*.18);if(morrow.slottaMesh&&!slottaCombat.defeated&&morrow.slottaMesh.visible&&b.mesh.position.distanceTo(morrow.slottaMesh.position.clone().add(new THREE.Vector3(0,1.2,0)))<2){if(hitSlotta(12))b.life=0;}if(b.life>0)for(const a of factionActors){if(a.root===morrow.slottaMesh||!a.root.visible)continue;if(b.mesh.position.distanceTo(a.root.position.clone().add(new THREE.Vector3(0,1.2,0)))<2){if(!a.body)a.body=createCombatBody({x:a.root.position.x,y:a.root.position.y,z:a.root.position.z});applyCombatHit(a.body,{direction:b.dir,impulse:520,vertical:160});b.life=0;break;}}if(b.life<=0){scene.remove(b.mesh);b.mesh.geometry.dispose();b.mesh.material.dispose();metalBlasts.splice(i,1);}}}
 
+function metalEnemyPower(a,event,range,delta){
+ if(!event||!METAL_FULL)return;
+ if(event.startsWith('telegraph-')){
+  slottaEffect('telegraph',a.root.position,Math.min(3,range*.25+1),.6);
+  toast(a.label.toUpperCase()+' · POWER LOADING');return;
+ }
+ if(!event.startsWith('attack-'))return;
+ const kind=event.slice(7);
+ if(kind==='ballast'){const push=delta.lengthSq()>.01?delta.clone().normalize():new THREE.Vector3(0,0,1);
+  vel.addScaledVector(push,5.5);vel.y=Math.max(vel.y,1);slottaEffect('strike',a.root.position,2.4,.55);
+  toast('BALLAST · MASS SHIFT / BRACED STRIKE');}
+ else if(kind==='slipline'){const vx=vel.x,vz=vel.z;vel.x=vx*.72-vz*.69;vel.z=vx*.69+vz*.72;
+  slottaEffect('shield',a.root.position,3,.65);toast('SLIPLINE · VECTOR REDIRECTED THROUGH ANCHOR');}
+ else if(kind==='glassjaw'){st.ori=Math.max(0,st.ori-.12);
+  slottaEffect('shield',P.o.position,2.6,.8);toast('GLASSJAW · BRITTLE COATING / SURFACE FRACTURE PROXY');}
+ else if(kind==='kiln'&&crownMetalSupply()>.04){st.gal=Math.max(0,st.gal-.035);
+  slottaEffect('strike',P.o.position,2,.6);toast('KILN · CONNECTED MATERIAL HEAT TRANSFER');}
+ else if(kind==='framekeeper'&&Math.hypot(vel.x,vel.z)>6){vel.x*=.78;vel.z*=.78;
+  slottaEffect('shield',P.o.position,3,.7);toast('FRAMEKEEPER · RESCUE CONTAINMENT / MISCLASSIFIED');}
+}
 function factionActor(label,color,x,z,kind){
  const root=kind==='slotta'?createSlottaBossAsset():new THREE.Group();root.name=label;
  if(kind!=='slotta'){
@@ -1033,10 +1068,17 @@ function factionActor(label,color,x,z,kind){
  }
  root.position.set(x,groundY,z);scene.add(root);
  factionActors.push({root,label,kind,home:root.position.clone(),phase:Math.random()*6.28,
-  attackCooldown:1.2+Math.random()*1.5,body:createCombatBody({x,y:groundY,z})});
+  attackCooldown:1.2+Math.random()*1.5,body:createCombatBody({x,y:groundY,z}),
+  powerState:{cooldown:3+Math.random()*1.4,telegraph:0}});
  return root;
 }
-function updateFactionActors(dt){if(!P)return;for(const a of factionActors){if(a.kind==='slotta'&&(slottaCombat.defeated||morrow.slotta.captured||morrow.slotta.escaped)){a.root.visible=false;continue;}if(a===heldActor){a.attackCooldown=1;if(a.kind==='slotta')animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));continue;}a.attackCooldown=Math.max(0,(a.attackCooldown||0)-dt);const hostile=a.kind==='framebreaker'||a.kind==='reframer'||a.kind==='slotta';const delta=P.o.position.clone().sub(a.root.position).setY(0);const range=delta.length();const aiMoveAllowed=a.kind!=='slotta'||(SLOTTA_ACTIONS[slottaAnimator.state].loop&&!slottaDash);if(hostile&&aiMoveAllowed&&a.root.visible&&range<17&&a.body.state==='standing'){if(range>3&&range>0.01){a.home.addScaledVector(delta.normalize(),dt*(a.kind==='reframer'?1.8:2.5));}else if(a.attackCooldown<=0){const dir=delta.lengthSq()>.01?delta.normalize():new THREE.Vector3(0,0,1);vel.addScaledVector(dir,5);vel.y=Math.max(vel.y,1.8);a.attackCooldown=a.kind==='reframer'?2.8:1.8;toast(a.kind==='reframer'?'REFRAMER · kinetic strike':'FRAMEBREAKER · counterattack');}}a.phase+=dt*(a.kind==='reframer'?1.4:.7);if(a.kind==='slotta'){const locomotion=range<17?'walking':'idle';if(SLOTTA_ACTIONS[slottaAnimator.state].loop)startSlottaAction(slottaAnimator,locomotion);animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));}if(a.body.state!=='standing'){stepCombatBody(a.body,dt,groundY);a.root.position.set(a.body.position.x,a.body.position.y,a.body.position.z);a.root.rotation.z=Math.min(1.1,Math.hypot(a.body.velocity.x,a.body.velocity.z)*.07);if(a.body.state==='standing'){a.home.copy(a.root.position);a.root.rotation.z=0;}}else{
+function updateFactionActors(dt){if(!P)return;for(const a of factionActors){if(a.kind==='slotta'&&(slottaCombat.defeated||morrow.slotta.captured||morrow.slotta.escaped)){a.root.visible=false;continue;}if(a===heldActor){a.attackCooldown=1;if(a.kind==='slotta')animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));continue;}a.attackCooldown=Math.max(0,(a.attackCooldown||0)-dt);const hostile=a.kind==='framebreaker'||a.kind==='reframer'||a.kind==='slotta'||
+  (METAL_FULL&&['ballast','slipline','glassjaw','kiln'].includes(a.kind));const delta=P.o.position.clone().sub(a.root.position).setY(0);const range=delta.length();
+ if(METAL_FULL&&['ballast','slipline','glassjaw','kiln','framekeeper'].includes(a.kind)){
+  const effect=enemyAbilityTick(a.kind,a.powerState,dt,range);
+  a.powerState=effect.state;if(effect.event)metalEnemyPower(a,effect.event,range,delta);
+ }
+ const aiMoveAllowed=a.kind!=='slotta'||(SLOTTA_ACTIONS[slottaAnimator.state].loop&&!slottaDash);if(hostile&&aiMoveAllowed&&a.root.visible&&range<17&&a.body.state==='standing'){if(range>3&&range>0.01){a.home.addScaledVector(delta.normalize(),dt*(a.kind==='reframer'?1.8:2.5));}else if(a.attackCooldown<=0){const dir=delta.lengthSq()>.01?delta.normalize():new THREE.Vector3(0,0,1);vel.addScaledVector(dir,5);vel.y=Math.max(vel.y,1.8);a.attackCooldown=a.kind==='reframer'?2.8:1.8;toast(a.kind==='reframer'?'REFRAMER · kinetic strike':'FRAMEBREAKER · counterattack');}}a.phase+=dt*(a.kind==='reframer'?1.4:.7);if(a.kind==='slotta'){const locomotion=range<17?'walking':'idle';if(SLOTTA_ACTIONS[slottaAnimator.state].loop)startSlottaAction(slottaAnimator,locomotion);animateSlottaBossAsset(a.root,dt,slottaAnimationSnapshot(slottaAnimator));}if(a.body.state!=='standing'){stepCombatBody(a.body,dt,groundY);a.root.position.set(a.body.position.x,a.body.position.y,a.body.position.z);a.root.rotation.z=Math.min(1.1,Math.hypot(a.body.velocity.x,a.body.velocity.z)*.07);if(a.body.state==='standing'){a.home.copy(a.root.position);a.root.rotation.z=0;}}else{
  // SLOTTA keeps a stable home/world transform between attacks; the other factions retain their patrol bob.
  const slottaSteady=a.kind==='slotta';a.root.position.x=a.home.x+(slottaSteady?0:Math.sin(a.phase)*2);a.root.position.z=a.home.z+(slottaSteady?0:Math.cos(a.phase)*2);a.root.rotation.y+=dt*.3;a.body.position.x=a.root.position.x;a.body.position.z=a.root.position.z;}}}
 
@@ -1215,6 +1257,12 @@ function updateSlottaBoss(dt){
 function initMorrow(){
  const home=SPOTS.home.c;const mk=(color,x,z,h=1.7)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(.85,h,.85),new THREE.MeshStandardMaterial({color,metalness:.55,roughness:.38}));o.position.set(home.x+x,groundY+h/2,home.z+z);scene.add(o);morrowMeshes.push(o);return o;};
  morrow.slottaMesh=factionActor('SLOTTA',0xd65d36,home.x+10,home.z+3,'slotta');morrow.reframerMesh=factionActor('ReFramer',0x546b81,home.x+17,home.z+3,'reframer');morrow.constructMesh=mk(0x858a99,14,3,2.4);
+ if(METAL_FULL&&fightC){
+  factionActor('Ballast · Shift Harness',0x775a4b,fightC.x-13,fightC.z-8,'ballast');
+  factionActor('Slipline · Impulse Pads',0x4d8fc7,fightC.x+13,fightC.z+7,'slipline');
+  factionActor('Glassjaw · Metastable Coat',0xa8bbc8,fightC.x-7,fightC.z+14,'glassjaw');
+  factionActor('Kiln · Thermal Link',0xcf6e37,fightC.x+9,fightC.z-13,'kiln');
+ }
  factionActor('Framekeeper Patrol',0x4778d5,home.x-11,home.z+7,'framekeeper');factionActor('Framebreaker',0xc34c62,home.x-15,home.z-6,'framebreaker');factionActor('Framebreaker Scout',0xa64b5d,home.x+5,home.z-16,'framebreaker');
  factionActor('Framebreaker Striker',0xb54251,home.x+20,home.z-12,'framebreaker');factionActor('Framebreaker Enforcer',0x912c4a,home.x-22,home.z+14,'framebreaker');factionActor('Framekeeper Sentinel',0x3b84c9,home.x-19,home.z-12,'framekeeper');factionActor('ReFramer Hunter',0x5e8299,home.x+26,home.z+12,'reframer');
  factionActor('Framebreaker Enforcer',0x9d364e,home.x-21,home.z-11,'framebreaker');factionActor('Framebreaker Vanguard',0x9d364e,home.x+24,home.z-15,'framebreaker');factionActor('Framekeeper Sentinel',0x367fcb,home.x-20,home.z+17,'framekeeper');factionActor('Framekeeper Guardian',0x367fcb,home.x+22,home.z+18,'framekeeper');factionActor('ReFramer Hunter',0x637887,home.x+27,home.z+8,'reframer');factionActor('ReFramer Pursuer',0x637887,home.x-25,home.z-20,'reframer');
@@ -1267,11 +1315,31 @@ function update(dt){
  // Controller contract: LB grabs, RB swings, LT charges, RT RIFFT Steps; LB+RT throws a held car.
  const gpWorld=metalPadV3.mode==='skylab'?null:(navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null);
  const lt=!!(gpWorld?.buttons[6]?.pressed||gpWorld?.buttons[6]?.value>.35||gpWorld?.axes?.[4]>.35),lb=!!gpWorld?.buttons[4]?.pressed,rb=!!gpWorld?.buttons[5]?.pressed,rt=!!(gpWorld?.buttons[7]?.pressed||gpWorld?.buttons[7]?.value>.35);
- updateCrownCharge(dt,gpWorld);const gripDown=shouldGripWorld({mode:metalPadV3.mode,lb,keyboard:!!keys.KeyU,v3Held:v3GrabHeld});worldGripActive=gripDown;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
- if(rt&&!lt&&!gripDown){riftPressTime+=dt;if(riftPressTime>=.16&&!combatBlastLatch){riffStep();combatBlastLatch=true;}}else{riftPressTime=0;combatBlastLatch=false;}if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
+ updateCrownCharge(dt,gpWorld);const gripDown=lb||!!keys.KeyU;worldGripActive=gripDown;gripAxisX=gpWorld?.axes?.[2]||0;gripAxisY=gpWorld?.axes?.[3]||0;
+ if(METAL_FULL){
+  const buttonNums=gpWorld?.buttons?.map((b,i)=>b?.pressed||b?.value>.5?i:null).filter(x=>x!==null)||[];
+  const c=comboInput.step(buttonNums,dt,{hasHeldTarget:!!(heldActor||heldCar||heldCitizen),board:st.board,airborne:!onGround});
+  metalNextHUD.bank=c.bank;metalNextHUD.power=c.selected;
+  for(const action of c.events)fullMetalCombo(action);
+  const force=gpWorld?.buttons?.[7]?.value??(keys.KeyR?1:0);
+  const foot=pressureStep.step({dt,down:(rt||!!keys.KeyR)&&!lt&&!gripDown,pressure:Math.max(force,keys.KeyR?1:0),
+   onGround, onBoard:st.board,intercepted:!!(lt||gripDown)});
+  if(foot?.delta>0){
+   const dir=st.board?new THREE.Vector3(Math.sin(sk.h),0,Math.cos(sk.h)):
+    new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw));
+   const hv=new THREE.Vector3(vel.x,0,vel.z).addScaledVector(dir,foot.delta);
+   if(hv.length()>foot.cap)hv.setLength(foot.cap);
+   vel.x=hv.x;vel.z=hv.z;if(foot.kind?.startsWith('riff')){vel.y=Math.max(vel.y,Math.min(5.2,foot.delta*.50));onGround=false;setViolet(1);}
+   if(st.board){sk.stroke=0;sk.pushes++;if(P.acts.Push)play(P,'Push',true);}
+   else if(P.acts.Dash)play(P,'Dash',true);
+   metalNextHUD.lastAction=foot.kind;toast('R2 · '+foot.kind.toUpperCase()+' · '+foot.delta.toFixed(1)+' m/s');
+  }
+ }else if(rt&&!lt&&!gripDown){riftPressTime+=dt;if(riftPressTime>=.16&&!combatBlastLatch){riffStep();combatBlastLatch=true;}}
+ else{riftPressTime=0;combatBlastLatch=false;}
+ if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
  if(rb&&!gripDown&&!worldSwingLatch){if(slottaSnare>0)toast('Circuit Serpents: swing disabled');else{pressed.KeyQ=true;keys.KeyQ=true;}}if(!rb||gripDown||slottaSnare>0)keys.KeyQ=false;worldSwingLatch=rb&&!gripDown&&slottaSnare<=0;
  if(gripDown&&!heldCar&&!heldCitizen&&!heldActor&&!gripTarget&&worldGripRetry<=0){if(slottaSnare>0)toast('Circuit Serpents disrupting Galaxy Gallium');else galliumGrabWorld();worldGripRetry=.4;}else worldGripRetry=Math.max(0,worldGripRetry-dt);
- if((gripDown&&rt&&!worldThrowLatch)||tap('KeyI')){slingCar();releaseGrip();}
+ if((gripDown&&rt&&!worldThrowLatch)||tap('KeyI')){if(!(METAL_FULL&&tossHeldEnemy())){slingCar();releaseGrip();}}
  if(!gripDown){worldGripWarned=false;worldGripRetry=0;if(gripTarget||heldCar||heldCitizen||heldActor||structureGrip)releaseGrip();}worldGrabLatch=gripDown;worldThrowLatch=gripDown&&rt;
  let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
  if(bodyMachine.mode==='fallen'&&(pressed.Space||pressed.KeyE)){bodyMachine.velocity.x=0;bodyMachine.velocity.z=0;bodyMachine.recover();pressed.Space=false;pressed.KeyE=false;}
@@ -1332,7 +1400,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  if(!st.wall&&pp.y<=gY&&!st.swing){if(wasAir&&!st.flying){if(!st.board){bodyMachine.impact=Math.max(0,-vel.y);footLand(vel.y);}if(st.board){if(Math.abs(vel.y)>(SWS.air>0?28:18)){skBail('HARD LANDING');bodyMachine.impact=Math.max(0,-vel.y);bodyMachine.fall(vel.x,vel.z);}else{bank();sk.landT=0;sk.flash=1;if(P.acts.Land){play(P,'Land',true);actT=.16;}}}}pp.y=gY;if(vel.y<0)vel.y=0;onGround=true;if(st.flying)st.flying=false;}
  else if(!st.wall&&pp.y>gY+.05&&!st.swing&&!st.flying){if(!st.board||pp.y>gY+1.15)onGround=false;}
  }
- pp.x=THREE.MathUtils.clamp(pp.x,-200,200);pp.z=THREE.MathUtils.clamp(pp.z,-200,200);
+ pp.x=THREE.MathUtils.clamp(pp.x,METAL_FULL?-240:-200,METAL_FULL?240:200);pp.z=THREE.MathUtils.clamp(pp.z,METAL_FULL?-240:-200,METAL_FULL?240:200);
  const hs=Math.hypot(vel.x,vel.z);yaw=faceYaw(dt,hs,yaw);P.o.rotation.set(0,yaw,0);
  if(st.wall){const w=st.wall;const f=new THREE.Vector3().copy(w.t).multiplyScalar(w.side).setY(w.up);if(f.lengthSq()<.01)f.set(0,1,0);f.normalize();const x=new THREE.Vector3().crossVectors(w.n,f).normalize();f.crossVectors(x,w.n);_wm.makeBasis(x,w.n,f);_wq.setFromRotationMatrix(_wm);P.o.quaternion.slerp(_wq,1);}
  swingOrient(dt);
@@ -1427,6 +1495,14 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  bodyTilt+=(tiltGoal-bodyTilt)*Math.min(1,dt*8);
  P.model.rotation.x=bodyTilt*bodyMachine.fallDirection.z;
  P.model.rotation.z=bodyTilt*bodyMachine.fallDirection.x;
+ if(METAL_FULL&&crownCharge.active){
+  const intensity=THREE.MathUtils.clamp(.18+crownCharge.metal*.28+crownCharge.stress*.4,0,1);
+  const performance=chargePose(crownCharge.time,intensity);
+  P.model.rotation.x+=performance.lean;
+  P.model.rotation.y+=performance.twist;
+  P.model.rotation.z+=performance.side;
+  P.model.position.y-=performance.lower;
+ }
  physicsTime+=dt;
  physicsTelemetry.sample({time:physicsTime,dt,position:P.o.position,velocity:vel,grounded:onGround,board:st.board,wall:st.wall,swing:st.swing,flying:st.flying,body:bodyMachine});
 }
@@ -1627,6 +1703,13 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   boot.ready();
   if(boot.getStatus().warnings.length)toast('Mission running with '+boot.getStatus().warnings.length+' art fallbacks · PROPOSAL');
   window.__game={galLimb:()=>galLimb,WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
-  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.metalControllerV3=metalPadV3;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.ground=()=>onGround;window.__game.bootReport=()=>boot.getStatus();initMetalStory();
+  window.__game.setForm=setForm;window.__game.sk=sk;window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());
+  window.__game.metalNext=()=>METAL_FULL?({
+   enabled:true,board:st.board,boardBackSwing:!!st.swing?.boardBack,
+   swingActive:!!st.swing,pressureCount:pressureStep.count,cooldown:pressureStep.cooldown,
+   action:metalNextHUD.lastAction,powerBank:metalNextHUD.bank,powerIndex:metalNextHUD.power,
+   cityGridSize:2*N+1,actorKinds:factionActors.map(a=>a.kind),
+   chargeActive:crownCharge.active,chargeStress:crownCharge.stress
+  }):null;window.__game.MSK=MSK;window.__game.ground=()=>onGround;window.__game.bootReport=()=>boot.getStatus();initMetalStory();
   if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(0);
  }catch(e){boot.failed(e);window.__errors.push(String(e));}})();

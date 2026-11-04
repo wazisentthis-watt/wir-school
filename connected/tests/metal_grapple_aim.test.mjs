@@ -1,0 +1,12 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {chooseGrappleAnchor} from '../assets/metal_grapple_aim.mjs';
+const p={x:0,y:0,z:0},forward={x:0,z:-1};
+const valid=[{x:0,y:9,z:-15},{x:0,y:8,z:18},{x:14,y:7,z:-3}];
+test('camera aim picks forward high roof anchor',()=>assert.equal(chooseGrappleAnchor(valid,p,forward,forward),valid[0]));
+test('camera right steer picks right anchor',()=>assert.equal(chooseGrappleAnchor(valid,p,{x:1,z:0},forward),valid[2]));
+test('behind target is fallback only',()=>assert.equal(chooseGrappleAnchor([valid[1],valid[0]],p,forward,forward),valid[0]));
+test('no imaginary anchor created when no real support',()=>assert.equal(chooseGrappleAnchor([],p,forward,forward),null));
+test('ground-only candidates are rejected',()=>assert.equal(chooseGrappleAnchor([{x:0,y:0,z:-12}],p,forward,forward),null));
+test('unreachable candidates are rejected',()=>assert.equal(chooseGrappleAnchor([{x:0,y:12,z:-70}],p,forward,forward),null));
+test('anchors below feet are rejected',()=>assert.equal(chooseGrappleAnchor([{x:1,y:-4,z:-13}],p,forward,forward),null));
+test('no velocity case still selects camera target',()=>assert.equal(chooseGrappleAnchor(valid,p,forward,{x:0,z:0}),valid[0]));
