@@ -53,3 +53,22 @@ node connected/tests/gorillium_lab_browser_playwright.mjs
 5. Only after review and separate owner approval consider updating the live WIR Connected build.
 
 **Rollback:** close/discard this draft branch; no live-game or save migration.
+
+
+## Follow-up · authentic original animation bridge (November 3, 2026)
+
+The reviewed original Gorillium source intake manifest `rig_intake_manifest_v2.json` identifies a 2,298,460-byte user-uploaded GLB (SHA-256 `8495a8c5e727bf64244a1235e58fb655c4c4cae91ac46e18206e668ae154cd81`), 70 skinned joints, 31 named clips and eight distinct chains of five tentacle joints. This binary was inspected from a user upload in a prior branch; the binary itself **is not stored in the public GitHub repository** and is not automatically available to the deployed site. This milestone does not import or redistribute it.
+
+- Added `authentic_clip_bridge.mjs` with a fail-closed check for the exact SHA, 31 named animations, 70 skinned joint names, and all 40 original tentacle joint names. Structural matching is useful technical evidence, **not proof of ownership or approved canon**.
+- The isolated preview now maps six existing gameplay action events to these original clip names: `Gallium_Whip`, `Ability_21_Galactic_Tether`, `Ability_13_Octo_Shield`, `Ability_22_Crystal_Barrage`, `Ability_20_Pressure_Reactor`, and `Ability_24_Galaxy_Gallium_Cataclysm`.
+- Exact-source preview selects the eight original terminal tentacle joints automatically. A different source can still be manually tested for **Lash and Tether compatibility poses only**; it cannot unlock the full six original animations.
+- Buttons and keyboard keys 1–6 invoke original clips only after the source check, rig binding and existing charge/cooldown checks pass. All animation cues are visual previews. No real damage, collision confirmation, live-game mutation or save writes.
+- After playing a one-shot original ability, the adapter returns to the original `Idle_Gallium_Breath` clip. A queued new move will not overwrite a running preview action.
+
+### Limits and acceptance
+
+Because the original binary is not in the repository, CI checks the **contract** with synthetic metadata and verifies **the rejection path** against real Metal S1 geometry. It **does not demonstrate** the original user-uploaded Gorillium visually executing its 31 clips. That will require reselecting the original GLB in the lab and recording browser video QA, then testing iOS Safari and Bluetooth hardware separately.
+
+Commands: `node --test connected/tests/gorillium_authentic_clip_bridge.test.mjs`; `node connected/tests/gorillium_lab_browser_playwright.mjs` from the repo's HTTP test server with Playwright installed.
+
+**PROPOSAL / PUBLISH HOLD** continues for this new bridge. Live `connected/index.html`, `connected/assets/main.js`, checkpoint saves and existing Metal builds are unchanged.
