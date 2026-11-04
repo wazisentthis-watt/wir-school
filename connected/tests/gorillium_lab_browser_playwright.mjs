@@ -49,7 +49,10 @@ try{
  const posed=await page.evaluate(()=>window.__gorilliumLab.getSnapshot());
  assert.equal(posed.lastAbility,'tentacle-lash');
  assert.ok(posed.poseDeltaRadians>.035,'No existing skin joint actually rotated');
- await page.waitForTimeout(550);
+ // Frame-rate independent: the engine clamps dt after device backgrounding.
+ // Wait for a real reset instead of assuming 550 ms wall time equals simulated time.
+ await page.waitForFunction(()=>window.__gorilliumLab?.getSnapshot?.().poseDeltaRadians<.01,
+  null,{timeout:10000});
  const final=await page.evaluate(()=>window.__gorilliumLab.getSnapshot());
  assert.ok(final.poseDeltaRadians<.01,'Bone did not return to original pose');
  assert.equal(await page.evaluate(()=>localStorage.getItem('wir_metal_story_v1')),'QA_SAVED_CHAPTER_KEEP');
