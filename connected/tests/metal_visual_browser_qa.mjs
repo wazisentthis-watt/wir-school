@@ -1,3 +1,4 @@
+import {mkdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {chromium} from 'playwright';
 // PR-only visualization test: shared original engine, no new save behavior.
@@ -43,5 +44,6 @@ try{
  console.log(JSON.stringify({ok:true,morrow:{triangles:morrow.v.tubeTriangles,pieces:morrow.v.environmentPieces},
   worlds:[morrow.world,river.world,marsh.world],savedDataPreserved:true}));
  // Evidence is attached to CI run, never committed as canon art.
- await page.screenshot({path:'test-results/native-metal-build04.png',fullPage:true}).catch(()=>{});
+ await mkdir('test-results',{recursive:true});
+ await page.screenshot({path:'test-results/native-metal-build04.png',fullPage:true,timeout:30000});
 }finally{await browser.close();}
