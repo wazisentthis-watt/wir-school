@@ -5,7 +5,13 @@ import {createBeastState,ARM_ROLES,selectBeastArm,cycleBeastRole,spendGallium,re
 import {scanBoss,collectCitizen,reviveCitizen,repairNode,damageBoss} from './savannah_native_core.mjs';
 const clamp=THREE.MathUtils.clamp;
 const AIR=0.17; // Experimental Gallium Gallop, not free flight.
-export function installNativeBeast(g,pilot){const b=new BeastLayer(g,pilot);b.mount();return b;}
+export function installNativeBeast(g,pilot){
+ const b=new BeastLayer(g,pilot);b.mount();
+ if(new URLSearchParams(location.search).get('savannah_visual')==='1'){
+  import('./metal_visual_evolution.js').then(m=>m.installVisualEvolution(g,pilot,b)).catch(e=>{console.error('Build 04 visual layer failed',e);window.__errors?.push(String(e));});
+ }
+ return b;
+}
 class BeastLayer {
  constructor(g,pilot){this.g=g;this.pilot=pilot;this.s=createBeastState();this.scene=g.P.o.parent;this.root=new THREE.Group();this.root.name='WIR_METAL_BEAST_POWERS_HOLD';this.scene.add(this.root);
   this.lines=[];this.constructModels=new Map();this.anchorMass=new Map();this.grabbed=null;this.holdBoss=false;this.guardUntil=0;this.dominionWindup=0;this.charge=0;this.rifftMove=null;this.cooldown=0;this.lastPad=[];this.last=performance.now();this.ticks=0;this.lastScout=0;this.lastRepair=0;this.lastRecover=0;this.lilMesh=null;

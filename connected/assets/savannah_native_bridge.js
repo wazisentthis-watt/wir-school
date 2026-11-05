@@ -70,7 +70,7 @@ class NativePilot{
     b.mesh.rotation.y+=dt*.6;const bossDt=dt*(this.beast?.slowFactor?.()??1);this.enemyClock-=this.beast?.holdBoss?0:bossDt;
     if(this.telegraph>0&&!this.beast?.holdBoss){this.telegraph-=bossDt;this.warning.position.x=b.mesh.position.x;this.warning.position.z=b.mesh.position.z;this.warning.visible=true;
       const pulse=1+.2*Math.sin(performance.now()/90);this.warning.scale.setScalar(pulse);
-      if(this.telegraph<=0){this.warning.visible=false;bossPressure(this.s,dist<8,!!this.g.keys.Numpad2||!!this.beast?.guarding?.());
+      if(this.telegraph<=0){this.warning.visible=false;bossPressure(this.s,this.visualAttackHit?this.visualAttackHit():dist<8,!!this.g.keys.Numpad2||!!this.beast?.guarding?.());
        const hurt=this.actors.find(a=>a.kind==='citizen'&&this.s.citizens[a.id].mode!=='safe'&&a.mesh.position.distanceTo(b.mesh.position)<5);
        if(hurt)citizenHit(this.s,hurt.id,22);this.enemyClock=this.s.chapter>=2?2.8:3.5;}}
     else if(this.enemyClock<=0){this.telegraph=.9;this.enemyClock=0;this.s.message='RED SIGNAL: '+CHAPTERS[this.s.chapter].boss+' winding up! Brace or move.';}
