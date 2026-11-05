@@ -24,7 +24,8 @@ class BeastLayer {
  note(msg){this.s.message=msg;this.renderHUD();}
  selected(){return this.s.selected;}
  select(n){if(!selectBeastArm(this.s,n))return false;this.note('Arm '+(n+1)+' · '+this.s.arms[n]);return true;}
- role(){const r=cycleBeastRole(this.s);this.note('Arm '+(this.selected()+1)+' assigned '+r);return r;}
+ role(){const index=this.selected(),old=this.s.arms[index];if(old==='Anchor')this.releaseAnchor(index);if(old==='Grapple'&&this.holdBoss&&this.s.grabArm===index)this.throw();const r=cycleBeastRole(this.s);this.note('Arm '+(index+1)+' assigned '+r);return r;}
+ onMissionStart(){if(this.holdBoss){this.holdBoss=false;this.s.held=false;this.grabbed=null;}this.dominionWindup=0;this.rifftMove=null;this.s.rift.travel=0;this.guardUntil=0;}
  eligible(){return this.pilot.s.phase==='playing';}
  player(){return this.g.P.o.position;}
  nearestAnchor(max=26){const p=this.player(),anchors=this.g.anchors||[];let best=null,d=max;
