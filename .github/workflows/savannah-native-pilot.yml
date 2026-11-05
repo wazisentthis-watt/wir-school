@@ -22,8 +22,11 @@ jobs:
           node --check connected/assets/savannah_native_bridge.js
           node --check connected/assets/savannah_native_core.mjs
           node --check connected/tests/savannah_native_browser_qa.mjs
+          node --check connected/assets/metal_native_beast_adapter.js
+          node --check connected/assets/metal_native_beast_core.mjs
+          node --check connected/tests/metal_native_beast_browser_qa.mjs
       - name: Native mission behavior
-        run: node --test connected/tests/savannah_native_core.test.mjs connected/tests/savannah_campaign_expansion.test.mjs
+        run: node --test connected/tests/savannah_native_core.test.mjs connected/tests/savannah_campaign_expansion.test.mjs connected/tests/metal_native_beast_core.test.mjs
   native-browser:
     name: Connected + native Savannah desktop smoke
     runs-on: ubuntu-latest
@@ -44,4 +47,6 @@ jobs:
           sleep 2
           curl -fsS http://127.0.0.1:8765/connected/ > /dev/null
       - name: Validate actual shared 3D scene and unchanged saves
-        run: node connected/tests/savannah_native_browser_qa.mjs
+        run: |
+          node connected/tests/savannah_native_browser_qa.mjs
+          node connected/tests/metal_native_beast_browser_qa.mjs
