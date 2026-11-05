@@ -10,8 +10,6 @@ try{
  await page.waitForFunction(()=>!!window.__ready&&!!window.__game?.metalVisual&&!!window.__game?.metalBeast&&!!window.__game?.savannahNative,null,{timeout:150000});
  const baseline=await page.evaluate(()=>({
   saves:[localStorage.getItem('wir_metal_story_v1'),localStorage.getItem('wir_valence_profile_v1')],
-  playerModel:window.__game.P.model,
-  scene:window.__game.P.o.parent,
   canvasCount:document.querySelectorAll('canvas').length
  }));
  // Stable player ref is checked inside the page, never serializing Three.js scene objects.
