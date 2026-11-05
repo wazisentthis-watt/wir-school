@@ -28,6 +28,8 @@ try{
  assert.ok(morrow.v.environmentPieces>=6,'Morrow City set dressing missing');
  assert.equal(morrow.world,'morrow');
  assert.equal(morrow.originalPlayer,true);
+ await mkdir('test-results',{recursive:true});
+ await page.screenshot({path:'test-results/native-metal-build04-morrow.png',fullPage:true,timeout:30000});
  assert.ok(morrow.canvasCount<=baseline.canvasCount+1,'game created a second rendering canvas');
  await page.evaluate(()=>{window.__game.metalVisual.skipIntro();window.__game.savannahNative.start(0);});
  await page.waitForFunction(()=>window.__game.metalVisual.snapshot().chapter===0,null,{timeout:15000});
@@ -41,9 +43,15 @@ try{
  }));
  assert.equal(marsh.world,'marsh');assert.deepEqual(marsh.saves,baseline.saves,'original saved-game bytes changed');
  assert.equal(marsh.pose,true,'original rig lost');assert.deepEqual(errors,[],'browser page errors');
+ // Verify every proposed boss gear variant in the actual Connected scene, not only the pure table.
+ for(const [id,name] of [[3,'Kiln'],[4,'Glassjaw'],[5,'Patchwork'],[6,'Load Shark'],[7,'The Foreman']]){
+   await page.evaluate(i=>window.__game.savannahNative.start(i),id);
+   await page.waitForFunction(i=>window.__game.metalVisual.snapshot().chapter===i,id,{timeout:15000});
+   const snap=await page.evaluate(()=>window.__game.metalVisual.snapshot());
+   assert.equal(snap.bossName,name);assert.equal(snap.bossDecor,true);
+ }
  console.log(JSON.stringify({ok:true,morrow:{triangles:morrow.v.tubeTriangles,pieces:morrow.v.environmentPieces},
   worlds:[morrow.world,river.world,marsh.world],savedDataPreserved:true}));
  // Evidence is attached to CI run, never committed as canon art.
- await mkdir('test-results',{recursive:true});
- await page.screenshot({path:'test-results/native-metal-build04.png',fullPage:true,timeout:30000});
+ await page.screenshot({path:'test-results/native-metal-build04-final.png',fullPage:true,timeout:30000});
 }finally{await browser.close();}
