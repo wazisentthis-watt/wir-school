@@ -52,7 +52,7 @@ class NativePilot{
  interact(){if(this.s.phase!=='playing')return false;
   const a=this.nearest('ally');if(a&&recruitAlly(this.s,a.id)){a.active=false;a.mesh.visible=false;return true;}
   const c=this.nearest('citizen');if(c){const v=this.s.citizens[c.id];if(v.mode==='waiting')return collectCitizen(this.s,c.id);if(v.mode==='injured')return reviveCitizen(this.s,c.id);}
-  const p=this.g.P.o.position;for(let i=0;i<this.repairs.length;i++){if(this.s.repairs[i].done)continue;const r=this.repairs[i].position;if(Math.hypot(p.x-r.x,p.z-r.z)<4){this.holdE=true;return true;}}
+  const p=this.g.P.o.position;for(let i=0;i<this.repairs.length;i++){if(this.s.repairs[i].done)continue;const r=this.repairs[i].position;if(Math.hypot(p.x-r.x,p.z-r.z)<4){if(this.s.jammed>0)return false;return repairNode(this.s,i,.08);}}
   this.s.message='Move near a recruit, a civilian, or an amber repair node.';return false;}
  ally(name){if(this.s.phase!=='playing')return false;const ok=useAlly(this.s,name);if(ok)this.renderUI();return ok;}
  attack(weight=1){if(this.s.phase!=='playing'||this.hitCD>0||!this.boss?.active)return false;
