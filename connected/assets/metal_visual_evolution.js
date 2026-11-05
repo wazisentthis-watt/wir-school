@@ -68,7 +68,7 @@ class VisualEvolution{
   document.body.append(e);e.querySelector('#wir04Skip').addEventListener('click',()=>this.skipIntro());
   this.hud=e;this.hudBeat=e.querySelector('#wir04Beat');this.hudBoss=e.querySelector('#wir04Boss');this.hudWorld=e.querySelector('#wir04World');
  }
- skipIntro(){this.intro=3.5;this.introDone=true;this.hud.style.display='none';if(this.bossMesh)this.pilot.boss.mesh.visible=true;}
+ skipIntro(){this.intro=3.5;this.introDone=true;this.hud.style.display='none';if(this.bossMesh){this.bossMesh.scale.setScalar(1);this.pilot.boss.mesh.visible=true;}if(this.halo)this.halo.scale.setScalar(1.35);}
  cylinder(radius,height,color,parent,x,y,z,radial=8){
   const mesh=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius*.95,height,radial),this.makeMat(color,color,.12));
   mesh.position.set(x,y,z);parent.add(mesh);return mesh;
