@@ -35,7 +35,7 @@ class NativePilot{
   torso.position.y=1.24;g.add(torso);const head=new THREE.Mesh(new THREE.IcosahedronGeometry(.29,1),this.mat(color,.28));head.position.y=2.05;g.add(head);
   for(const side of [-1,1]){const arm=new THREE.Mesh(new THREE.BoxGeometry(.2,.88,.25),m);arm.position.set(side*.53,1.24,0);g.add(arm);const leg=new THREE.Mesh(new THREE.BoxGeometry(.24,.7,.27),m);leg.position.set(side*.2,.42,0);g.add(leg);}return g;}
  actor(kind,id,x,z,color){const mesh=this.model(color),actor={kind,id,mesh,active:true,t:0};mesh.position.set(this.origin.x+x,this.origin.y,this.origin.z+z);this.root.add(mesh);this.actors.push(actor);return actor;}
- start(index){if(!beginSavannah(this.s,index))return;this.clear();this.origin.copy(this.g.P.o.position);this.origin.y=Math.max(.15,Math.min(1,this.origin.y));this.enemyClock=1.4;this.telegraph=0;this.hitCD=0;
+ start(index){if(!beginSavannah(this.s,index))return;this.beast?.onMissionStart?.();this.clear();this.origin.copy(this.g.P.o.position);this.origin.y=Math.max(.15,Math.min(1,this.origin.y));this.enemyClock=1.4;this.telegraph=0;this.hitCD=0;
   // All entities live in the existing Connected Three.js scene near the actual player.
   const chapter=CHAPTERS[index],palette={brace:0x70808f,heat:0xff703b,brittle:0xa9bfe5,jam:0x8b4eff,redirect:0xda466a,infrastructure:0xffcb66};
   this.boss=this.actor('boss',index,0,-13,palette[chapter.pattern]??(index?0xbc42dc:0x259bb6));this.boss.mesh.scale.setScalar(index===7?1.72:1.4);
