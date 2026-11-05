@@ -63,6 +63,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: metal-build04-visual-evidence
-          path: test-results/native-metal-build04.png
+          path: test-results/native-metal-build04-*.png
           retention-days: 7
           if-no-files-found: ignore
