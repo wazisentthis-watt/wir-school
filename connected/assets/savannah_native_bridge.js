@@ -7,6 +7,7 @@ function awaitGame(){const g=window.__game;if(!window.__ready||!g?.P?.o?.parent)
 class NativePilot{
  constructor(g){this.g=g;this.scene=g.P.o.parent;this.s=createSavannahState();this.root=new THREE.Group();this.root.name='WIR_SAVANNAH_NATIVE_HOLD';this.scene.add(this.root);this.actors=[];this.repairs=[];this.fx=[];this.frame=0;this.last=performance.now();this.enemyClock=1;this.telegraph=0;this.hitCD=0;this.holdE=false;this.lastButtons=[];this.origin=new THREE.Vector3();}
  mount(){this.setupUI();this.listen();this.g.savannahNative={snapshot:()=>this.snapshot(),start:n=>this.start(n),interact:()=>this.interact(),attack:()=>this.attack(),ally:n=>this.ally(n),exit:()=>this.exit(),scan:()=>this.scan(),next:()=>this.next()};
+  if(new URLSearchParams(location.search).get('savannah_beast')==='1')import('./metal_native_beast_adapter.js').then(m=>m.installNativeBeast(this.g,this)).catch(e=>{console.error('METAL Beast HOLD pilot failed:',e);window.__errors?.push(String(e));});
   requestAnimationFrame(()=>this.tick());}
  snapshot(){return {chapter:this.s.chapter,phase:this.s.phase,city:this.s.city,bossHp:this.s.bossHp,counts:missionCounts(this.s),allies:[...this.s.allies],completed:[...this.s.completed]};}
  setupUI(){const box=document.createElement('section');box.id='savannahNative';box.setAttribute('aria-label','Native Savannah mission pilot');
@@ -65,11 +66,11 @@ class NativePilot{
  gamepad(){const pad=navigator.getGamepads?.()?.find(p=>p?.connected);if(!pad)return;const keys=pad.buttons.map(b=>b.pressed);if(this.s.phase==='playing'&&keys[4])for(let i=0;i<4;i++){if(keys[i]&&!this.lastButtons[i])this.ally(['Sana','Zola','Ayo','Binta'][i]);}this.lastButtons=keys;}
  tick(){requestAnimationFrame(()=>this.tick());const t=performance.now(),dt=Math.min(.05,Math.max(0,(t-this.last)/1000));this.last=t;this.frame++;
   if(this.s.phase==='playing'){tickSavannah(this.s,dt);this.hitCD=Math.max(0,this.hitCD-dt);const p=this.g.P.o.position,b=this.boss,dist=Math.hypot(p.x-b.mesh.position.x,p.z-b.mesh.position.z);
-   if(this.s.bossHp>0){if(this.s.stun<=0&&dist>6&&dist<30){const speed=(this.s.chapter?1.55:1.15)*dt;b.mesh.position.x+=(p.x-b.mesh.position.x)/dist*speed;b.mesh.position.z+=(p.z-b.mesh.position.z)/dist*speed;}
-    b.mesh.rotation.y+=dt*.6;this.enemyClock-=dt;
-    if(this.telegraph>0){this.telegraph-=dt;this.warning.position.x=b.mesh.position.x;this.warning.position.z=b.mesh.position.z;this.warning.visible=true;
+   if(this.s.bossHp>0){if(!this.beast?.holdBoss&&this.s.stun<=0&&dist>6&&dist<30){const speed=(this.s.chapter?1.55:1.15)*dt;b.mesh.position.x+=(p.x-b.mesh.position.x)/dist*speed;b.mesh.position.z+=(p.z-b.mesh.position.z)/dist*speed;}
+    b.mesh.rotation.y+=dt*.6;const bossDt=dt*(this.beast?.slowFactor?.()??1);this.enemyClock-=this.beast?.holdBoss?0:bossDt;
+    if(this.telegraph>0&&!this.beast?.holdBoss){this.telegraph-=bossDt;this.warning.position.x=b.mesh.position.x;this.warning.position.z=b.mesh.position.z;this.warning.visible=true;
       const pulse=1+.2*Math.sin(performance.now()/90);this.warning.scale.setScalar(pulse);
-      if(this.telegraph<=0){this.warning.visible=false;bossPressure(this.s,dist<8,!!this.g.keys.Numpad2);
+      if(this.telegraph<=0){this.warning.visible=false;bossPressure(this.s,dist<8,!!this.g.keys.Numpad2||!!this.beast?.guarding?.());
        const hurt=this.actors.find(a=>a.kind==='citizen'&&this.s.citizens[a.id].mode!=='safe'&&a.mesh.position.distanceTo(b.mesh.position)<5);
        if(hurt)citizenHit(this.s,hurt.id,22);this.enemyClock=this.s.chapter>=2?2.8:3.5;}}
     else if(this.enemyClock<=0){this.telegraph=.9;this.enemyClock=0;this.s.message='RED SIGNAL: '+CHAPTERS[this.s.chapter].boss+' winding up! Brace or move.';}
