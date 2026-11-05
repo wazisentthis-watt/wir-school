@@ -115,11 +115,11 @@ class BeastLayer {
  recoverAt(id){const m=this.constructModels.get(id),result=recoverConstruct(this.s,this.g.st.gal,id);if(!m||!result.ok)return false;
   this.g.st.gal=result.gallium;this.root.remove(m.mesh);m.mesh.geometry.dispose();m.mesh.material.dispose();this.constructModels.delete(id);return true;}
  bindInputs(){addEventListener('keydown',e=>{if(!e.altKey||e.repeat)return;const code=e.code;
-  if(/^Numpad[1-6]$/.test(code)){e.preventDefault();this.select(Number(code.slice(-1))-1);return;}
+  if(/^Numpad[1-6]$/.test(code)){e.preventDefault();e.stopImmediatePropagation();this.select(Number(code.slice(-1))-1);return;}
   const cmds={Numpad7:()=>this.role(),Numpad8:()=>this.command(),Numpad9:()=>this.build(),Numpad0:()=>this.lil(),
    KeyQ:()=>this.scan(),KeyX:()=>this.snap(),KeyZ:()=>this.thermal(),KeyC:()=>this.shape(),KeyV:()=>this.recover(),
    KeyR:()=>this.mark(),KeyT:()=>this.cross(),Backspace:()=>this.return(),KeyE:()=>this.dominion(),KeyG:()=>this.gallop(),
-   Space:()=>this.trick(),KeyH:()=>this.throw(),KeyB:()=>this.build()};if(cmds[code]){e.preventDefault();cmds[code]();}});
+   Space:()=>this.trick(),KeyH:()=>this.throw(),KeyB:()=>this.build()};if(cmds[code]){e.preventDefault();e.stopImmediatePropagation();cmds[code]();}},true);
   addEventListener('blur',()=>{this.guardUntil=0;});}
  gamepad(){const pad=navigator.getGamepads?.()?.find(x=>x?.connected);if(!pad)return;
   const b=pad.buttons.map(x=>x.pressed),prev=this.lastPad;
