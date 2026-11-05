@@ -8,7 +8,7 @@ const AIR=0.17; // Experimental Gallium Gallop, not free flight.
 export function installNativeBeast(g,pilot){const b=new BeastLayer(g,pilot);b.mount();return b;}
 class BeastLayer {
  constructor(g,pilot){this.g=g;this.pilot=pilot;this.s=createBeastState();this.scene=g.P.o.parent;this.root=new THREE.Group();this.root.name='WIR_METAL_BEAST_POWERS_HOLD';this.scene.add(this.root);
-  this.lines=[];this.constructModels=new Map();this.grabbed=null;this.holdBoss=false;this.guardUntil=0;this.dominionWindup=0;this.charge=0;this.rifftMove=null;this.cooldown=0;this.lastPad=[];this.last=performance.now();this.ticks=0;this.lastScout=0;this.lastRepair=0;this.lastRecover=0;this.lilMesh=null;
+  this.lines=[];this.constructModels=new Map();this.anchorMass=new Map();this.grabbed=null;this.holdBoss=false;this.guardUntil=0;this.dominionWindup=0;this.charge=0;this.rifftMove=null;this.cooldown=0;this.lastPad=[];this.last=performance.now();this.ticks=0;this.lastScout=0;this.lastRepair=0;this.lastRecover=0;this.lilMesh=null;
  }
  mount(){for(let i=0;i<6;i++){const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(3*13),3));const mat=new THREE.LineBasicMaterial({color:i%2?0x7a40df:0xb78dff,transparent:true,opacity:.87});const line=new THREE.Line(geo,mat);line.frustumCulled=false;this.root.add(line);this.lines.push(line);}
   this.createLil();this.createHUD();this.bindInputs();this.pilot.beast=this;
@@ -31,13 +31,13 @@ class BeastLayer {
   for(const a of anchors){if(!a||!Number.isFinite(a.x))continue;const h=a.distanceTo(p);if(h<d){d=h;best=a;}}return best;}
  scan(){if(!this.eligible())return false;const p=this.player(),b=this.pilot.boss?.mesh;if(!b||Math.hypot(p.x-b.position.x,p.z-b.position.z)>28){this.note('Scan: move within 28m of the target.');return false;}
  if(this.s.focus<12)return false;this.s.focus-=12;scanBoss(this.pilot.s);addBeastResonance(this.s,15);this.note('Crown Read · weakness exposed · +15 chord');return true;}
- snap(){const ok=activateSnap(this.s);this.note(ok?'SNAP active · enemy combat slows for 3 seconds':'SNAP unavailable · focus or overload');return ok;}
+ snap(){if(this.s.snap>0){this.s.snap=0;this.s.snapExposure=0;this.note('SNAP cancelled before neural overload');return true;}const ok=activateSnap(this.s);this.note(ok?'SNAP active · cancel early to avoid Snap Storm':'SNAP unavailable · focus or overload');return ok;}
  thermal(){const m=cycleThermal(this.s);this.note(m+' · temperature costs now active');return m;}
  shape(){const m=cycleShape(this.s);this.note('Gallium construction: '+m);return m;}
  lil(){const m=cycleLil(this.s);this.note('Lil Heavy: '+m+' mode');return m;}
  anchorCount(){return this.s.anchorPoints.filter(a=>a&&a.distanceTo(this.player())<28).length;}
  command(){if(!this.eligible())return false;const arm=this.selected(),role=this.s.arms[arm],p=this.player();
-  if(role==='Anchor'){const a=this.nearestAnchor();if(!a){this.note('ANCHOR failed · no supported physical surface');return false;}this.s.anchorPoints[arm]=a.clone();addBeastResonance(this.s,9);this.note('Arm '+(arm+1)+' anchored to existing structure');return true;}
+  if(role==='Anchor'){if(this.s.anchorPoints[arm]){this.releaseAnchor(arm);this.note('Anchor released · material recovered');return true;}const a=this.nearestAnchor();if(!a){this.note('ANCHOR failed · no supported physical surface');return false;}const next=spendGallium(this.g.st.gal,.018);if(next===null)return false;this.g.st.gal=next;this.anchorMass.set(arm,.018);this.s.anchorPoints[arm]=a.clone();addBeastResonance(this.s,9);this.note('Arm '+(arm+1)+' physically anchored · 1.8% Gallium');return true;}
   if(role==='Grapple'){const b=this.pilot.boss;if(!b?.active||this.holdBoss||p.distanceTo(b.mesh.position)>10){this.note('Grapple needs an unheld enemy inside 10m');return false;}
    const next=spendGallium(this.g.st.gal,.035);if(next===null)return false;this.g.st.gal=next;this.grabbed=b;this.holdBoss=true;this.s.held=true;this.s.grabArm=arm;this.guardUntil=0;this.note('GALAXY GRIP · enemy physically held. Alt+H throws.');return true;}
   if(role==='Guard'||role==='Counter'){this.guardUntil=performance.now()/1000+3;this.note(role+' ready · brace against next strike');
@@ -47,7 +47,10 @@ class BeastLayer {
    const c=this.pilot.s.citizens[a.id];const ok=c?.mode==='injured'?reviveCitizen(this.pilot.s,a.id):collectCitizen(this.pilot.s,a.id);
    if(ok){this.note('Arm '+(arm+1)+' rescued citizen '+(a.id+1));addBeastResonance(this.s,10);}return ok;}
   return false;}
- guarding(){return performance.now()/1000<this.guardUntil&&this.s.thermal==='Cold Lock';}
+ releaseAnchor(arm){if(!this.s.anchorPoints[arm])return;const cost=this.anchorMass.get(arm)||0;this.g.st.gal=reclaimGallium(this.g.st.gal,cost,.8).remaining;this.anchorMass.delete(arm);this.s.anchorPoints[arm]=null;}
+ guarding(){return this.s.thermal==='Cold Lock'&&(performance.now()/1000<this.guardUntil||this.shielding()||this.bracing());}
+ shielding(){const p=this.player(),b=this.pilot.boss?.mesh?.position;if(!b)return false;return [...this.constructModels.values()].some(v=>v.type==='Shield'&&p.distanceTo(v.mesh.position)<7&&v.mesh.position.distanceTo(b)<p.distanceTo(b));}
+ bracing(){const p=this.player();return [...this.constructModels.values()].some(v=>v.type==='Brace'&&p.distanceTo(v.mesh.position)<6);}
  slowFactor(){return this.s.snap>0?.38:1;}
  throw(){if(!this.holdBoss)return false;
   const dir=this.g.camera.getWorldDirection(new THREE.Vector3()).setY(0).normalize();
@@ -71,7 +74,7 @@ class BeastLayer {
  gallop(){if(!this.g.st.board||this.s.focus<12||!this.g.ground()){this.note('Gallium Gallop needs the four-wheel board on a supported surface');return false;}
   const next=spendGallium(this.g.st.gal,.012);if(next===null)return false;this.g.st.gal=next;this.s.focus-=12;
   const dir=this.g.camera.getWorldDirection(new THREE.Vector3()).setY(0).normalize();
-  this.g.vel.addScaledVector(dir,7);this.s.heat=Math.min(100,this.s.heat+7);addBeastResonance(this.s,9);this.note('Gallium Gallop · anchored push, momentum preserved');return true;}
+  this.g.vel.addScaledVector(dir,7);const ramp=[...this.constructModels.values()].find(v=>v.type==='Ramp'&&this.player().distanceTo(v.mesh.position)<6);if(ramp)this.g.vel.y=Math.max(this.g.vel.y,3.2);this.s.heat=Math.min(100,this.s.heat+7);addBeastResonance(this.s,9);this.note('Gallium Gallop · anchored push, momentum preserved');return true;}
  trick(){if(!this.g.st.board||!this.g.ground()||this.s.focus<8)return false;
   this.s.focus-=8;this.g.vel.y=Math.max(this.g.vel.y,5.5);addBeastResonance(this.s,12);this.note('Board ollie · physical four-wheel launch');return true;}
  mark(){const a=this.nearestAnchor();const p=this.player();const quality=a?clamp(1-a.distanceTo(p)/60,.1,1):0;
@@ -144,7 +147,7 @@ class BeastLayer {
    if(m.progress>=1){finishRifft(this.s,true);this.rifftMove=null;addBeastResonance(this.s,15);this.note('RIFFT route completed · integrity '+Math.round(this.s.rift.integrity)+'%');}}
   if(this.dominionWindup>0){this.dominionWindup-=dt;if(this.dominionWindup<=0){if(this.pilot.boss?.active&&this.eligible()){
       const damage=this.s.thermal==='Hot Line'?76:62;damageBoss(this.pilot.s,damage,{scanned:true});this.pilot.s.stun=3.5;this.note('CROWN DOMINION · controlled six-arm release');}
-     this.g.st.gal=Math.max(0,this.g.st.gal-.08);this.s.anchorPoints=[];}}
+     this.g.st.gal=Math.max(0,this.g.st.gal-.08);for(const arm of [...this.anchorMass.keys()])this.releaseAnchor(arm);this.s.anchorPoints=[];}}
   this.updateLil(dt);this.updateLines();this.gamepad();if(++this.ticks%15===0)this.renderHUD();}
  renderHUD(){if(!this.status)return;const s=this.s;
   this.status.textContent='ARM '+(s.selected+1)+' '+s.arms[s.selected]+' · Gallium '+Math.round(this.g.st.gal*100)+'% · Focus '+Math.round(s.focus)+' · Heat '+Math.round(s.heat)+' · Chord '+Math.round(s.resonance)+' · '+s.thermal+' · Lil '+s.lil+' · Anchor '+this.anchorCount()+'/2 · '+(s.snapStorm>0?'SNAP STORM ':'')+s.message;
