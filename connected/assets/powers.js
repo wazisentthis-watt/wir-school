@@ -42,3 +42,8 @@ addEventListener('keydown',e=>{if(e.repeat)return;if(e.code==='KeyN')toggle();
  if(e.code==='Numpad9'||e.code==='KeyO'&&false)say('S'+form()+' season special — OPEN (placeholder)');});
 window.__powers={toggle,list:P,get open(){return el&&el.style.display!=='none';}};
 addEventListener('wir-form',()=>{if(el&&el.style.display!=='none')render();});
+
+// Optional native Savannah pilot. Keep the four-script Connected boot contract intact.
+if(new URLSearchParams(location.search).get('savannah_native')==='1'){
+ import('./savannah_native_bridge.js').catch(e=>{console.error('Savannah native pilot import failed:',e);window.__errors?.push(String(e));});
+}
