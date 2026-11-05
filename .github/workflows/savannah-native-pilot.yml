@@ -23,7 +23,7 @@ jobs:
           node --check connected/assets/savannah_native_core.mjs
           node --check connected/tests/savannah_native_browser_qa.mjs
       - name: Native mission behavior
-        run: node --test connected/tests/savannah_native_core.test.mjs
+        run: node --test connected/tests/savannah_native_core.test.mjs connected/tests/savannah_campaign_expansion.test.mjs
   native-browser:
     name: Connected + native Savannah desktop smoke
     runs-on: ubuntu-latest
