@@ -23,7 +23,12 @@ function veinTex(){const c=document.createElement('canvas');c.width=64;c.height=
  const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.colorSpace=THREE.SRGBColorSpace;return t;}
 export const LIMB={lineCost:.03,returnShare:.8,extendT:.16,freezeT:.28,retractT:.45,thin:.94,puddleLife:8}; // PROPOSAL
 export const GU={value:0}; // shared time uniform for liquid shaders
-export function galliumLiquidMat(o={}){ // liquid metal / mercury w/ violet galaxy sparkle (PROPOSAL)
+// 2026-11-06 RB1: "the Galaxy Gallium was black and crystallized and had sparkles in it — bring that back" (PROPOSAL):
+// default look is now BLACK GALAXY CRYSTAL: near-black glossy body, faceted (crystallized) normals, a deep star field
+// with parallax inside the material, faint blue-violet nebula, silver fresnel. `?gallium=liquid` restores the mercury pass.
+export const GALLIUM_LOOK=(typeof location!=='undefined'&&new URLSearchParams(location.search).get('gallium')==='liquid')?'liquid':'crystal';
+export function galliumLiquidMat(o={}){
+ if(GALLIUM_LOOK==='crystal')return galaxyCrystalMat(o);
  const m=new THREE.MeshPhysicalMaterial(Object.assign({color:0xb9bec8,metalness:.92,roughness:.06,clearcoat:1,clearcoatRoughness:.04,
   transmission:.18,thickness:.4,ior:1.6,iridescence:.35,iridescenceIOR:1.4,envMapIntensity:2.6,transparent:true,opacity:.97},o));
  m.onBeforeCompile=sh=>{sh.uniforms.uT=GU;
@@ -34,6 +39,29 @@ export function galliumLiquidMat(o={}){ // liquid metal / mercury w/ violet gala
    totalEmissiveRadiance+=mix(vec3(0.55,0.62,0.75),vec3(0.62,0.38,1.0),0.5+0.5*sin(uT*1.7+vWP.y*2.0))*fr*1.1;
    vec3 cp=floor(vWP*38.0+vec3(0.0,uT*2.0,0.0));float sp=step(0.985,h3(cp))*(0.5+0.5*sin(uT*9.0+h3(cp+1.0)*30.0));
    totalEmissiveRadiance+=vec3(0.75,0.55,1.0)*sp*1.6;`);};
+ return m;}
+export function galaxyCrystalMat(o={}){
+ const keep={};for(const k of ['emissive','emissiveIntensity','opacity','transparent','side'])if(k in o)keep[k]=o[k];
+ const m=new THREE.MeshPhysicalMaterial(Object.assign({color:0x07060c,metalness:.6,roughness:.07,clearcoat:1,clearcoatRoughness:.03,
+  iridescence:.55,iridescenceIOR:1.5,envMapIntensity:1.9,transparent:true,opacity:1},keep));
+ if(keep.emissive!==undefined)m.emissiveIntensity=Math.min(m.emissiveIntensity,.12); // violet only when the seam is active
+ m.onBeforeCompile=sh=>{sh.uniforms.uT=GU;
+  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uT;varying vec3 vWP;float h3(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}\nfloat vn(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}')
+  // crystallized: facet normals from screen-space derivatives (the smooth liquid motion still moves underneath)
+  .replace('#include <normal_fragment_begin>','#include <normal_fragment_begin>\n {vec3 fn=normalize(cross(dFdx(vViewPosition),dFdy(vViewPosition)));normal=normalize(mix(normal,fn,0.82));}')
+  .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
+   {float fr=pow(1.0-abs(dot(normalize(vViewPosition),normal)),2.6);
+    vec3 vd=normalize(vWP-cameraPosition);vec3 gal=vec3(0.0);
+    for(int k=0;k<3;k++){float dep=0.06+0.11*float(k);vec3 q=(vWP+vd*dep)*(30.0+14.0*float(k));vec3 cp=floor(q);
+     float h=h3(cp);float st=step(0.978,h)*smoothstep(0.5,0.05,length(fract(q)-0.5));
+     float tw=0.55+0.45*sin(uT*(3.0+h*7.0)+h*40.0);
+     vec3 col=h>0.993?vec3(0.72,0.5,1.0):(h>0.987?vec3(0.6,0.75,1.0):vec3(1.0));
+     gal+=col*st*tw*(1.3-0.3*float(k));}
+    float neb=vn(vWP*2.2+vec3(0.0,uT*0.05,0.0))*vn(vWP*5.0-vec3(uT*0.03));
+    gal+=mix(vec3(0.05,0.07,0.18),vec3(0.18,0.08,0.3),vn(vWP*1.3))*neb*0.9;
+    totalEmissiveRadiance+=gal*1.5+vec3(0.55,0.6,0.7)*fr*0.55;}`);};
+ m.customProgramCacheKey=()=>'wir-galaxy-crystal';
  return m;}
 export function makeGalliumLimb(scene,THREEref){
  const vt=veinTex();
