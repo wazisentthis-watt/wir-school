@@ -15,6 +15,8 @@ function runAir(S,pop,script,{g=RS.G}={}){
   while(t<3){const I=script(t);const r=stepAir(S,I,dt);vy+=r.dvy;ev.push(...r.events);vy-=g*dt;y+=vy*dt;t+=dt;peak=Math.max(peak,y);if(y<=0&&t>.05)break;}
   return {peak,t,ev,impact:-vy};
 }
+// catchAt: seconds after the pop, or 'watch' = squeeze both when the board has come back around grip-up (what a player does)
+const watching=A=>{const b=A&&A.board;if(!b||!A.freed)return false;const r=b.rot,TAU=Math.PI*2;const done=Math.abs(r.roll)>TAU*.8||Math.abs(r.yaw)>Math.PI*.8||Math.abs(r.pitch)>TAU*.8;return done&&Math.abs(r.roll-Math.round(r.roll/TAU)*TAU)<.35&&Math.abs(r.yaw-Math.round(r.yaw/Math.PI)*Math.PI)<.35&&Math.abs(r.pitch-Math.round(r.pitch/TAU)*TAU)<.35;};
 function popWith(S,{back='R',loadFor=.3,slideAt=.1,spin=0,flick=null,catchAt=null,speed=6}={}){
   S.speed=speed;
   for(let t=0;t<loadFor;t+=dt)stepGround(S,inp({l2:1,r2:1,lx:spin}),{},dt);
@@ -25,7 +27,8 @@ function popWith(S,{back='R',loadFor=.3,slideAt=.1,spin=0,flick=null,catchAt=nul
     const I=inp({lx:0});
     const frontKey=front==='L'?'l2':'r2';I[frontKey]=t<slideAt?1:0;
     if(flick&&t>=flick.at&&t<flick.at+.06){const k=flick.foot==='L'?['lx','ly']:['rx','ry'];I[k[0]]=flick.x;I[k[1]]=flick.y;}
-    if(catchAt!=null&&t>=catchAt){I.l2=1;I.r2=1;}
+    if(catchAt==='watch'){if(S.air&&(S.air.caughtBot||watching(S.air))){S.air.caughtBot=true;I.l2=1;I.r2=1;}}
+    else if(catchAt!=null&&t>=catchAt){I.l2=1;I.r2=1;}
     return I;
   });
   return {pop:r.pop,air,landing:land(S,{impact:air.impact})};
@@ -92,12 +95,12 @@ test('front-foot trigger release first = nollie (regular stance: L2 is the front
 
 test('kickflip = front foot off + left stick flick, caught by squeezing both triggers again',()=>{
   // regular: front foot = L, slides off (L2 released) then flicks the left stick toward the heelâ†’toe side (left)
-  const P=popWith(rider(),{slideAt:.08,flick:{foot:'L',x:-1,y:0,at:.1},catchAt:.1+.42});
+  const P=popWith(rider(),{slideAt:.08,flick:{foot:'L',x:-1,y:0,at:.1},catchAt:'watch'});
   assert.ok(P.air.ev.some(e=>e.type==='kick'&&e.role==='front'));
   assert.ok(P.air.ev.some(e=>e.type==='catch'),'caught');
   assert.equal(P.landing.ok,true,'landed: '+P.landing.why);
   assert.match(P.landing.name,/Kickflip/);
-  const H=popWith(rider(),{slideAt:.08,flick:{foot:'L',x:1,y:0,at:.1},catchAt:.52});
+  const H=popWith(rider(),{slideAt:.08,flick:{foot:'L',x:1,y:0,at:.1},catchAt:'watch'});
   assert.match(H.landing.name,/Heelflip/);
 });
 
@@ -111,12 +114,12 @@ test('flicking a stick while that foot is still on (trigger held) does nothing â
 test('flip you never catch = bail; catch too early mid-rotation = board under you upside down',()=>{
   const N=popWith(rider(),{slideAt:.08,flick:{foot:'L',x:-1,y:0,at:.1},catchAt:null});
   assert.equal(N.landing.ok,false);assert.match(N.landing.why,/caught|upside|sideways/i);
-  const E=popWith(rider(),{slideAt:.08,flick:{foot:'L',x:-1,y:0,at:.1},catchAt:.1+.21});
+  const E=popWith(rider(),{slideAt:.08,flick:{foot:'L',x:-1,y:0,at:.1},catchAt:.1+.15});
   assert.equal(E.landing.ok,false,'caught at half a rotation');
 });
 
 test('back foot scoop (right stick) = pop shove-it; scoop + front flick = varial/tre family',()=>{
-  const S=popWith(rider(),{slideAt:.08,flick:{foot:'R',x:0,y:1,at:.1},catchAt:.1+.36});
+  const S=popWith(rider(),{slideAt:.08,flick:{foot:'R',x:0,y:1,at:.1},catchAt:'watch'});
   assert.equal(S.landing.ok,true,S.landing.why);assert.match(S.landing.name,/Shove-It/);
   const V=rider();V.speed=6;for(let t=0;t<.3;t+=dt)stepGround(V,inp({l2:1,r2:1}),{},dt);
   const r=stepGround(V,inp({l2:1}),{},dt);
