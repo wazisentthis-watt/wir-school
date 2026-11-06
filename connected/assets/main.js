@@ -23,7 +23,7 @@ import {chooseGripTarget,stepStructureOffset,gripHeldPosition} from './gallium_g
 import {PhysicsTelemetry} from './physics_telemetry.js';
 import {createTestYardSkateAdapter,trickDirection,fightClipHint} from './testyard_skate_adapter.mjs';
 import {createRealSkate,padToInput,goAirborne} from './real_skate_core.mjs'; // PROPOSAL / PUBLISH HOLD (?real_skate=1)
-import {createRide,stepRide,boardPose,bodyHeading,bankLine} from './real_skate_ride.mjs';
+import {createRide,stepRide,boardPose,bodyHeading,bankLine,stepLooseBoard} from './real_skate_ride.mjs';
 import {createSkateYard,buildSkateYardMeshes} from './skate_yard_world.mjs';
 import {createTestYardSession} from './testyard_session_score.mjs';
 import {analyzePhysics} from './physics_analysis.js';
@@ -357,7 +357,7 @@ function pollPad(dt=1/60){
  if(RSK.active&&gp){ // REAL SKATE owns A, L2, R2 and both sticks while riding; B still dissolves / bails, Menu still pauses
   for(const [i,k] of Object.entries(padMap)){if(padPrev[i])keys[k]=false;padPrev[i]=false;}
   if(v3.paused)return {x:0,y:0};
-  const b=!!gp.buttons[1]?.pressed;if(b&&!RSK.prevB)pressed.KeyB=true;RSK.prevB=b;
+  const b=!!gp.buttons[1]?.pressed;if(b){RSK.bHeld=(RSK.bHeld||0)+dt;if(RSK.bHeld>.55&&!RSK.bFired){RSK.bFired=true;pressed.KeyB=true;}}else{RSK.bHeld=0;RSK.bFired=false;}RSK.prevB=b; // tap/hold B = foot brake · hold 0.55 s = step off + dissolve
   const rb=!!gp.buttons[5]?.pressed;if(rb&&!RSK.prevRB){pressed.KeyQ=true;keys.KeyQ=true;}if(!rb&&RSK.prevRB)keys.KeyQ=false;RSK.prevRB=rb; // R1 still throws the Gallium line
   return {x:0,y:0};
  }
@@ -697,7 +697,7 @@ function realKeyboardInput(dt){ // assist mapping (W push · A/D lean · S weigh
  I.aEdge=tap('KeyW');I.a=!!keys.KeyW;
  const want=(keys.KeyD?1:0)-(keys.KeyA?1:0);K.lean+=THREE.MathUtils.clamp(want-K.lean,-dt*4,dt*4);I.lx=K.lean;
  if(isTouch&&(stick.x||stick.y)){I.lx=THREE.MathUtils.clamp(stick.x,-1,1);const fwd=stick.y<-.6;if(fwd&&!K.tFwd)I.aEdge=true;K.tFwd=fwd;if(stick.y>.55)I.ly=.58;} // touch: stick = lean, flick it forward = push
- I.ly=keys.KeyS?(keys.ShiftLeft||keys.ShiftRight?.9:.58):(keys.KeyX?-.58:0);
+ I.ly=keys.KeyS?(keys.ShiftLeft||keys.ShiftRight?.9:.58):(keys.KeyX?-.58:0);I.grab=!!keys.KeyC;
  const t=performance.now()/1000;
  if(keys.Space){if(K.spaceT<0)K.spaceT=t;K.relT=-1;I.l2=I.r2=1;}
  else{if(K.spaceT>=0){K.relT=t;K.spaceT=-1;}if(K.relT>=0){const e=t-K.relT;I.r2=0;I.l2=e<.1?1:0;if(e>.4)K.relT=-1;}} // release Space = snap back foot, slide front 0.1 s later
@@ -714,13 +714,14 @@ function realSkateHud(){
  const bal=S.mode==='grind'&&S.grind?S.grind.b:S.manual?(S.manual.e||0)/.3:S.lean/.42;$('rskBalDot').style.left=(28+THREE.MathUtils.clamp(bal,-1,1)*28)+'px';
  const pad=!!RSK.gp;let h;
  if(S.mode==='grind')h=pad?'Left stick: tiny corrections keep you on · weight fwd/back = nosegrind/5-0 · L2+R2 then snap = pop out':'A/D small taps balance · Space then release = pop out';
- else if(S.mode==='air')h=S.air&&S.air.freed&&!S.air.caught?(pad?'Squeeze L2+R2 to catch it grip-up':'Space = catch'):(pad?'Squeeze both = feet back on the bolts':'Space = realign feet');
+ else if(S.mode==='air')h=S.air&&S.air.freed&&!S.air.caught?(pad?'Watch the deck — squeeze L2+R2 a beat before it comes grip-up':'Space a beat before it comes around = catch'):(pad?'Squeeze both = feet on the bolts · hold X + stick = grab (let go before landing)':'Space = realign · hold C = grab');
  else if(S.loadT>0)h=pad?'Snap R2 (back foot) to pop · ease L2 off = slide · flick a free foot\'s stick to flip':'Release Space = pop · arrows right after = flip';
  else h=pad?'Tap A = push · left stick = lean, not steer · squeeze L2+R2 = knees':'Tap W = push · A/D lean · S manual · hold Space = knees';
  $('rskHint').textContent=RSK.shown>12?'':h;$('rskTrick').textContent=RSK.lastName;
 }
 function realSkateStep(dt,pp){
  if(!RSK.R){ // board just went down: start the ride from Metal's current motion
+  if(bodyMachine.mode==='grounded')sk.bailT=0; // a finished bail never carries into a fresh ride
   const core=createRealSkate({stance:RSK_STANCE}); // canon: Metal rides regular (prosthetic left foot forward); ?stance=goofy = PROPOSAL player option
   const hs=Math.hypot(vel.x,vel.z),h=hs>.3?Math.atan2(vel.x,vel.z):yaw;
   RSK.R=createRide(core,_rskW,{x:pp.x,z:pp.z,heading:h});RSK.R.p.y=Math.max(pp.y,RSK.R.p.y);core.speed=hs;RSK.yaw=h;
@@ -754,7 +755,9 @@ function realSkateStep(dt,pp){
   else if(e.type==='grindEnd'){RSK.quiet=0;if(e.pts){st.comboPend+=Math.max(1,Math.round(e.pts/150));yardSession?.addTricks([e.name],e.pts);}}
   else if(e.type==='powerslide'){RSK.lastName='Powerslide';}
   else if(e.type==='manualStart'){RSK.lastName=e.nose?'Nose Manual':'Manual';}
-  else if(e.type==='bail'){RSK.lastName=e.why;sk.bailT=0;skBail(e.why);R.bailT=Math.max(R.bailT,sk.bailT);bodyMachine.fall(vel.x,vel.z);}
+  else if(e.type==='bail'){RSK.lastName=e.why;RSK.loose=e.loose;RSK.looseR=R;RSK.looseT=0;
+   if(e.fall){sk.bailT=0;skBail(e.why);bodyMachine.fall(vel.x,vel.z);}else toast(e.why);
+   vel.set(e.metalV.x,vel.y,e.metalV.z);st.board=false;board.visible=true;toast('Board got away — go get it');}
  }
  // bank the line once you have rolled away clean
  if(S.mode==='ground'&&R.bailT<=0&&R.line.length&&RSK.quiet>1.4){const L=bankLine(R);if(L.names.length>1)toast(L.names.join(' + ')+' · '+L.pts);bank();}
@@ -768,6 +771,14 @@ function realBoardPose(pp){
  const h=RSK.yaw+(S.mode==='air'?bp.yaw:0);
  _rbe.set(bp.pitch,h,S.mode==='air'?bp.roll:0,'YXZ');board.quaternion.setFromEuler(_rbe);if(RSK.tilt)board.quaternion.premultiply(RSK.tilt);
  if(bp.freed||S.mode==='air'){board.position.set(pp.x,pp.y+(bp.freed?bp.lift:0),pp.z);}
+}
+function realLooseTick(dt,pp){ // the board after a bail: own momentum, Metal walks over to get it
+ const L=RSK.loose;if(st.board){RSK.loose=null;RSK.looseR=null;return;} // a forge/other path gave him a board
+ RSK.looseT+=dt;if(RSK.looseR)stepLooseBoard(RSK.looseR,dt);
+ board.visible=true;board.position.set(L.p.x,L.p.y+.06,L.p.z);_rbe.set(0,L.yaw,L.roll,'YXZ');board.quaternion.setFromEuler(_rbe);
+ const d=Math.hypot(pp.x-L.p.x,pp.z-L.p.z);
+ if(RSK.looseT>.6&&d<1.15&&Math.abs(pp.y-L.p.y)<1&&bodyMachine.mode!=='fallen'&&bodyMachine.mode!=='recovering'){
+  st.board=true;RSK.loose=null;RSK.looseR=null;yaw=L.yaw;sk.bailT=0;vel.multiplyScalar(.3);toast('Board back under your feet');beep(330,.05,'triangle',.03);}
 }
 function p6Crouch(dt){ // knees follow the triggers: L2 = front (left, prosthetic) knee, R2 = back knee
  if(!P.p6||!P.legs||!RSK.R)return;const I=RSK.prevI,S=RSK.R.core,A=S.air;
@@ -1797,6 +1808,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   st.boardGap=fl?fl.getWorldPosition(_bf).distanceTo(board.position):0;}}
  if(RSK.active&&RSK.R)realBoardPose(pp);
  if(!st.board)board.visible=false; // Walking/swinging never displays the board
+ if(RSK.loose)realLooseTick(dt,pp);
   if(yard&&!st.board)yard.resetRide();
  // Model-space aerial turn (visual only); original physics and true X/Y/Z are unchanged.
  if(v3SpinTime>0){

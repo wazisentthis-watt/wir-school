@@ -38,7 +38,7 @@ export const RS = {
   PERFECT0: 0.06, PERFECT1: 0.16, PERFECT_DVY: 0.5, WEAK_H: 0.72, NOSLIDE_H: 0.6,
   TRIG_DOWN: 0.55, TRIG_UP: 0.2, LOADED: 0.35, SNAP: 0.1, COM: 0.9, CROUCH: 0.36,
   // spin + air
-  SPIN_MAX: 5.2, AIR_CTRL: 0.9, FLICK_T: 0.13, FLICK_MAG: 0.75, FLICK_WINDOW: 0.5,
+  SPIN_MAX: 5.2, AIR_CTRL: 0.9, FLICK_T: 0.13, FLICK_MAG: 0.75, FLICK_WINDOW: 0.75, LATE_T: 0.34,
   FLIP_W: (2 * Math.PI) / 0.42, SHOVE_W: Math.PI / 0.36,
   CATCH_TRIG: 0.6, CLEAN: 0.6, SKETCHY: 1.05, ALIGN: 0.7, TRAVEL_OK: 0.96, IMPACT_BAIL: 14.5,
   // manual
@@ -47,6 +47,7 @@ export const RS = {
   GR_UNSTABLE: 2.8, GR_NOISE: 1.6, GR_GAIN: 5.5, GR_LAG: 0.14, GR_FRICTION: 0.45,
 };
 
+import { BB, createBoard, impulse, stepBoard, placeFoot, placementError, residual, recognize } from './board_body.mjs';
 const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const wrap = (a) => { a = (a + Math.PI) % TAU; if (a < 0) a += TAU; return a - Math.PI; };
@@ -68,7 +69,7 @@ export function padToInput(gp, prev = {}) {
   const bv = (i) => { const b = gp && gp.buttons && gp.buttons[i]; return b ? (typeof b.value === 'number' ? b.value : (b.pressed ? 1 : 0)) : 0; };
   const pr = (i) => { const b = gp && gp.buttons && gp.buttons[i]; return !!(b && (b.pressed || b.value > 0.5)); };
   const a = pr(0);
-  return { lx: ax(0), ly: ax(1), rx: ax(2), ry: ax(3), l2: bv(6), r2: bv(7), a, aEdge: a && !prev.a, l3: pr(10), r3: pr(11) };
+  return { lx: ax(0), ly: ax(1), rx: ax(2), ry: ax(3), l2: bv(6), r2: bv(7), a, aEdge: a && !prev.a, grab: pr(2), brake: pr(1), l3: pr(10), r3: pr(11) };
 }
 
 function feet(S) { return S.stance === 'goofy' ? { front: 'R', back: 'L' } : { front: 'L', back: 'R' }; }
@@ -97,7 +98,7 @@ export function makeAir(S, kind, { strength = 0, slide = 'good', bodyW = 0, pitc
   S.air = {
     t: 0, kind, strength, slide, slideDt: null, level: slide === 'both' ? 0.6 : slide === 'pending' ? 0 : 1,
     bodyYaw: 0, bodyW, takeoffHeading: S.heading, takeoffSpeed: S.speed,
-    board: { roll: 0, yaw: 0, pitch, wRoll: 0, wYaw: 0 }, freed: false, kicked: { L: false, R: false },
+    board: Object.assign(createBoard(), { roll: 0, yaw: 0, pitch }), tilt: pitch, freed: false, kicked: { L: false, R: false }, grab: null, grabs: [], late: false, missed: false,
     feetOn: { L: true, R: true }, caught: true, catchT: null, flicks: [], perfect: false,
   };
   S.mode = 'air'; S.manual = null; S.stroke = -1; S.strokeQ = 0; S.grind = null;
@@ -192,7 +193,7 @@ export function stepGround(S, I, env = {}, dt = 1 / 60) {
     M.e = e;
     if (e > RS.MAN_LOOP) { out.events.push({ type: 'bail', why: M.dir > 0 ? 'Looped out of the manual' : 'Nose dove' }); S.manual = null; }
     else if (e < RS.MAN_DOWN || Math.sign(w) !== M.dir) { out.events.push({ type: 'manualEnd', t: M.t, nose: M.dir < 0 }); S.manual = null; }
-  } else if (!loading && w > 0.78 && Math.abs(S.speed) > 0.5) S.speed -= Math.sign(S.speed) * Math.min(Math.abs(S.speed), RS.BRAKE * dt);
+  } else if (!loading && (w > 0.78 || I.brake) && Math.abs(S.speed) > 0.5) S.speed -= Math.sign(S.speed) * Math.min(Math.abs(S.speed), RS.BRAKE * dt); // stick hard back or B = foot brake
 
   // slope, rolling resistance, drag
   S.speed += (env.gAlong || 0) * dt;
@@ -216,7 +217,7 @@ function flickDetect(S, I, dt) {
     let minMag = 9, minT = now;
     for (const h of S.hist) { const m = Math.hypot(h[foot].x, h[foot].y); if (m < minMag) { minMag = m; minT = h.t; } }
     if (minMag > 0.35) continue;
-    const speed = clamp(RS.FLICK_T / Math.max(0.03, now - minT), 0.5, 1.25);
+    const el = Math.max(dt, now - minT), speed = clamp(1.25 - 0.7 * (el - 1 / 60) / (RS.FLICK_T - 1 / 60), 0.55, 1.25); // snappier flick = more torque
     res.push({ foot, role: foot === F.front ? 'front' : 'back', x: st.x / mag, y: st.y / mag, strength: clamp(mag * speed, 0.5, 1.25) });
   }
   return res;
@@ -226,7 +227,7 @@ export function stepAir(S, I, dt = 1 / 60) {
   S.t += dt; const A = S.air, out = { events: [], dvy: 0 };
   if (!A) return out;
   A.t += dt;
-  const F = feet(S), rels = trackTriggers(S, I, dt);
+  const F = feet(S), rels = trackTriggers(S, I, dt), B = A.board;
   const front = F.front === 'L' ? I.l2 : I.r2;
   // the slide: other foot's trigger let off after the pop levels the board
   if (A.slide === 'pending') {
@@ -238,92 +239,113 @@ export function stepAir(S, I, dt = 1 / 60) {
       } else { A.slide = 'late'; A.level = 0.55; }
     } else if (A.t > 0.32) { A.slide = 'none'; A.level = 0.3; out.dvy = -1.2; out.events.push({ type: 'noSlide' }); }
   }
-  A.board.pitch += ((A.slide === 'pending' ? A.board.pitch : -(1 - A.level) * 0.45) - A.board.pitch) * Math.min(1, dt * 12);
+  A.tilt += ((A.slide === 'pending' ? A.tilt : -(1 - A.level) * 0.45) - A.tilt) * Math.min(1, dt * 12);
 
-  // body spin: committed at the pop, small body English in the air
-  A.bodyW += -I.lx * RS.AIR_CTRL * dt * (A.freed ? 0.3 : 1);
+  // body spin: committed at the pop, small body English in the air (less once the board is loose under you)
+  A.bodyW += -I.lx * RS.AIR_CTRL * dt * (A.freed && !A.caught ? 0.3 : 1);
   A.bodyYaw += A.bodyW * dt;
 
-  // kicks: a foot's stick flicked while that trigger is let off → that foot kicks the board loose
-  if (A.t < RS.FLICK_WINDOW) {
+  // kicks: a foot whose trigger is off can flick its stick → torque on the deck (direction, size, timing all count)
+  if (A.t < RS.FLICK_WINDOW && !A.grab && !I.grab) { // reaching for a grab is not a flick
     for (const fl of flickDetect(S, I, dt)) {
       const trig = fl.foot === 'L' ? I.l2 : I.r2;
       if (trig > 0.35 || A.kicked[fl.foot]) continue;
-      A.kicked[fl.foot] = true; A.freed = true; A.caught = false; A.feetOn.L = A.feetOn.R = false;
+      A.kicked[fl.foot] = true; A.freed = true; A.caught = false; B.contacts.L = B.contacts.R = false; B.kickT = A.t;
+      const g = S.stance === 'goofy' ? -1 : 1;
       if (fl.role === 'front') {
-        if (Math.abs(fl.x) >= Math.abs(fl.y)) A.board.wRoll += (fl.x < 0 ? 1 : -1) * RS.FLIP_W * (0.75 + 0.3 * fl.strength) * (S.stance === 'goofy' ? -1 : 1);
-        else A.board.wRoll += (fl.y < 0 ? 1 : -1) * RS.FLIP_W * 0.5 * fl.strength; // nose flick: a slow roll, catch it early
+        impulse(B, 'roll', -Math.sign(fl.x || 1e-6) * g * BB.J_FLICK * fl.strength * Math.max(0.35, Math.abs(fl.x)), A.t);
+        if (Math.abs(fl.y) > 0.35) impulse(B, 'pitch', -fl.y * BB.J_FLICK_PITCH * fl.strength, A.t);   // flicking off the nose instead of the side = wobble
+      } else if (Math.abs(fl.y) >= Math.abs(fl.x)) {
+        impulse(B, 'yaw', Math.sign(fl.y) * BB.J_SCOOP * fl.strength, A.t); // harder scoop = faster spin (360 when the air allows)
       } else {
-        const scoop = Math.abs(fl.y) >= Math.abs(fl.x) ? (fl.y > 0 ? 1 : -1) : (fl.x > 0 ? -1 : 1);
-        const mult = fl.strength > 1.05 ? 2 : 1;            // hard scoop → 360
-        A.board.wYaw += scoop * RS.SHOVE_W * mult * (0.85 + 0.2 * Math.min(1, fl.strength));
+        impulse(B, 'pitch', Math.sign(fl.x) * BB.J_WRAP * fl.strength, A.t);                          // back foot sideways = wrap (impossible)
       }
-      A.flicks.push({ ...fl, t: A.t }); out.events.push({ type: 'kick', foot: fl.foot, role: fl.role });
+      if (A.t > RS.LATE_T) A.late = true;
+      A.flicks.push({ ...fl, t: A.t }); out.events.push({ type: 'kick', foot: fl.foot, role: fl.role, late: A.t > RS.LATE_T });
     }
   }
-  if (A.freed && !A.caught) { A.board.roll += A.board.wRoll * dt; A.board.yaw += A.board.wYaw * dt; }
 
-  // realign: after the slide, squeeze both again = feet back over the bolts (needed for a perfect ollie)
-  if (!A.freed && !A.realign && A.slide !== 'pending' && A.t > 0.08 && I.l2 >= RS.CATCH_TRIG && I.r2 >= RS.CATCH_TRIG) { A.realign = true; out.events.push({ type: 'realign' }); }
-  // catch: squeeze the triggers again = feet back on the board
-  if (A.freed && !A.caught) {
-    if (I.l2 >= RS.CATCH_TRIG) A.feetOn.L = true;
-    if (I.r2 >= RS.CATCH_TRIG) A.feetOn.R = true;
-    if ((A.feetOn.L && A.feetOn.R) || ((A.feetOn.L || A.feetOn.R) && A.catchT != null && A.t - A.catchT > 0.12)) {
-      A.caught = true; A.realign = A.feetOn.L && A.feetOn.R; out.events.push({ type: 'catch', both: A.feetOn.L && A.feetOn.R, residual: residual(A) });
-    } else if ((A.feetOn.L || A.feetOn.R) && A.catchT == null) A.catchT = A.t;
+  // feet back on the deck: each trigger squeezed = that foot touches it (and its friction damps the spin)
+  if (A.freed) {
+    const reach = B.kickT == null || A.t - B.kickT < BB.REACH;
+    for (const f of ['L', 'R']) {
+      const want = (f === 'L' ? I.l2 : I.r2) >= RS.CATCH_TRIG;
+      if (want && !B.contacts[f]) {
+        if (!reach) { if (!A.missed) { A.missed = true; out.events.push({ type: 'missed' }); } continue; }
+        B.contacts[f] = true; A.feetOn[f] = true;
+        if (A.catchT == null) { A.catchT = A.t; A.firstFoot = f; }
+        out.events.push({ type: 'footDown', foot: f, residual: residual(B) });
+      }
+    }
+    if (!A.caught && B.contacts.L && B.contacts.R) { A.caught = true; A.realign = true; out.events.push({ type: 'catch', both: true, first: A.firstFoot, residual: residual(B) }); }
   }
+  stepBoard(B, dt);
+
+  // feet keep working on the deck once they are on it: the sticks shift each foot around its bolt
+  if (!A.freed || A.caught) for (const f of ['L', 'R']) if (B.contacts[f]) { const s = stickOf(I, f); placeFoot(B, f, f === F.front ? 'front' : 'back', A.grab ? 0 : s.x * 0.95, A.grab ? 0 : s.y * 0.95, dt); }
+
+  // grab: X (keyboard C) — reach down and secure the deck. Needs the board under your feet.
+  if (I.grab && !A.grab && (!A.freed || A.caught) && A.t > 0.12) {
+    const gx = I.lx, gy = I.ly, regular = S.stance !== 'goofy';
+    const nm = Math.abs(gy) > Math.abs(gx) && Math.abs(gy) > 0.4 ? (gy < 0 ? 'Nosegrab' : 'Tailgrab') : (gx < -0.4 ? (regular ? 'Melon' : 'Indy') : (regular ? 'Indy' : 'Melon'));
+    A.grab = { name: nm, t: 0 }; out.events.push({ type: 'grab', name: nm });
+  }
+  if (A.grab) {
+    if (I.grab) { A.grab.t += dt; B.w.roll *= Math.exp(-12 * dt); B.w.yaw *= Math.exp(-12 * dt); B.w.pitch *= Math.exp(-12 * dt); }
+    else if (!A.grab.done) { A.grab.done = true; A.grabs.push({ name: A.grab.name, t: A.grab.t }); out.events.push({ type: 'grabEnd', name: A.grab.name, t: A.grab.t }); }
+    if (A.grab.done && I.grab === false) A.grab = A.grab.done ? null : A.grab;
+  }
+
+  // realign (plain ollie): after the slide, squeeze both again = feet back over the bolts (needed for a perfect ollie)
+  if (!A.freed && !A.realign && A.slide !== 'pending' && A.t > 0.08 && I.l2 >= RS.CATCH_TRIG && I.r2 >= RS.CATCH_TRIG) { A.realign = true; out.events.push({ type: 'realign' }); }
+  // compatibility view for renderers / grind entry
+  B.roll = B.rot.roll; B.yaw = B.rot.yaw; B.pitch = A.tilt + B.rot.pitch;
   return out;
 }
 
-function residual(A) {
-  // how far the board is from grip-up and lined up with the body (yaw mod π: nose/tail swap is fine)
-  return { roll: Math.abs(nearest(A.board.roll, TAU)), yaw: Math.abs(nearest(A.board.yaw, Math.PI)) };
+export function nameAir(A, stance = 'regular') {
+  const r = recognize(A.board, { kind: A.kind, bodyYaw: A.bodyYaw, late: A.late, goofy: stance === 'goofy' });
+  const gr = (A.grabs || []).filter(g => g.t > 0.15);
+  if (gr.length) { r.name += ' ' + gr.map(g => g.name).join(' to '); r.pts += gr.reduce((a, g) => a + 60 + 140 * Math.min(1.2, g.t), 0); }
+  return r;
 }
 
-export function nameAir(A) {
-  const rollT = Math.round(A.board.roll / TAU), yawH = Math.round(A.board.yaw / Math.PI), body = Math.round(Math.abs(A.bodyYaw) / Math.PI);
-  const flipName = (n, heel) => (Math.abs(n) === 2 ? 'Double ' : Math.abs(n) === 3 ? 'Triple ' : '') + (heel ? 'Heelflip' : 'Kickflip');
-  const heel = rollT < 0 !== (A.stance === 'goofy');
-  let core;
-  if (rollT && yawH === 0) core = flipName(rollT, heel);
-  else if (rollT && Math.abs(yawH) === 1) core = 'Varial ' + flipName(rollT, heel);
-  else if (rollT && Math.abs(yawH) === 2) core = heel ? 'Laser Flip' : 'Tre Flip';
-  else if (!rollT && yawH) core = (Math.abs(yawH) === 2 ? '360 ' : '') + (yawH > 0 ? 'BS Pop Shove-It' : 'FS Pop Shove-It');
-  else core = A.kind;
-  const spin = body ? (A.bodyYaw > 0 ? 'FS ' : 'BS ') + body * 180 + ' ' : '';
-  const pts = { Ollie: 50, Nollie: 80 }[core] ?? (Math.abs(rollT) * 150 + Math.abs(yawH) * 120 + (core.includes('Tre') || core.includes('Laser') ? 150 : 0));
-  return { name: spin + (core === A.kind && spin ? A.kind : core), pts: pts + body * 180 * (body > 1 ? 1.6 : 1), rollT, yawH, body };
-}
-
-// landing check. env: { travelHeading, impact (m/s down) }
-// returns { ok, why, name, pts, quality: 'perfect'|'clean'|'sketchy', heading, speedMul, fakie }
+// landing check. env: { travelHeading, impact (m/s into the surface), speed }
+// returns { ok, why, fail, name, pts, quality, heading, speedMul, fakie }
+// fail kinds drive what the board and Metal do next: runOut | shotOut | noseDive | washout | slam | missed | upsideDown | sideways
 export function land(S, env = {}) {
   const A = S.air; S.mode = 'ground'; S.air = null; S.needReset = true;
   if (!A) return { ok: true, quality: 'clean', name: '', pts: 0, heading: S.heading, speedMul: 1 };
-  const res = residual(A);
+  const B = A.board, F = feet(S), res = residual(B), pe = placementError(B, F);
   const body = wrap(A.takeoffHeading + A.bodyYaw);
-  const boardYaw = A.freed ? wrap(body + A.board.yaw) : body;
-  let why = null;
-  if ((env.impact || 0) > RS.IMPACT_BAIL) why = 'Too big a drop';
-  else if (A.freed && !A.caught && (res.roll > RS.CLEAN || res.yaw > RS.CLEAN)) why = 'Never caught the board';
-  else if (res.roll > RS.SKETCHY) why = 'Landed on the grip — board upside down';
-  else if (res.yaw > RS.SKETCHY) why = 'Board was sideways under you';
-  else if (Math.abs(nearest(boardYaw - body, Math.PI)) > RS.ALIGN) why = 'Feet came off the board';
+  const imp = env.impact || 0, feetDown = (B.contacts.L ? 1 : 0) + (B.contacts.R ? 1 : 0);
+  let why = null, fail = null;
+  if (imp > RS.IMPACT_BAIL) { why = 'Too big a drop'; fail = 'slam'; }
+  else if (A.freed && feetDown === 0) { why = A.missed ? 'Feet missed the board' : 'Never caught the board'; fail = 'missed'; }
+  else if (res.roll > RS.SKETCHY || res.pitch > RS.SKETCHY) { why = 'Landed on the grip — board upside down'; fail = 'upsideDown'; }
+  else if (res.yaw > RS.SKETCHY) { why = 'Board was sideways under you'; fail = 'sideways'; }
+  else if (A.freed && feetDown === 1) {
+    if (imp > 5 || res.roll > RS.CLEAN || res.yaw > RS.CLEAN) { why = 'One foot on — ran it out'; fail = 'runOut'; }
+  }
+  if (!why && pe.along < -0.8) { why = 'Too far back — the board shot out'; fail = 'shotOut'; }
+  if (!why && pe.along > 0.85) { why = 'Too far forward — nose dove'; fail = 'noseDive'; }
+  if (!why && Math.abs(pe.side) > 0.85) { why = (pe.side > 0 ? 'Toe' : 'Heel') + '-heavy — rolled off the edge'; fail = 'washout'; }
   const trav = env.travelHeading ?? A.takeoffHeading;
   const dF = Math.abs(wrap(body - trav)), dB = Math.abs(wrap(body + Math.PI - trav));
-  if (!why && Math.min(dF, dB) > RS.TRAVEL_OK) why = 'Landed sideways to the roll';
-  const nm = nameAir(A);
-  if (why) return { ok: false, why, name: nm.name, pts: 0 };
-  const sketchy = res.roll > RS.CLEAN * 0.55 || res.yaw > RS.CLEAN * 0.55 || (A.freed && !A.caught) || A.slide === 'none';
-  const quality = !sketchy && A.perfect && A.realign && (!A.freed || res.roll < 0.25) ? 'perfect' : sketchy ? 'sketchy' : 'clean';
+  if (!why && Math.min(dF, dB) > RS.TRAVEL_OK) { why = 'Landed sideways to the roll'; fail = 'washout'; }
+  if (!why && A.grab && !A.grab.done && imp > 5) { why = 'Still holding the grab'; fail = 'slam'; }
+  const nm = nameAir(A, S.stance);
+  if (why) return { ok: false, why, fail, name: nm.name, pts: 0, travel: trav, body, impact: imp };
+  const offBolts = Math.max(pe.front, pe.back);
+  const sketchy = res.roll > RS.CLEAN * 0.55 || res.yaw > RS.CLEAN * 0.55 || res.pitch > RS.CLEAN * 0.55 || (A.freed && feetDown < 2) || A.slide === 'none' || offBolts > 0.75 || (A.grab && !A.grab.done);
+  const quality = !sketchy && A.perfect && A.realign && offBolts < 0.45 && (!A.freed || res.roll < 0.25) ? 'perfect' : sketchy ? 'sketchy' : 'clean';
   const fakie = dB < dF;
   const speedMul = (quality === 'sketchy' ? 0.85 : 1) * (A.slide === 'none' ? 0.8 : 1);
   S.heading = body; // board nose = where the rider faces; fakie = rolling tail-first
   S.speed = (fakie ? -1 : 1) * Math.abs(env.speed ?? S.speed) * speedMul;
   const name = (fakie && nm.body === 0 ? 'Fakie ' : '') + nm.name;
   const base = A.kind === 'Air' && nm.name === 'Air' ? (A.t > 0.45 ? 40 : 0) : nm.pts;
-  return { ok: true, quality, name, pts: Math.round(base * (quality === 'perfect' ? 1.5 : quality === 'sketchy' ? 0.6 : 1)), heading: S.heading, speedMul, fakie, airT: A.t, kind: A.kind };
+  return { ok: true, quality, name, pts: Math.round(base * (quality === 'perfect' ? 1.5 : quality === 'sketchy' ? 0.6 : 1)), heading: S.heading, speedMul, fakie, airT: A.t, kind: A.kind, oneFoot: A.freed && feetDown === 1 };
 }
 
 // ---------------------------------------------------------------- rails

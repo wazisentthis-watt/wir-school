@@ -2,6 +2,7 @@
 // Runs real_skate_core on actual surfaces: slopes, transitions, vert lips, ledges, kicker lips, stairs, rails.
 // Pure: the world is any object with floorY(x,z), grad(x,z), normal(x,z), nearestRail(p), railPoint(r,t).
 // The main game copies ride.p / ride.v into Metal and handles buildings, cars and animation.
+import { createLoose, stepLoose } from './board_body.mjs';
 import { RS, stepGround, stepAir, stepGrind, land, enterGrind, goAirborne, makeAir, wrap, nameAir } from './real_skate_core.mjs';
 
 export const RIDE = { STEP_UP: 0.2, ROLL_OFF: 0.08, VERT: 1.12, VERT_PULL: 0.3, WALL_BAIL: 4.5, GRIND_MIN: 2.2, BAIL_T: 0.9, LOCK_T: 0.1 };
@@ -41,11 +42,36 @@ export function stepRide(R, I, dt = 1 / 60) {
   return ev;
 }
 
-function bail(R, ev, why) {
-  ev.push({ type: 'bail', why, line: R.line.slice(), lost: R.linePts });
+// every bail sends the board off with its own momentum (createLoose) — Metal has to go get it.
+// fail kinds: runOut (no fall, Metal jogs it out) | shotOut | noseDive | washout | slam | missed | upsideDown | sideways | wall | rail | loop
+const LOOSE = {
+  runOut:   { b: 0.95, m: 0.6, up: 0, fall: false },
+  shotOut:  { b: 1.35, m: 0.15, up: 0.6, fall: true, spinYaw: 0.5 },
+  loop:     { b: 1.3, m: 0.1, up: 0.8, fall: true },
+  noseDive: { b: 0.35, m: 0.85, up: 0.2, fall: true, spinRoll: 2 },
+  washout:  { b: 0.7, m: 0.5, up: 0.1, fall: true, side: 2.2, upright: false },
+  slam:     { b: 0.6, m: 0.3, up: 1.5, fall: true, spinRoll: 6 },
+  missed:   { b: 0.8, m: 0.7, up: 0.3, fall: true },
+  upsideDown: { b: 0.7, m: 0.5, up: 0.4, fall: true, upright: false },
+  sideways: { b: 0.6, m: 0.5, up: 0.2, fall: true, spinYaw: 3 },
+  wall:     { b: -0.35, m: -0.1, up: 1, fall: true, spinRoll: 4 },
+  rail:     { b: 0.7, m: 0.4, up: 0.2, fall: true, side: 1.4 },
+};
+function bail(R, ev, why, fail = 'slam', travel = null) {
+  const S = R.core, W = R.world, k = LOOSE[fail] || LOOSE.slam;
+  const hs = Math.hypot(R.v.x, R.v.z), th = travel ?? (hs > 0.3 ? Math.atan2(R.v.x, R.v.z) : S.heading);
+  const tx = Math.sin(th), tz = Math.cos(th), sp = Math.max(hs, Math.abs(S.speed));
+  const side = k.side ? (Math.random() < 0.5 ? -1 : 1) * k.side : 0;
+  R.loose = createLoose({ x: R.p.x, y: R.p.y + 0.05, z: R.p.z }, { x: tx * sp * k.b + tz * side, y: k.up, z: tz * sp * k.b - tx * side },
+    { roll: k.spinRoll || 0, yaw: k.spinYaw || 0 }, k.upright !== false);
+  R.loose.yaw = S.heading;
+  const metalV = { x: tx * sp * k.m, y: 0, z: tz * sp * k.m };
+  ev.push({ type: 'bail', why, fail, fall: k.fall, line: R.line.slice(), lost: R.linePts, loose: R.loose, metalV });
   R.bailT = RIDE.BAIL_T; R.line = []; R.linePts = 0; R.rail = null;
-  R.core.mode = 'ground'; R.core.air = null; R.core.grind = null; R.core.manual = null; R.core.speed *= 0.25;
+  S.mode = 'ground'; S.air = null; S.grind = null; S.manual = null; S.speed *= 0.25;
 }
+// keep the loose board moving (main game calls this while Metal is on foot)
+export function stepLooseBoard(R, dt) { if (R.loose) stepLoose(R.loose, R.world.floorY, dt); return R.loose; }
 
 function stepGroundRide(R, I, dt, ev) {
   const S = R.core, W = R.world, p = R.p;
@@ -64,7 +90,7 @@ function stepGroundRide(R, I, dt, ev) {
   if ((R.kap || 0) > 0.08 && hcNew !== hcOld) { const Rt = 1 / R.kap, a = Math.max(0.5, Rt - hcOld), b = Math.max(0.5, Rt - hcNew); S.speed *= a / b; if (hcNew > hcOld) R.pumpGain = (R.pumpGain || 0) + (a / b - 1); }
   for (const e of r.events) {
     if (e.type === 'manualEnd' && e.t > 0.35) { const pts = Math.round(160 * e.t); R.line.push((e.nose ? 'Nose Manual ' : 'Manual ') + e.t.toFixed(1) + 's'); R.linePts += pts; }
-    if (e.type === 'bail') { bail(R, ev, e.why); return; }
+    if (e.type === 'bail') { bail(R, ev, e.why, 'loop'); return; }
     ev.push(e);
   }
   const ff = fwd(S.heading), hs = S.speed * Math.cos(ang);
@@ -79,7 +105,7 @@ function stepGroundRide(R, I, dt, ev) {
   const predicted = p.y + S.speed * Math.sin(ang) * dt;
   if (nf > Math.max(p.y, predicted) + RIDE.STEP_UP) {
     // a vertical face: ledge side, box, back of a ramp
-    if (Math.abs(S.speed) > RIDE.WALL_BAIL) { bail(R, ev, 'Slammed into the ledge — ollie onto it'); return; }
+    if (Math.abs(S.speed) > RIDE.WALL_BAIL) { bail(R, ev, 'Slammed into the ledge — ollie onto it', 'wall'); return; }
     S.speed = -S.speed * 0.2; R.v = { x: 0, y: 0, z: 0 }; ev.push({ type: 'bump' }); return;
   }
   // vert: on a steep transition, reaching the lip (deck ahead) throws you straight up.
@@ -147,7 +173,7 @@ function stepAirRide(R, I, dt, ev) {
     const speed = Math.hypot(vt.x, vt.y, vt.z);
     const res = land(S, { travelHeading: th, impact: -vn, speed });
     p.y = nf; R.n = n;
-    if (!res.ok) { bail(R, ev, res.why); return; }
+    if (!res.ok) { bail(R, ev, res.why, res.fail, th); return; }
     const ff = fwd(S.heading), [gx, gz] = W.grad(p.x, p.z), ang = Math.atan(gx * ff.x + gz * ff.z);
     R.v = { x: ff.x * S.speed * Math.cos(ang), y: S.speed * Math.sin(ang), z: ff.z * S.speed * Math.cos(ang) };
     if (res.pts > 0) { R.line.push(res.name); R.linePts += res.pts; }
@@ -160,7 +186,7 @@ function stepGrindRide(R, I, dt, ev) {
   const r = stepGrind(S, I, dt);
   for (const e of r.events) if (e.type !== 'bail' && e.type !== 'grindEnd') ev.push(e);
   const rr = G.r, L = rr.len, dx = (rr.b.x - rr.a.x) / L, dy = (rr.b.y - rr.a.y) / L, dz = (rr.b.z - rr.a.z) / L;
-  if (r.fall) { const g = r.events.find(e => e.type === 'bail'); bail(R, ev, g ? g.why : 'Slipped off'); return; }
+  if (r.fall) { const g = r.events.find(e => e.type === 'bail'); bail(R, ev, g ? g.why : 'Slipped off', 'rail'); return; }
   const finish = (how) => {
     const t = S.grind ? S.grind.t : 0, name = (S.grind && S.grind.name) || G.name || 'Grind';
     const pts = Math.round((G.slide ? 140 : 100) + 220 * (S.grind ? S.grind.t : t));
