@@ -5,6 +5,7 @@ on:
     paths:
       - 'connected/assets/main.js'
       - 'connected/assets/testyard_skate_adapter.mjs'
+      - 'connected/assets/testyard_session_score.mjs'
       - 'connected/tests/testyard_*'
       - 'connected/TESTYARD_SKATE_IMPORT_V01_HOLD.md'
       - '.github/workflows/connected-testyard-skate-hold.yml'
@@ -30,8 +31,9 @@ jobs:
           set -euo pipefail
           node --check connected/assets/main.js
           node --check connected/assets/testyard_skate_adapter.mjs
+          node --check connected/assets/testyard_session_score.mjs
           node --check connected/tests/testyard_connected_browser_playwright.mjs
-          node --test connected/tests/testyard_skate_adapter.test.mjs connected/tests/metal_skylab_v3_bridge.test.mjs connected/tests/body_machine.test.mjs connected/tests/mission_asset_recovery.test.mjs
+          node --test connected/tests/testyard_skate_adapter.test.mjs connected/tests/testyard_session_score.test.mjs connected/tests/metal_skylab_v3_bridge.test.mjs connected/tests/body_machine.test.mjs connected/tests/mission_asset_recovery.test.mjs
       - name: Install browser QA runtime
         run: |
           npm install --no-save --no-audit --no-fund playwright
