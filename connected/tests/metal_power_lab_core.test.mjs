@@ -131,6 +131,7 @@ test('separate lab module remains opt-in; no default UI, movement solver or save
  assert.match(main,/function updateMetalStory\(dt\)/);
  assert.match(main,/function skateGround\(dt,wish,il\)/);
  assert.match(main,/function floorAt\(p\)/);
+ assert.match(world,/root\.classList\.add\('wir-keep'\)/);
  assert.match(world,/colliders\.push\(box\)/);
  assert.match(world,/storage\?\.setItem\(POWER_LAB_SAVE_KEY/);
  assert.doesNotMatch(world,/['"]wir_metal_story_v1['"]/);
