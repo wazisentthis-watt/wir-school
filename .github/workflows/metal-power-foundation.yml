@@ -4,12 +4,16 @@ on:
     paths:
       - 'connected/assets/metal_power_*'
       - 'connected/tests/metal_power_*'
+      - 'connected/assets/metal_adaptive_armor_core.mjs'
+      - 'connected/tests/metal_adaptive_armor_core.test.mjs'
       - 'connected/assets/main.js'
       - '.github/workflows/metal-power-foundation.yml'
   pull_request:
     paths:
       - 'connected/assets/metal_power_*'
       - 'connected/tests/metal_power_*'
+      - 'connected/assets/metal_adaptive_armor_core.mjs'
+      - 'connected/tests/metal_adaptive_armor_core.test.mjs'
       - 'connected/assets/main.js'
       - '.github/workflows/metal-power-foundation.yml'
   workflow_dispatch:
@@ -30,8 +34,9 @@ jobs:
           node --check connected/assets/metal_power_registry_73.mjs
           node --check connected/assets/metal_power_lab_core.mjs
           node --check connected/assets/metal_power_lab_world.mjs
+          node --check connected/assets/metal_adaptive_armor_core.mjs
           node --check connected/tests/metal_power_lab_browser_playwright.mjs
-          node --test connected/tests/metal_power_lab_core.test.mjs
+          node --test connected/tests/metal_power_lab_core.test.mjs connected/tests/metal_adaptive_armor_core.test.mjs
   live-scene-browser:
     runs-on: ubuntu-latest
     needs: power-contract

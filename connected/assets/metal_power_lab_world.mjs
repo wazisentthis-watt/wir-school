@@ -6,6 +6,7 @@
 import {makePowerLab,stepPowerLab,powerLabSnapshot,powerLabSave,
  applyPowerLab,POWER_LAB_SAVE_KEY,POWER_LAB_PICKUP_IDS} from './metal_power_lab_core.mjs';
 import {METAL_POWER_REGISTRY,registryCounts} from './metal_power_registry_73.mjs';
+import {createMetalArmor,activateMetalArmor,stepMetalArmor,absorbMetalDamage,metalArmorSnapshot} from './metal_adaptive_armor_core.mjs';
 
 const finite=v=>typeof v==='number'&&Number.isFinite(v);
 const LIMIT=10;
@@ -16,6 +17,7 @@ export function mountMetalPowerLab({THREE,scene,P,st,vel,colliders,camera,ground
  try{const s=storage?.getItem(POWER_LAB_SAVE_KEY);if(typeof s==='string'&&s.length<40000)raw=JSON.parse(s);}
  catch{} // private/quota-restricted Safari is allowed to keep an in-memory run
  const S=makePowerLab(raw),live=new Map(),pickupMeshes=new Map();
+ const armor=createMetalArmor();
  const root=document.createElement('div');root.id='metalPowerLab';
  // Explicitly opted-in power lab must survive the default HUD-free clean mode.
  // Existing CSS hides body children except .wir-keep; nothing added in baseline.
@@ -48,7 +50,8 @@ export function mountMetalPowerLab({THREE,scene,P,st,vel,colliders,camera,ground
   build:makeBtn('BUILD PANEL','build'),
   impact:makeBtn('TEST IMPACT','impact'),
   reclaim:makeBtn('RECLAIM','reclaim'),
-  step:makeBtn('SNAP STEP','snap-step')
+  step:makeBtn('SNAP STEP','snap-step'),
+  armor:makeBtn('ADAPTIVE ARMOR','armor')
  };
  panel.append(status,stats,actions,feedback,codexBtn,codex,note);root.append(trigger,panel);
  trigger.addEventListener('click',()=>{panel.hidden=!panel.hidden;draw();});
@@ -68,6 +71,12 @@ export function mountMetalPowerLab({THREE,scene,P,st,vel,colliders,camera,ground
  const geoPanel=new THREE.BoxGeometry(2.7,2.3,.42);
  const geoSupport=new THREE.BoxGeometry(2.1,3.2,.6);
  const pickupGeo=new THREE.DodecahedronGeometry(.34);
+ // The shell follows the real player root. Game combat still owns hit detection;
+ // the adapter intercepts only received damage, never enemy health or mission logic.
+ const armorMat=new THREE.MeshBasicMaterial({color:0x9be0ff,transparent:true,opacity:.18,wireframe:true,depthWrite:false});
+ const armorShell=new THREE.Mesh(new THREE.SphereGeometry(1.23,16,10),armorMat);
+ armorShell.name='WIR_ADAPTIVE_ARMOR_TEST';armorShell.position.y=1.1;
+ armorShell.visible=false;P.o.add(armorShell);
  const center=P.o.position.clone();
  const offsets=[[-3,-6],[2,-9],[11,-1],[10,8],[-7,9]];
  const anchors=Object.freeze(POWER_LAB_PICKUP_IDS.map((id,i)=>({
@@ -156,10 +165,10 @@ export function mountMetalPowerLab({THREE,scene,P,st,vel,colliders,camera,ground
   const q=powerLabSnapshot(S);const title=q.stageTitle;
   if(title!==shownStatus){shownStatus=title;}
   status.textContent='MISSION '+Math.min(q.stage+1,5)+'/5 · '+title;
-  stats.textContent='Salvage '+q.scrap+' · Gallium '+Math.round(Math.max(0,st.gal)*100)+'% · Focus '+Math.round(q.focus*100)+'% · Physical panels '+q.structures.length;
+  stats.textContent='Salvage '+q.scrap+' · Gallium '+Math.round(Math.max(0,st.gal)*100)+'% · Focus '+Math.round(q.focus*100)+'% · Physical panels '+q.structures.length+' · Armor '+Math.round(armor.capacity*100)+' HP';
   for(const [key,b] of Object.entries(buttons))b.disabled=
    key==='build'&&!q.unlocks.build||key==='reinforce'&&!q.unlocks.reinforce||key==='step'&&!q.unlocks.snapStep||
-   key==='impact'&&!q.unlocks.impact;
+   key==='impact'&&!q.unlocks.impact||key==='armor'&&q.stage<2;
  }
  function perform(action){
   if(closed)return;
@@ -170,6 +179,15 @@ export function mountMetalPowerLab({THREE,scene,P,st,vel,colliders,camera,ground
   if(action==='build'){
    const occupied=colliders.some(b=>point.x>b.min.x-.5&&point.x<b.max.x+.5&&point.z>b.min.z-.5&&point.z<b.max.z+.5);
    if(occupied){feedback.textContent='BLOCKED · An existing collider occupies this location';return;}
+  }
+  if(action==='armor'){
+   const result=activateMetalArmor(armor,{unlocked:S.stage>=2,gallium:st.gal});
+   if(!result.ok){feedback.textContent='BLOCKED · '+result.reason.replace(/-/g,' ');draw();return result;}
+   st.gal=Math.max(0,st.gal-result.spentGal);
+   // Armor is consumed material, not a permanent world structure. Save the loss.
+   S.galLost=Math.min(1,S.galLost+result.spentGal);
+   armorShell.visible=true;feedback.textContent='ARMOR ACTIVE · '+result.duration+' seconds · actual damage reduced';
+   save();draw();return result;
   }
   const result=applyPowerLab(S,action,{
    id:nearObj?.id, distance:action==='build'?4.5:nearObj?.dist??Infinity,
@@ -199,6 +217,8 @@ export function mountMetalPowerLab({THREE,scene,P,st,vel,colliders,camera,ground
  function tick(dt){
   if(closed)return;
   stepPowerLab(S,dt);
+  stepMetalArmor(armor,dt);
+  armorShell.visible=metalArmorSnapshot(armor).active;
   scanLife=Math.max(0,scanLife-Math.max(0,Math.min(.1,dt||0)));
   scanRing.visible=scanLife>0;
   if(scanRing.visible){scanRing.position.set(support.position.x,.34,support.position.z);scanRing.material.opacity=.28+.35*(scanLife/5);}
@@ -208,15 +228,20 @@ export function mountMetalPowerLab({THREE,scene,P,st,vel,colliders,camera,ground
   }
  }
  function snapshot(){return {...powerLabSnapshot(S),registry:registryCounts(),saveKey:POWER_LAB_SAVE_KEY,saveOk,
-  sceneObjects:{support:1,panels:live.size,salvage:pickupMeshes.size},attached:true};}
+  sceneObjects:{support:1,panels:live.size,salvage:pickupMeshes.size},armor:metalArmorSnapshot(armor),attached:true};}
+ function absorbDamage(dmg){
+  const outcome=absorbMetalDamage(armor,dmg);
+  if(outcome.blocked>0)armorShell.visible=outcome.active;
+  return outcome.remaining;
+ }
  function destroy(){
   if(closed)return;closed=true;
   removeCollider(supportCollider);scene.remove(support);scene.remove(scanRing);
   for(const {mesh,box} of live.values()){removeCollider(box);scene.remove(mesh);}
   for(const m of pickupMeshes.values())scene.remove(m);
-  root.remove();geoPanel.dispose();geoSupport.dispose();pickupGeo.dispose();
+  root.remove();P.o.remove(armorShell);armorShell.geometry.dispose();armorMat.dispose();geoPanel.dispose();geoSupport.dispose();pickupGeo.dispose();
   scanRing.geometry.dispose();scanRing.material.dispose();
   silver.dispose();amber.dispose();broken.dispose();pickupMat.dispose();
  }
- return Object.freeze({tick,snapshot,perform,destroy});
+ return Object.freeze({tick,snapshot,perform,absorbDamage,destroy});
 }
