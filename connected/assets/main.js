@@ -62,6 +62,7 @@ const REAL_SKATE=new URLSearchParams(location.search).get('real_skate')!=='0'&&!
 const METAL_POWER_LAB=new URLSearchParams(location.search).get('metal_abilities')==='1'&&!MISSION05&&!AERIAL_DUEL_PILOT; // strictly opt-in training / HOLD
 let skYard=null; // real-skate park heightfield (only with ?real_skate=1) // fix missing flag from merged PR34; preserve default
 let metalPowerLab=null; // never mounted during ordinary Savannah or Mission05
+function armorDamage(dmg){return metalPowerLab?.absorbDamage(dmg)??dmg;} // opt-in only; ordinary baseline unchanged
 if(SLOTTA_BROWSER_QA)window.__testHold=true;
 const boot=window.__bootRecovery||{stage:()=>{},warning:()=>{},failed:()=>{},ready:()=>{},getStatus:()=>({warnings:[]})};
 const safeStorage=(()=>{try{return window.localStorage}catch(e){boot.warning({asset:'localStorage',reason:String(e)});return {getItem:()=>null,setItem:()=>{throw Error('Storage is unavailable')}};}})();
@@ -969,11 +970,11 @@ function globHitCar(c,pr){const u=c.userData;
 // ---- villain abilities (Season One blueprint) ----
 const VFX={rings:[],spikes:[],slick:[],heat:null};
 function vRing(x,z,r,life,color){const m=new THREE.Mesh(new THREE.RingGeometry(r*.92,r,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8,side:THREE.DoubleSide,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.set(x,groundY+.06,z);scene.add(m);VFX.rings.push({m,t:0,life});return m;}
-function metalHurt(dmg,from,why){if(FG.iframe>0||dmg<=0)return;st.hp=Math.max(0,st.hp-dmg);if(from){const d=P.o.position.clone().sub(from).setY(0).normalize();FG.kb.addScaledVector(d,6);}FG.shake=Math.max(FG.shake,.2);if(why)toast(why);
+function metalHurt(dmg,from,why){if(FG.iframe>0||dmg<=0)return;st.hp=Math.max(0,st.hp-armorDamage(dmg));if(from){const d=P.o.position.clone().sub(from).setY(0).normalize();FG.kb.addScaledVector(d,6);}FG.shake=Math.max(FG.shake,.2);if(why)toast(why);
  if(st.hp<=0){st.hp=1;for(const c of STORY_FIGHTS)if(c.state==='fight')endCrew(c,false);}}
 function villainAbility(foe,dt){const R=foe.R,V=R.vil,rp=foe.ch.o.position,mp=P.o.position;
  const o=stepVillain(V,{dist:R.d,active:R.active&&!R.out,self:{x:rp.x,z:rp.z},metal:{x:mp.x,z:mp.z}},dt);
- if(o.metalDmg>0)st.hp=Math.max(.02,st.hp-o.metalDmg);
+ if(o.metalDmg>0)st.hp=Math.max(.02,st.hp-armorDamage(o.metalDmg));
  for(const e of o.events){
   if(e.type==='slam'){const ring=vRing(e.x,e.z,e.r,e.warn+.25,0xffb11f);playT(foe.ch,'Hook',.6);R.animLock=.6;
    setTimeout(()=>{if(!R.active)return;burst(new THREE.Vector3(e.x,groundY+.3,e.z),40,7);FG.shake=.35;if(P.o.position.distanceTo(new THREE.Vector3(e.x,P.o.position.y,e.z))<e.r&&onGround&&!st.board)metalHurt(.14,rp,'Ballast slam — jump or roll out of the ring');},e.warn*1000);}
@@ -1274,8 +1275,8 @@ function hitMetal(s,foe){const R=foe.R,v=toFoe(foe);const dir=v.clone().normaliz
  const facing=Math.abs(angDiff(yaw,Math.atan2(v.x,v.z)))<1.3;
  if(blocking&&facing){if(FG.guardT<.18){FG.parries++;toast('PARRY');FG.hitstop=.12;FG.slow=.3;R.stun=.9;R.act=null;R.queue=[];playT(foe.ch,'GuardBreak',.9);R.animLock=.9;R.sm.changeTo('stagger');
    burst(_fv2.copy(P.o.position).setY(P.o.position.y+1.3).addScaledVector(dir,-.5),20,5);beep(880,.08,'triangle',.06);return;}
-  st.hp=Math.max(.02,st.hp-s.dmg*.15);FG.kb.addScaledVector(dir,s.kb*.8);FG.hitstop=.04;burst(_fv2.copy(P.o.position).setY(P.o.position.y+1.3),6,2.5);beep(95,.05,'square',.04);return;}
- st.hp=Math.max(0,st.hp-s.dmg);FG.act=null;FG.buf=null;FG.kb.addScaledVector(dir,s.kb*1.8);FG.shake=.22;FG.hitstop=.07;
+  st.hp=Math.max(.02,st.hp-armorDamage(s.dmg*.15));FG.kb.addScaledVector(dir,s.kb*.8);FG.hitstop=.04;burst(_fv2.copy(P.o.position).setY(P.o.position.y+1.3),6,2.5);beep(95,.05,'square',.04);return;}
+ st.hp=Math.max(0,st.hp-armorDamage(s.dmg));FG.act=null;FG.buf=null;FG.kb.addScaledVector(dir,s.kb*1.8);FG.shake=.22;FG.hitstop=.07;
  burst(_fv2.copy(P.o.position).setY(P.o.position.y+1.3),14,4);beep(60,.08,'square',.06);
  if(s.down){FG.stun=1.6;if(playT(P,'Knock',.7)){setTimeout(()=>{if(FG.stun>0)playT(P,'GetUp',.9);},700);}actT=1.6;}else{FG.stun=s.stun;playT(P,s.react,s.stun+.1);actT=s.stun;}
  if(st.hp<=0){st.hp=1;if(R.kind==='rival')endSpar(false);else endCrew(R.crew,false);}}
