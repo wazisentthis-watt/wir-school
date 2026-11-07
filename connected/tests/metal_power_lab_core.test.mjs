@@ -109,6 +109,19 @@ test('structure spawn range and physically grounded rules cannot be bypassed',()
  assert.equal(cast(s,'build',{gallium:.09,distance:4,grounded:true,point:{x:3,z:3}}).reason,'need-gallium');
  assert.equal(cast(s,'build',{gallium:1,distance:1,grounded:true,point:{x:3,z:3}}).reason,'bad-placement-range');
 });
+test('irrecoverable Gallium accounting survives reload and prevents free material',()=>{
+ const s=ready();
+ assert.equal(s.galLost,POWER_LAB_COST.reinforce);
+ const source=s.structures[0];
+ const recover=cast(s,'reclaim',{id:source.id,distance:2});
+ assert.equal(recover.ok,true);
+ const loss=POWER_LAB_COST.reinforce+POWER_LAB_COST.build-recover.returnedGal;
+ assert.ok(Math.abs(s.galLost-loss)<1e-10);
+ const restored=makePowerLab(powerLabSave(s));
+ assert.ok(Math.abs(restored.galLost-loss)<1e-10);
+ assert.equal(restored.structures.length,0);
+ assert.equal(restored.builtOnce,true);
+});
 test('separate lab module remains opt-in; no default UI, movement solver or save replacement',()=>{
  const main=readFileSync(new URL('../assets/main.js',import.meta.url),'utf8');
  const world=readFileSync(new URL('../assets/metal_power_lab_world.mjs',import.meta.url),'utf8');
