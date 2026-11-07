@@ -1,0 +1,63 @@
+name: WIR METAL ReFramer Hunt and Tentacle v0.1 (HOLD)
+on:
+  push:
+    paths:
+      - 'connected/assets/reframer_core.mjs'
+      - 'connected/assets/reframer_hunt_core.mjs'
+      - 'connected/assets/main.js'
+      - 'connected/tests/reframer_hunt_*.mjs'
+      - '.github/workflows/reframer-hunt-v01.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/reframer_core.mjs'
+      - 'connected/assets/reframer_hunt_core.mjs'
+      - 'connected/assets/main.js'
+      - 'connected/tests/reframer_hunt_*.mjs'
+      - '.github/workflows/reframer-hunt-v01.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check all edited JavaScript and ReFramer mechanics
+        run: |
+          node --check connected/assets/main.js
+          node --check connected/assets/reframer_core.mjs
+          node --check connected/assets/reframer_hunt_core.mjs
+          node --check connected/tests/reframer_hunt_browser_playwright.mjs
+          node --test connected/tests/draw_combo_reframer.test.mjs connected/tests/reframer_hunt_core.test.mjs
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    needs: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install supported Chromium
+        run: |
+          npm install --no-save --no-fund --no-audit playwright
+          npx playwright install --with-deps chromium
+      - name: Serve current branch locally
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/reframer-v01-http.log 2>&1 &
+          sleep 2
+          curl -fI http://127.0.0.1:8765/connected/
+      - name: Verify ordinary first mission and new opt-in desktop/touch
+        run: node connected/tests/reframer_hunt_browser_playwright.mjs
+      - name: Preserve screenshots and QA
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reframer-hunt-v01-proposal-hold
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: warn
