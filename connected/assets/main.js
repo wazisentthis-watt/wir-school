@@ -32,7 +32,8 @@ import {GLOB,createGlob,formGlob,launchGlob,stepGlob,globRadius,carImpulse,foeIm
 import {VILLAINS,createVillainState,stepVillain,damageMul,echoWarnings,pullSpike,douseZone} from './villain_core.mjs';
 import {DRAW,createDraw,stepDraw} from './metal_draw_core.mjs'; // PROPOSAL / HOLD
 import {COMBOS,createCombos,feed} from './power_combo_core.mjs';
-import {RF,createReframers,wake,hit,rescue,step} from './reframer_core.mjs';
+import {RF,createReframers,wake,hit,rescue,step,loseReframerTarget} from './reframer_core.mjs';
+import {HUNT,createReframerHunt,stepReframerHunt,hitReframerArm,reframerHuntSnapshot} from './reframer_hunt_core.mjs';
 import {MetalForgeController,FORGE_COST,FORGE_REFUND} from './metal_forge_controller.js';
 import {selectForgePose} from './metal_forge_choreography.mjs';
 import {ForgePerformanceOverlay} from './metal_forge_performance.js';
@@ -57,6 +58,7 @@ const MISSION05=new URLSearchParams(location.search).get('mission05')==='1'; // 
 const AERIAL_DUEL_PILOT=new URLSearchParams(location.search).get('aerial_duel')==='1'&&!MISSION05;
 // Asset IK probe is opt-in and never runs during Mission 05 or the ordinary Savannah loop.
 const REFRAMER_IK_PROBE=AERIAL_DUEL_PILOT&&new URLSearchParams(location.search).get('reframer_ik')==='1';
+const REFRAMER_HUNT=new URLSearchParams(location.search).get('reframer_hunt')==='1'&&!MISSION05&&!AERIAL_DUEL_PILOT; // original ReFramer bodies; optional search/tether
 const TEST_YARD_SKATE=new URLSearchParams(location.search).get('skate_yard')==='1'||MISSION05;
 const REAL_SKATE=new URLSearchParams(location.search).get('real_skate')!=='0'&&!MISSION05; // ON by default since 2026-11-06 (RB1); ?real_skate=0 restores the old skate + box kickers
 const METAL_POWER_LAB=new URLSearchParams(location.search).get('metal_abilities')==='1'&&!MISSION05&&!AERIAL_DUEL_PILOT; // strictly opt-in training / HOLD
@@ -1085,7 +1087,8 @@ function comboFeed(type){const c=feed(CMB,type,performance.now()/1000);if(!c)ret
  CMB.last=c;return c;}
 
 // ---------- REFRAMERS (from ReFramer Rush): wake on rooftops, take a real car apart, rebuild it into a Roadframe ----------
-const RFR={W:null,mesh:null,arms:[],scan:null,car:null,wheels:[],wheelHome:[],said:{},t:0};
+const RFR={W:null,mesh:null,arms:[],scan:null,car:null,wheels:[],wheelHome:[],said:{},t:0,
+ hunt:null,escapeButton:null,escapeTouch:false,escapePadPrev:false};
 function reframerInit(){if(RFR.W||!colliders.length)return;
  const tall=colliders.filter(b=>b.max.y>7&&b.max.y<40).map(b=>({x:(b.min.x+b.max.x)/2,y:b.max.y,z:(b.min.z+b.max.z)/2}));
  const pick=[];for(const sp of [SPOTS.home,SPOTS.skate,SPOTS.field,SPOTS.fight,SPOTS.forge]){if(!sp||!sp.c)continue;let best=null,bd=1e9;for(const t of tall){const d=Math.hypot(t.x-sp.c.x,t.z-sp.c.z);if(d>25&&d<bd&&!pick.includes(t)){bd=d;best=t;}}if(best)pick.push(best);}
@@ -1095,7 +1098,18 @@ function reframerInit(){if(RFR.W||!colliders.length)return;
  for(let i=0;i<8;i++){const a=new THREE.Group();const s1=new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,1,6),gm),s2=new THREE.Mesh(new THREE.CylinderGeometry(.05,.07,1,6),gm),cl=new THREE.Mesh(new THREE.ConeGeometry(.12,.3,5),em);
   s1.castShadow=s2.castShadow=true;a.add(s1,s2,cl);scene.add(a);RFR.arms.push({g:a,s1,s2,cl,ang:i/8*Math.PI*2});}
  RFR.scan=new THREE.Mesh(new THREE.ConeGeometry(2.6,3.2,24,1,true),new THREE.MeshBasicMaterial({color:0xff7a2a,transparent:true,opacity:.18,side:THREE.DoubleSide,depthWrite:false}));scene.add(RFR.scan);
- g.visible=false;for(const a of RFR.arms)a.g.visible=false;RFR.scan.visible=false;scene.add(g);RFR.mesh=g;}
+ g.visible=false;for(const a of RFR.arms)a.g.visible=false;RFR.scan.visible=false;scene.add(g);RFR.mesh=g;
+ if(REFRAMER_HUNT){
+  RFR.hunt=createReframerHunt();
+  const btn=document.createElement('button');btn.id='reframerBreakFree';btn.type='button';
+  btn.textContent='BREAK FREE · E / A';btn.setAttribute('aria-label','Struggle free of ReFramer tentacle');
+  btn.classList.add('wir-keep');btn.hidden=true;
+  btn.style.cssText='position:fixed;bottom:calc(92px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:65;touch-action:manipulation;border-radius:14px;padding:13px 18px;background:#822b32;color:#fff;border:2px solid #f3ae9d;font:bold 13px system-ui';
+  btn.addEventListener('click',()=>{RFR.escapeTouch=true;});document.body.append(btn);RFR.escapeButton=btn;
+  if(window.__game)window.__game.reframerHunt=()=>({enabled:true,active:!!RFR.W?.enc,stage:RFR.W?.enc?.stage??'idle',
+    ...reframerHuntSnapshot(RFR.hunt),stats:{...RFR.W.stats}});
+ }
+}
 const _ra=new THREE.Vector3(),_rb=new THREE.Vector3(),_rc=new THREE.Vector3(),_rup=new THREE.Vector3(0,1,0);
 function limb(m,a,b){const d=_rc.copy(b).sub(a),L=d.length();m.position.copy(a).addScaledVector(d,.5);m.scale.set(1,L,1);m.quaternion.setFromUnitVectors(_rup,d.normalize());}
 function reframerSay(k,title,sub){if(RFR.said[k])return;RFR.said[k]=true;whisper(title,sub);if(HELP.on)toast(title);}
@@ -1109,10 +1123,12 @@ function reframerEnd(r){const car=RFR.car;
  }else if(car){for(let k=0;k<RFR.wheels.length;k++){const w=RFR.wheels[k];if(w){car.add(w);w.position.copy(RFR.wheelHome[k].p);w.quaternion.copy(RFR.wheelHome[k].q);}}car.userData.reframed=false;car.position.y=.05;car.rotation.x=car.rotation.z=0;car.userData.spd=car.userData.spd0||car.userData.spd;}
  if(r.residue){st.gal=Math.min(1,st.gal+r.residue);}
  st.comboPend+=3;whisper(r.outcome==='aborted'?'REFRAMER FLED':r.outcome==='clean'?'REFRAMER DOWN — car saved':r.outcome==='roadframeDown'?'ROADFRAME DOWN — salvage the scrap':'ROADFRAME GOT AWAY','');if(HELP.on)toast('ReFramer: '+r.outcome);
- RFR.car=null;RFR.wheels=[];RFR.mesh.visible=false;for(const a of RFR.arms)a.g.visible=false;RFR.scan.visible=false;RFR.said={};}
+ RFR.car=null;RFR.wheels=[];RFR.mesh.visible=false;for(const a of RFR.arms)a.g.visible=false;RFR.scan.visible=false;RFR.said={};
+ if(RFR.escapeButton)RFR.escapeButton.hidden=true;
+ RFR.hunt=REFRAMER_HUNT?createReframerHunt():null;RFR.escapeTouch=false;RFR.escapePadPrev=false;}
 function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=RFR.W,p=P.o.position;
  if(!W.enc){const donors=cars.filter(c=>!c.userData.worldBody&&c!==heldCar&&!c.userData.reframed).map(c=>({id:c.uuid,x:c.position.x,z:c.position.z,occupied:!c.userData.occupantExited,c}));
-  const E=wake(W,{x:p.x,z:p.z},donors);if(E){RFR.car=donors.find(d=>d.id===E.donor).c;const u=RFR.car.userData;u.reframed=true;u.spd0=u.spd;u.spd=0;RFR.mesh.visible=true;
+  const E=wake(W,{x:p.x,z:p.z},donors);if(E){if(REFRAMER_HUNT)RFR.hunt=createReframerHunt();RFR.car=donors.find(d=>d.id===E.donor).c;const u=RFR.car.userData;u.reframed=true;u.spd0=u.spd;u.spd=0;RFR.mesh.visible=true;if(REFRAMER_HUNT)RFR.mesh.scale.setScalar(1.45); // original disc-like machine is taller beside cars
    RFR.wheels=[];RFR.wheelHome=[];RFR.car.traverse(o=>{if(/wheel/i.test(o.name)&&o.parent&&!RFR.wheels.includes(o)){RFR.wheels.push(o);RFR.wheelHome.push({p:o.position.clone(),q:o.quaternion.clone()});}});
    reframerSay('wake','REFRAMER WAKING','it\'s dropping on a car — hit the scan to jam it');beep(120,.3,'sawtooth',.04);}
   return;}
