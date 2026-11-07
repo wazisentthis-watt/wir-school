@@ -11,7 +11,7 @@ const validPoint=p=>p&&sane(p.x)&&sane(p.z)&&Math.abs(p.x)<280&&Math.abs(p.z)<28
 const fail=reason=>({ok:false,reason,spentGal:0,returnedGal:0});
 
 export function makePowerLab(data=null){
- const s={version:1,stage:0,scrap:0,collected:[],supportIntegrity:.35,structures:[],builtOnce:false,
+ const s={version:1,stage:0,scrap:0,collected:[],supportIntegrity:.35,structures:[],builtOnce:false,galLost:0,
   focus:1,clock:0,cooldownStep:0,cooldownScan:0,lastAction:null,nextId:1};
  if(data&&data.version===POWER_LAB_VERSION){
   const ids=Array.isArray(data.collected)?data.collected.filter(x=>POWER_LAB_PICKUP_IDS.includes(x)).slice(0,5):[];
@@ -33,12 +33,13 @@ export function makePowerLab(data=null){
   s.nextId=Math.max(1,...s.structures.map(o=>o.id+1));
   s.scrap=clamp(Number.isInteger(data.scrap)?data.scrap:0,0,POWER_LAB_PICKUP_IDS.length);
   s.focus=clamp(sane(data.focus)?data.focus:1,0,1);
+  s.galLost=clamp(sane(data.galLost)?data.galLost:0,0,1);
   // Timer clock and cooldowns never persist: no time manipulation on reload.
  }
  return s;
 }
 export function powerLabSave(s){
- return {version:1,stage:s.stage,scrap:s.scrap,collected:[...s.collected],builtOnce:s.builtOnce,
+ return {version:1,stage:s.stage,scrap:s.scrap,collected:[...s.collected],builtOnce:s.builtOnce,galLost:s.galLost,
   supportIntegrity:s.supportIntegrity,structures:s.structures.map(o=>({
    id:o.id,type:o.type,pos:{...o.pos},integrity:o.integrity,spentGal:o.spentGal
   })),focus:s.focus};
@@ -46,7 +47,7 @@ export function powerLabSave(s){
 export function powerLabSnapshot(s){
  return {stage:s.stage,stageTitle:['Find two pieces of safe salvage','Reinforce the failing support',
    'Construct a physical Gallium panel','Master Snap Step','Morrow district training complete'][s.stage],
-  scrap:s.scrap,collected:[...s.collected],builtOnce:s.builtOnce,supportIntegrity:s.supportIntegrity,
+  scrap:s.scrap,collected:[...s.collected],builtOnce:s.builtOnce,galLost:s.galLost,supportIntegrity:s.supportIntegrity,
   structures:s.structures.map(o=>({...o,pos:{...o.pos}})),
   focus:s.focus,clock:s.clock,cooldownStep:s.cooldownStep,cooldownScan:s.cooldownScan,
   lastAction:s.lastAction,unlocks:{
@@ -94,6 +95,7 @@ export function applyPowerLab(s,action,opts={}){
   }else{
    item=s.structures.find(x=>x.id===id);item.integrity=clamp(item.integrity+.6,0,1);
   }
+  s.galLost=clamp(s.galLost+POWER_LAB_COST.reinforce,0,1);
   s.lastAction='reinforce';return {ok:true,action,spentGal:POWER_LAB_COST.reinforce,returnedGal:0,id};
  }
  if(action==='build'){
@@ -123,9 +125,11 @@ export function applyPowerLab(s,action,opts={}){
   if(idx<0)return fail('no-structure');
   if(!near(distance))return fail('too-far');
   const obj=s.structures.splice(idx,1)[0];
+  const recovered=obj.spentGal*.8*obj.integrity;
+  s.galLost=clamp(s.galLost+obj.spentGal-recovered,0,1);
   s.lastAction='reclaim';
   // Physical material is lost on damage; 80% of surviving matter returns.
-  return {ok:true,action,spentGal:0,returnedGal:obj.spentGal*.8*obj.integrity,id};
+  return {ok:true,action,spentGal:0,returnedGal:recovered,id};
  }
  if(action==='snap-step'){
   if(s.stage<3)return fail('not-unlocked');
