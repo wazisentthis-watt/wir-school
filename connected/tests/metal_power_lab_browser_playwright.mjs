@@ -79,6 +79,16 @@ try{
    state=await page.evaluate(()=>window.__game.metalPowerLab());
    assert.equal(state.stage,2,'Physically local reinforcement failed');
    assert.ok(state.supportIntegrity>=.8);
+   // Newly unlocked protective armor must consume real material once.
+   const galBeforeArmor=await page.evaluate(()=>window.__game.st.gal);
+   await page.locator('button[data-ability="armor"]').click();
+   state=await page.evaluate(()=>window.__game.metalPowerLab());
+   assert.equal(state.armor.active,true,'Physical player-root armor did not activate');
+   assert.ok(state.armor.capacity>0,'Armor has no combat absorption capacity');
+   assert.ok((await page.evaluate(()=>window.__game.st.gal))<galBeforeArmor);
+   const repeatGal=await page.evaluate(()=>window.__game.st.gal);
+   await page.locator('button[data-ability="armor"]').click();
+   assert.equal(await page.evaluate(()=>window.__game.st.gal),repeatGal,'Double armor activation drained twice');
    // Move into the open plaza, where the nearest forward placement is unoccupied.
    const candidates=[[0,0],[-6,8],[10,-6],[-9,-7]];
    let built=false;
