@@ -8,7 +8,8 @@
 
 export const RF = {
   DUR: { drop: 0.7, read: 2.4, anchor: 2.6, release: 2.4, reframe: 3.6, stagger: 2.4, stun: 3.0 },
-  WAKE: 55, NEST_COOL: 25, JAMS_TO_ABORT: 2, TIP_HITS: 2, ROAD_HP: 1, ROAD_SPEED: 7.5, RAM_DMG: 0.16, RAM_CD: 1.6,
+  // city-wide: a ReFramer wakes from any cool nest within WAKE; the audible cue is loudest within SIGNAL_R
+  WAKE: 300, SIGNAL_R: 75, DONOR_R: 40, NEST_COOL: 25, JAMS_TO_ABORT: 2, TIP_HITS: 2, ROAD_HP: 1, ROAD_SPEED: 7.5, RAM_DMG: 0.16, RAM_CD: 1.6,
   RESIDUE: 0.35,
 };
 
@@ -24,7 +25,7 @@ export function wake(W, metal, donors) {
   for (const n of W.nests) { if (n.cool > 0) continue; const d = Math.hypot(n.x - metal.x, n.z - metal.z); if (d < RF.WAKE && d < bd) { bd = d; nest = n; } }
   if (!nest) return null;
   let donor = null, best = 1e9;
-  for (const c of donors) { const d = Math.hypot(c.x - nest.x, c.z - nest.z); if (d < 40 && d < best) { best = d; donor = c; } }
+  for (const c of donors) { const d = Math.hypot(c.x - nest.x, c.z - nest.z); if (d < RF.DONOR_R && d < best) { best = d; donor = c; } }
   if (!donor) { nest.cool = 8; return null; }
   W.stats.encounters++;
   W.enc = { id: 'E' + W.stats.encounters, nest, donor: donor.id, stage: 'drop', t: 0, jams: 0, tipHits: 0, occupied: !!donor.occupied, rescued: false,

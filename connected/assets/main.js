@@ -1381,8 +1381,8 @@ function mariTick(dt){mariInit();if(!MARI.o)return;const o=MARI.o.o,p=P.o.positi
 // ---------- THE REFRAMER SIGNAL (idea 30): you hear them before you see them ----------
 const RSIG={t:0,beat:0};
 function reframerSignal(dt){const W=RFR.W;if(!W||W.enc||!P){RSIG.t=0;return true;}const p=P.o.position;let best=1e9;for(const n of W.nests)if(n.cool<=0){const d=Math.hypot(n.x-p.x,n.z-p.z);if(d<best)best=d;}
- if(best>75){RSIG.t=0;return false;}
- RSIG.t+=dt;RSIG.beat-=dt;if(RSIG.beat<=0){RSIG.beat=.42;const v=.012+.03*Math.max(0,1-best/75);const k=Math.floor(RSIG.t/.42)%4;beep([82,82,110,164][k],k===3?.14:.06,k===3?'sawtooth':'square',v);}
+ if(best>RF.WAKE){RSIG.t=0;return false;}
+ RSIG.t+=dt;RSIG.beat-=dt;if(RSIG.beat<=0){RSIG.beat=.42;const v=.012+.03*Math.max(0,1-best/RF.SIGNAL_R);const k=Math.floor(RSIG.t/.42)%4;beep([82,82,110,164][k],k===3?.14:.06,k===3?'sawtooth':'square',v);}
  return RSIG.t>=3.2&&best<RF.WAKE;} // three bars of the machine rhythm before it drops
 
 
