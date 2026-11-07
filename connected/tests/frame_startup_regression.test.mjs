@@ -18,7 +18,7 @@ test('3D game main module parses before mission load',()=>{
 });
 test('one gamepad poll, movement vector, physics step and Morrow update per frame',()=>{
  assert.ok(frame,'Metal frame update source block not found');
- assert.equal(count(/const pad=pollPad\(\);/g),1,'duplicate const pad halts ES-module evaluation');
+ assert.equal(count(/const pad=pollPad\(dt\);/g),1,'one dt-aware gamepad poll per frame; duplicate pad declarations halt module evaluation');
  assert.equal(count(/\blet ix=/g),1,'duplicate movement declaration halts ES-module evaluation');
  assert.equal(count(/updateMorrow\(dt\);/g),1,'Morrow AI should advance once each frame');
  assert.equal(count(/bodyMachine\.step\(dt,0,true\);/g),1,'impact/balance machine should advance once');

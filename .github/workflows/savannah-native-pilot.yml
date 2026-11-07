@@ -1,0 +1,68 @@
+name: Savannah native pilot (proposal hold)
+on:
+  pull_request:
+    paths:
+      - 'connected/index.html'
+      - 'connected/assets/savannah_native_*'
+      - 'connected/tests/savannah_native_*'
+      - 'connected/assets/metal_visual_*'
+      - 'connected/tests/metal_visual_*'
+      - 'connected/assets/metal_native_beast_adapter.js'
+      - 'connected/assets/metal_native_beast_core.mjs'
+      - 'connected/SAVANNAH_NATIVE_PILOT.md'
+      - '.github/workflows/savannah-native-pilot.yml'
+  workflow_dispatch:
+jobs:
+  native-core:
+    name: Native Savannah logic and syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Opt-in native adapter syntax
+        run: |
+          node --check connected/assets/savannah_native_bridge.js
+          node --check connected/assets/savannah_native_core.mjs
+          node --check connected/tests/savannah_native_browser_qa.mjs
+          node --check connected/assets/metal_native_beast_adapter.js
+          node --check connected/assets/metal_native_beast_core.mjs
+          node --check connected/tests/metal_native_beast_browser_qa.mjs
+          node --check connected/assets/metal_visual_evolution.js
+          node --check connected/assets/metal_visual_rules.mjs
+          node --check connected/tests/metal_visual_browser_qa.mjs
+      - name: Native mission behavior
+        run: node --test connected/tests/savannah_native_core.test.mjs connected/tests/savannah_campaign_expansion.test.mjs connected/tests/metal_native_beast_core.test.mjs connected/tests/metal_visual_rules.test.mjs
+  native-browser:
+    name: Connected + native Savannah desktop smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    needs: native-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated Chromium runner
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Host existing Connected + opt-in module
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/savannah-native.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:8765/connected/ > /dev/null
+      - name: Validate actual shared 3D scene and unchanged saves
+        run: |
+          node connected/tests/savannah_native_browser_qa.mjs
+          node connected/tests/metal_native_beast_browser_qa.mjs
+          node connected/tests/metal_visual_browser_qa.mjs
+      - name: Keep visual review screenshot, no canon art replacement
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metal-build04-visual-evidence
+          path: test-results/native-metal-build04-*.png
+          retention-days: 7
+          if-no-files-found: ignore

@@ -60,7 +60,8 @@ test('recoverable startup has UI boot script before module, keeps its main asset
 
 test('rigless fallback never dereferences a missing current animation clip',()=>{
  const main=read('../assets/main.js');
- assert.match(main,/if\(actT<=0&&\(!P\.cur\|\|P\.cur\.loop!==THREE\.LoopOnce/);
+ assert.match(main,/const forgePoseActive=GAL_FORGE_ENABLED&&forgeController\?\.busy/,'Phase 2 must explicitly guard forge animations');
+ assert.match(main,/if\(!forgePoseActive&&actT<=0&&\(!P\.cur\|\|P\.cur\.loop!==THREE\.LoopOnce/,'Original missing clip fallback remains in place');
  assert.match(main,/ch\.feet\.length\?Math\.min/);
  assert.match(main,/if\(!P\.feet\.length\)return/);
 });

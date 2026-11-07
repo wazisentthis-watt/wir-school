@@ -1,0 +1,72 @@
+{
+  "status": "intake-only, NOT imported or licensed",
+  "date": "2026-11-04",
+  "source": "user-uploaded",
+  "purpose": "future METAL combat clips; not forging",
+  "files": [
+    {
+      "name": "Armada To Esquiva.fbx",
+      "bytes": 723824,
+      "sha256": "aef3d10eb41a82eaea38d3fe8eb0fde618a7e398e88342e46331eeee05c406d2",
+      "apparentMixamoBoneNameCount": 66,
+      "commercialUseLicenseVerified": false,
+      "retargetTested": false
+    },
+    {
+      "name": "Bencao.fbx",
+      "bytes": 417392,
+      "sha256": "614c4818b27f6df38ab65515292a8f7a0655cb48a9537cef84dbf03e80c1fd52",
+      "apparentMixamoBoneNameCount": 66,
+      "commercialUseLicenseVerified": false,
+      "retargetTested": false
+    },
+    {
+      "name": "Chapa-Giratoria.fbx",
+      "bytes": 603456,
+      "sha256": "2aa9eeee3d2781d6ddf27ed86b19a06f3ccaf7167f23388971dae421e93b4ea2",
+      "apparentMixamoBoneNameCount": 66,
+      "commercialUseLicenseVerified": false,
+      "retargetTested": false
+    },
+    {
+      "name": "Flying Kick.fbx",
+      "bytes": 435872,
+      "sha256": "820105ed364760568a7d4aac91873f8b9dbbfa7a6fa396786899dd8add1bc048",
+      "apparentMixamoBoneNameCount": 66,
+      "commercialUseLicenseVerified": false,
+      "retargetTested": false
+    },
+    {
+      "name": "Leg Sweep.fbx",
+      "bytes": 587504,
+      "sha256": "cd454f7b1830686ce225c50cb86c489ef0e12422ae4c63e265a1d81268959f5e",
+      "apparentMixamoBoneNameCount": 66,
+      "commercialUseLicenseVerified": false,
+      "retargetTested": false
+    },
+    {
+      "name": "Martelo 2.fbx",
+      "bytes": 409840,
+      "sha256": "6f9323c4bcfaf1a907ce66514a905b4e8ac06df2c4e069baacfe2e3f71b3d645",
+      "apparentMixamoBoneNameCount": 66,
+      "commercialUseLicenseVerified": false,
+      "retargetTested": false
+    },
+    {
+      "name": "Martelo Do Chau.fbx",
+      "bytes": 607088,
+      "sha256": "06c30e726321725e8cc63a7f47c210e35b054d935e0f8921f015af02441889d4",
+      "apparentMixamoBoneNameCount": 66,
+      "commercialUseLicenseVerified": false,
+      "retargetTested": false
+    },
+    {
+      "name": "Meia Lua De Compasso Back.fbx",
+      "bytes": 511888,
+      "sha256": "abbd80b77ee1789c05c0273e156dcc40fcfd335cafd1aaf497b2455e1d8fbec5",
+      "apparentMixamoBoneNameCount": 66,
+      "commercialUseLicenseVerified": false,
+      "retargetTested": false
+    }
+  ]
+}

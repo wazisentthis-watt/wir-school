@@ -1,0 +1,63 @@
+name: WIR ReFramer Uploaded Asset IK / BVH Pilot QA (HOLD)
+on:
+  push:
+    paths:
+      - 'connected/assets/reframer_*'
+      - 'connected/assets/main.js'
+      - 'connected/assets/lib/addons/animation/CCDIKSolver.js'
+      - 'connected/tests/reframer_asset_ik*'
+      - 'connected/labs/reframer-asset-ik-pilot/**'
+      - '.github/workflows/reframer-asset-ik-bvh-qa.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/reframer_*'
+      - 'connected/assets/main.js'
+      - 'connected/assets/lib/addons/animation/CCDIKSolver.js'
+      - 'connected/tests/reframer_asset_ik*'
+      - 'connected/labs/reframer-asset-ik-pilot/**'
+      - '.github/workflows/reframer-asset-ik-bvh-qa.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Source, IK and original physics regression
+        run: |
+          node --check connected/assets/main.js
+          node --check connected/assets/reframer_asset_ik_pilot.mjs
+          node --check connected/assets/lib/addons/animation/CCDIKSolver.js
+          node --check connected/tests/reframer_asset_ik_browser_playwright.mjs
+          node --test connected/tests/reframer_asset_ik.test.mjs
+          node --test connected/tests/physics_analysis.test.mjs
+      - name: Install test runner and pinned BVH from upstream MIT source package
+        run: |
+          npm install --no-save --no-audit --no-fund playwright esbuild three-mesh-bvh@0.9.18
+          npx playwright install --with-deps chromium
+      - name: Build temporary BVH ESM only for opt-in private test
+        run: |
+          mkdir -p connected/assets/experimental
+          ./node_modules/.bin/esbuild ./node_modules/three-mesh-bvh/src/index.js --bundle --format=esm --external:three --outfile=connected/assets/experimental/three-mesh-bvh.module.js
+          test -s connected/assets/experimental/three-mesh-bvh.module.js
+      - name: Local source server (not GitHub Pages)
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/wir-asset-ik.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:8765/connected/ >/dev/null
+      - name: Actual real 3D target rig + sampled user motion + CCDIK and collision parity
+        env:
+          WIR_BASE: http://127.0.0.1:8765
+        run: node connected/tests/reframer_asset_ik_browser_playwright.mjs
+      - name: Preserve screenshots and quantitative physics comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reframer-asset-ik-bvh-qa
+          path: test-results/
+          retention-days: 10
+          if-no-files-found: warn

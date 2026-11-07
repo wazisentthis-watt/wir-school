@@ -6,6 +6,8 @@ import {inspectRig} from '../assets/rig_diagnostics.js';
 import {inspectPrivateGLB} from './local_glb_guard.mjs';
 import {createGorilliumState,setGorilliumForm,castGorilliumAbility,
  stepGorillium,gorilliumStatus} from '../assets/gorillium_ability_core.js';
+import {verifyOriginalGorillium,mapGorilliumCast,GORILLIUM_CAST_CLIPS,
+ GORILLIUM_TIP_BONES} from './authentic_clip_bridge.mjs';
 
 const get=id=>document.getElementById(id);
 const stage=get('stage'),report=get('report'),msg=get('status'),sourceLabel=get('stageLabel');
@@ -28,6 +30,7 @@ try{
 }catch(e){msg.textContent='WebGL unavailable: '+String(e.message||e);}
 const state={source:null,gltf:null,rig:null,sha256:null,identityVerified:false,
  skinBones:[],mapped:[],neutral:[],game:null,mixer:null,activeEvent:null,
+ originalValidation:null,originalClip:null,originalClipEnd:0,lastOriginalClip:null,
  renderReady:!!renderer,loadError:null};
 const loader=new GLTFLoader();
 const tour={playing:false,index:0,elapsed:0};
@@ -56,7 +59,10 @@ function playEmbeddedClip(index,{tourStep=false}={}){
  return true;
 }
 const setStatus=s=>{msg.textContent=s;};
-const setActions=active=>{button('lash').disabled=!active;button('tether').disabled=!active;};
+const setActions=active=>{
+ for(const id of ['lash','tether','shield','barrage','slam','cataclysm'])
+  button(id).disabled=!active||(id!=='lash'&&id!=='tether'&&!state.originalValidation?.compatible);
+};
 function clearModel(){
  tour.playing=false;tour.index=0;tour.elapsed=0;
  clipPicker.replaceChildren();clipPicker.disabled=true;
@@ -75,7 +81,9 @@ function activeJointBones(root){
 }
 function buildMapOptions(){
  const wrap=get('limbMap');wrap.textContent='';
- const candidates=state.skinBones.filter(b=>/(?:tentacle|octo|appendage|sucker)/i.test(b.name));
+ const candidates=state.originalValidation?.compatible
+  ?GORILLIUM_TIP_BONES.map(name=>state.skinBones.find(b=>b.name===name)).filter(Boolean)
+  :state.skinBones.filter(b=>/(?:tentacle|octo|appendage|sucker)/i.test(b.name));
  for(let limb=0;limb<8;limb++){
   const label=document.createElement('label');label.textContent='Limb '+(limb+1);
   const sel=document.createElement('select');sel.dataset.limb=String(limb);
@@ -96,6 +104,8 @@ function showRig(){
  report.textContent=JSON.stringify({
   localLoadSafety:state.sourceScan||null,
   source:state.source,identityVerified:false,sha256:state.sha256,
+  exactAssetStructuralMatch:state.originalValidation?.compatible||false,
+  exactAssetIssues:state.originalValidation?.issues||[],
   skinJoints:state.skinBones.length,bones:state.rig.bones.length,skins:state.rig.skins.length,
   skinned:state.rig.hasSkinnedMesh,clips:state.rig.clips.map(c=>({name:c.name,duration:c.duration,tracks:c.tracks})),
   mapped:state.rig.mapped,
@@ -142,6 +152,9 @@ async function loadParsedGLB(bytes,{source,name}){
   ?'Selected original candidate: '+name+' · Provenance unverified'
   :'Live Metal S1 comparison rig. NOT a Gorillium model.';
  showRig();buildMapOptions();
+ get('authenticStatus').textContent=state.originalValidation.compatible
+  ?'EXACT ORIGINAL BINARY + 31 CLIPS + 70 SKIN JOINTS MATCH. Select eight actual terminal joints, then validate. Provenance/rights still require owner review.'
+  :'Not the verified original Gorillium rig ('+state.originalValidation.issues.join(', ')+'). Only compatibility inspection is available.';
  setStatus(source==='device-glb'
   ?'Candidate decoded. Verify bones, then bind eight real tentacle joints.'
   :'Baseline inspected. This is Metal S1, NOT Gorillium; attack mapping disabled.');
@@ -181,6 +194,9 @@ function bind(){
   return {ok:false,reason:'eight-distinct-real-joints-required'};
  const byId=new Map(state.skinBones.map(b=>[b.uuid,b]));
  if(ids.some(id=>!byId.has(id)))return {ok:false,reason:'not-skinned-joint'};
+ if(state.originalValidation?.compatible&&
+   ids.some((id,i)=>byId.get(id).name!==GORILLIUM_TIP_BONES[i]))
+  return {ok:false,reason:'terminal-joints-must-match-eight-original-chains'};
  state.mapped=ids.map(id=>byId.get(id));
  state.neutral=state.mapped.map(b=>b.quaternion.clone());
  state.game=createGorilliumState();setGorilliumForm(state.game,true);
@@ -194,18 +210,67 @@ button('bind').addEventListener('click',()=>{
 });
 function cast(move){
  if(state.mapped.length!==8||state.source!=='device-glb')
-  return {ok:false,reason:'authentic-model-binding-required'};
+  return {ok:false,reason:'real-model-binding-required'};
+ const authentic=state.originalValidation?.compatible===true;
+ if(state.activeEvent)return {ok:false,reason:'preview-action-busy'};
+ if(!authentic&&!['tentacle-lash','galaxy-tether'].includes(move))
+  return {ok:false,reason:'exact-original-rig-required'};
+ let clip=null;
+ if(authentic){
+  const name=GORILLIUM_CAST_CLIPS[move];
+  clip=state.gltf?.animations.find(c=>c.name===name);
+  if(!clip||!state.mixer)return {ok:false,reason:'original-animation-clip-missing'};
+ }
  const result=castGorilliumAbility(state.game,move,{
   source:{x:0,y:0,z:0},target:{id:'qa-target',x:2,y:0,z:0}});
  if(!result.ok){setStatus('Cast blocked: '+result.reason);return result;}
+ if(authentic){
+  const mapped=mapGorilliumCast(result.event,state.originalValidation);
+  if(!mapped.ok)throw Error('Source validation drift after preflight: '+mapped.reason);
+  tour.playing=false;
+  state.mixer.stopAllAction();
+  const action=state.mixer.clipAction(clip);
+  action.reset().setLoop(THREE.LoopOnce,1).play();
+  action.clampWhenFinished=true;
+  state.originalClip=mapped.clip;
+  state.lastOriginalClip=mapped.clip;
+  state.originalClipEnd=state.game.clock+Math.max(result.event.holdSeconds,clip.duration);
+  setStatus(move+' → ORIGINAL GLB CLIP '+mapped.clip+'. No combat hits/damage asserted.');
+ }else{
+  state.originalClip=null;
+  state.originalClipEnd=state.game.clock+result.event.holdSeconds;
+  setStatus('COMPATIBILITY FIXTURE: '+move+' pose on real S1 bones, not a Gorillium animation.');
+ }
  state.activeEvent=result.event;
- setStatus(move+' visual pose event on actual bound bones. No enemy hit/damage is claimed.');
  return result;
 }
 button('lash').addEventListener('click',()=>cast('tentacle-lash'));
 button('tether').addEventListener('click',()=>cast('galaxy-tether'));
+button('shield').addEventListener('click',()=>cast('octo-shield'));
+button('barrage').addEventListener('click',()=>cast('crystal-barrage'));
+button('slam').addEventListener('click',()=>cast('pressure-slam'));
+button('cataclysm').addEventListener('click',()=>cast('cataclysm'));
+document.addEventListener('keydown',event=>{
+ if(event.repeat||event.altKey||event.ctrlKey||event.metaKey)return;
+ if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;
+ const moves=['tentacle-lash','galaxy-tether','octo-shield','crystal-barrage','pressure-slam','cataclysm'];
+ const idx=Number(event.key)-1;
+ if(Number.isInteger(idx)&&idx>=0&&idx<6&&!button(['lash','tether','shield','barrage','slam','cataclysm'][idx]).disabled)
+  cast(moves[idx]);
+});
 function updatePose(){
  if(!state.game||state.mapped.length!==8)return;
+ if(state.originalValidation?.compatible){
+  if(state.activeEvent&&state.game.clock>=state.originalClipEnd){
+   state.mixer?.stopAllAction();
+   const idle=state.gltf?.animations.find(c=>c.name==='Idle_Gallium_Breath');
+   if(idle)state.mixer?.clipAction(idle).reset().setLoop(THREE.LoopRepeat,Infinity).play();
+   state.activeEvent=null;state.originalClip=null;
+  }
+  const info=gorilliumStatus(state.game);
+  get('counter').textContent='Charge: '+(info.charge*100).toFixed(1)+'% | Free limbs: '+info.freeLimbs+'/8';
+  return;
+ }
  const evt=state.activeEvent;
  const duration=evt?Math.max(.001,evt.holdSeconds):1;
  const progress=evt?Math.min(1,(state.game.clock-evt.at)/duration):1;
@@ -269,6 +334,11 @@ window.__gorilliumLab={ready:!!renderer,loadBaseline,bind,cast,
   clipCount:state.rig?.clips?.length??null,
   selectedClip:state.gltf?.animations?.[Number(clipPicker.value)]?.name||null,
   clipTourPlaying:tour.playing,
+  originalCompatible:state.originalValidation?.compatible||false,
+  originalIssues:state.originalValidation?.issues||[],
+  activeOriginalClip:state.originalClip,
+  lastOriginalClip:state.lastOriginalClip,
+  sixOriginalMovesReady:state.originalValidation?.compatible===true&&state.mapped.length===8,
   exactUploadedRigHash:state.sha256==='8495a8c5e727bf64244a1235e58fb655c4c4cae91ac46e18206e668ae154cd81',
   boneCount:state.rig?.bones?.length??null,
   skinJointCount:state.skinBones.length,boundCount:state.mapped.length,

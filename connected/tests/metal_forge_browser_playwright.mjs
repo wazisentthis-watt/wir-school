@@ -1,0 +1,73 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+import {mkdirSync,writeFileSync} from 'node:fs';
+const base=process.env.METAL_BOOT_BASE||'http://127.0.0.1:8765';
+mkdirSync('test-results',{recursive:true});
+const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--disable-features=Vulkan','--no-sandbox']});
+const ctx=await browser.newContext({viewport:{width:1200,height:800},deviceScaleFactor:1,serviceWorkers:'block'});
+const page=await ctx.newPage(),errors=[];
+page.on('pageerror',e=>errors.push(String(e.stack||e)));
+const results=[];
+try{
+ await page.goto(base+'/connected/?lite=1',{waitUntil:'domcontentloaded',timeout:40000});
+ await page.waitForFunction(()=>window.__ready===true&&!!window.__game?.forge?.()||!!window.__bootRecovery?.getStatus?.().error,null,{timeout:65000});
+ const init=await page.evaluate(()=>({ready:window.__ready,boot:window.__bootRecovery?.getStatus?.(),board:window.__game?.board?.visible,flag:window.__game?.forge?.()?.state.phase,story:localStorage.getItem('wir_metal_story_v1'),profile:localStorage.getItem('wir_valence_profile_v1')}));
+ assert.equal(init.ready,true,JSON.stringify(init.boot));
+ assert.equal(init.board,false,'board cannot render on METAL chest/back while walking');
+ assert.equal(init.flag,'IDLE');results.push({case:'walking_no_board',pass:true});
+ const parts=await page.evaluate(()=>({wheels:window.__game.forge().parts.filter(p=>p.kind==='wheel').length,trucks:window.__game.forge().parts.filter(p=>p.kind==='truck').length,decks:window.__game.forge().parts.filter(p=>p.kind==='deck').length}));
+ assert.deepEqual(parts,{wheels:4,trucks:2,decks:1});results.push({case:'all_seven_parts_exist',pass:true});
+ await page.evaluate(()=>{const g=window.__game;g.P.o.position.set(175,.25,175);g.pressed.KeyB=true;});
+ await page.waitForFunction(()=>window.__game?.forge?.()?.state.phase!=='IDLE',null,{timeout:6000});
+ const start=await page.evaluate(()=>({phase:window.__game.forge().state.phase,st:window.__game.st.board,visible:window.__game.board.visible,gal:window.__game.st.gal}));
+ assert.equal(start.st,false,'forge may not skate before animation finishes');
+ assert.equal(start.visible,false,'real board must stay hidden until mounting');
+ results.push({case:'B_starts_forge',pass:true,phase:start.phase});
+ await page.waitForFunction(()=>{const f=window.__game?.forge?.();return f&&f.state.elapsed>=2.18&&f.state.elapsed<3.3;},null,{timeout:23000});
+ const assembly=await page.evaluate(()=>window.__game.forge().snapshot());
+ const performance=await page.evaluate(()=>window.__game.forgePerformance?.());
+ assert.ok(performance&&performance.appliedBones>0,'actual current METAL rig needs mapped upper-body bones during forge');
+ assert.ok(performance.roles.length>0,'no bones found on current METAL rig');
+ results.push({case:'original_procedural_character_reaches_during_forge',pass:true,phase:performance.phase,bones:performance.appliedBones,roles:performance.roles});
+ assert.ok(assembly.deck>.6,'deck must substantially form before wheels complete');
+ assert.equal(assembly.wheels,4);assert.equal(assembly.originalBoardVisible,false);
+ results.push({case:'rig_safe_staged_assembly',pass:true,deck:assembly.deck,trucks:assembly.truck,wheels:assembly.wheels});
+ await page.waitForFunction(()=>window.__game?.forge?.()?.state.phase==='SKATING'&&window.__game.st.board===true,null,{timeout:23000});
+ const built=await page.evaluate(()=>({phase:window.__game.forge().state.phase,board:window.__game.board.visible,st:window.__game.st.board,gal:window.__game.st.gal,errors:window.__errors||[],story:localStorage.getItem('wir_metal_story_v1'),profile:localStorage.getItem('wir_valence_profile_v1')}));
+ assert.equal(built.board,true);
+ assert.equal(built.st,true);
+ assert.equal(built.story,init.story,'forge mutated existing story key');
+ assert.equal(built.profile,init.profile,'forge mutated existing profile key');
+ assert.ok(built.gal<=start.gal+.00001,'forging created Gallium');
+ results.push({case:'original_GLTF_board_mounted_after_forge',pass:true,gal:built.gal});
+ await page.evaluate(()=>{window.__game.pressed.KeyB=true;});
+ await page.waitForFunction(()=>!window.__game.st.board&&window.__game.forge().state.phase==='DISSOLVING',null,{timeout:4000});
+ assert.equal(await page.evaluate(()=>window.__game.board.visible),false);
+ results.push({case:'B_dismount_no_board_carry',pass:true});
+ // Heavy software-WebGL frames can take multiple real seconds to simulate 0.55s of game time.
+ await page.waitForFunction(()=>window.__game.forge().state.phase==='IDLE',null,{timeout:15000});
+ assert.equal(errors.length,0,'runtime errors '+JSON.stringify(errors));
+ await page.screenshot({path:'test-results/metal_gallium_forge_chromium.png'});
+ // Explicit ?gal_forge=0 is a rollback switch for gameplay support without changing files or saves.
+ const fallback=await ctx.newPage();
+ fallback.on('pageerror',e=>errors.push(String(e.stack||e)));
+ await fallback.goto(base+'/connected/?lite=1&gal_forge=0',{waitUntil:'domcontentloaded',timeout:40000});
+ await fallback.waitForFunction(()=>window.__ready===true&&!!window.__game?.forge?.(),null,{timeout:65000});
+ assert.equal(await fallback.evaluate(()=>window.__game.board.visible),false,'never carry a skateboard even with forge disabled');
+ await fallback.evaluate(()=>{const g=window.__game;g.P.o.position.set(175,.25,175);g.pressed.KeyB=true;});
+ await fallback.waitForFunction(()=>window.__game.st.board===true,null,{timeout:7000});
+ assert.equal(await fallback.evaluate(()=>window.__game.forge().state.phase),'IDLE','explicit fallback must skip forge sequence');
+ await fallback.evaluate(()=>{window.__game.pressed.KeyB=true;});
+ await fallback.waitForFunction(()=>window.__game.st.board===false,null,{timeout:7000});
+ assert.equal(await fallback.evaluate(()=>window.__game.board.visible),false);
+ results.push({case:'fallback_parameter_reverses_to_instant_B_without_carried_board',pass:true});
+ await fallback.screenshot({path:'test-results/metal_gallium_forge_optout.png'});
+ await fallback.close();
+ console.log('METAL GALLIUM FORGE BROWSER QA PASS',JSON.stringify(results));
+}catch(e){
+ const diagnostic=await page.evaluate(()=>({ready:window.__ready,phase:window.__game?.forge?.()?.state?.phase,elapsed:window.__game?.forge?.()?.state?.elapsed,visible:window.__game?.board?.visible,skating:window.__game?.st?.board,gallium:window.__game?.st?.gal,gameErrors:window.__errors||[],boot:window.__bootRecovery?.getStatus?.()})).catch(err=>({captureError:String(err)}));
+ results.push({case:'error',pass:false,message:String(e.stack||e),diagnostic});
+ console.error('METAL GALLIUM FORGE BROWSER QA FAIL',JSON.stringify(results));
+ try{await page.screenshot({path:'test-results/metal_gallium_forge_failure.png'});}catch{}
+ process.exitCode=1;
+}finally{writeFileSync('test-results/metal_gallium_forge_browser.json',JSON.stringify({results,errors},null,2));await ctx.close();await browser.close();}

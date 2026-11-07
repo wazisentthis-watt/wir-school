@@ -10,3 +10,10 @@
 - Reference only (not shipped): Sparking! ZERO mods "Vigilance First Person Camera" (lock-on keeps the opponent in view, speed FOV kick) and "Aura Spark" (charge sparks idea)
 - Street crews (crew_female.glb + rival body reused): Quaternius Universal Base Characters [Standard] Superhero_Female/Male + UAL clips: CC0 1.0; outfits painted by an original shader
 - Reference only (not shipped): "Spider-Man Swinging Simulator" (Unity) swing tuning ideas (line pulled to 80% of shot length, FOV kick) and SwingTest v0.10 move list; no Spider-Man assets, names or fonts used
+
+## Real Skate Physics v0.1 (PROPOSAL / PUBLISH HOLD, `?real_skate=1`)
+- Skatepark layout adapted from the owner's METAL Test Yard 3D (profile/box heightfield ramps) — original WIR work, no third-party assets.
+- Physics code (real_skate_core / real_skate_ride / skate_yard_world) written for this repo; no external libraries.
+
+## Galaxy Gallium globs + Morrow villains v0.1 (PROPOSAL / PUBLISH HOLD)
+- Glob, crystal material, villain rules and effects written for this repo; no external assets. Villain names and episodes from the owner's Metal InDa RIFFT season bible.
