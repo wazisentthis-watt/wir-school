@@ -52,6 +52,8 @@ try{
    });
    console.log('POWER LAB BUTTON DIAGNOSTICS',c.name,JSON.stringify(rootInfo));
    assert.equal(rootInfo.button,true,'Power Lab button not created');
+   assert.notEqual(rootInfo.parentDisplay,'none','Clean Screen suppressed the explicitly opted-in lab');
+   assert.notEqual(rootInfo.display,'none','Ability lab trigger is invisible');
    await page.locator('#metalPowerLab > button').first().click({timeout:8000});
    const collect=page.locator('button[data-ability="collect"]');
    await page.evaluate(()=>{
