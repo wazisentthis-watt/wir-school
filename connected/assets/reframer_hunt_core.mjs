@@ -85,7 +85,7 @@ export function stepReframerHunt(H,context={},dt=1/60){
  const held=H.tether==='hold';
  return {goal:H.mode==='pursue'?{x:context.metal.x,z:context.metal.z}:H.lastKnown,
   canRam:seen&&!held&&H.tether==='idle',
-  held,pull:held?.85:0,damage:0,lost:false,events,
+  held,pull:held?0.85:0,damage:0,lost:false,events,
   tether:H.tether,armBroken:H.armBroken,mode:H.mode};
 }
 export function reframerHuntSnapshot(H){
