@@ -11,7 +11,7 @@ const validPoint=p=>p&&sane(p.x)&&sane(p.z)&&Math.abs(p.x)<280&&Math.abs(p.z)<28
 const fail=reason=>({ok:false,reason,spentGal:0,returnedGal:0});
 
 export function makePowerLab(data=null){
- const s={version:1,stage:0,scrap:0,collected:[],supportIntegrity:.35,structures:[],
+ const s={version:1,stage:0,scrap:0,collected:[],supportIntegrity:.35,structures:[],builtOnce:false,
   focus:1,clock:0,cooldownStep:0,cooldownScan:0,lastAction:null,nextId:1};
  if(data&&data.version===POWER_LAB_VERSION){
   const ids=Array.isArray(data.collected)?data.collected.filter(x=>POWER_LAB_PICKUP_IDS.includes(x)).slice(0,5):[];
@@ -28,7 +28,8 @@ export function makePowerLab(data=null){
    s.structures.push({id:o.id,type:'panel',pos:{x:o.pos.x,z:o.pos.z},
     integrity:clamp(o.integrity,0,1),spentGal:POWER_LAB_COST.build});
   }
-  if(s.stage>=3&&!s.structures.length)s.stage=2; // consumed/reclaimed panels may not count as persisted proof
+  s.builtOnce=data.builtOnce===true||s.structures.length>0;
+  if(s.stage>=3&&!s.builtOnce)s.stage=2; // only construction evidence can unlock Snap Step
   s.nextId=Math.max(1,...s.structures.map(o=>o.id+1));
   s.scrap=clamp(Number.isInteger(data.scrap)?data.scrap:0,0,POWER_LAB_PICKUP_IDS.length);
   s.focus=clamp(sane(data.focus)?data.focus:1,0,1);
@@ -37,7 +38,7 @@ export function makePowerLab(data=null){
  return s;
 }
 export function powerLabSave(s){
- return {version:1,stage:s.stage,scrap:s.scrap,collected:[...s.collected],
+ return {version:1,stage:s.stage,scrap:s.scrap,collected:[...s.collected],builtOnce:s.builtOnce,
   supportIntegrity:s.supportIntegrity,structures:s.structures.map(o=>({
    id:o.id,type:o.type,pos:{...o.pos},integrity:o.integrity,spentGal:o.spentGal
   })),focus:s.focus};
@@ -45,7 +46,7 @@ export function powerLabSave(s){
 export function powerLabSnapshot(s){
  return {stage:s.stage,stageTitle:['Find two pieces of safe salvage','Reinforce the failing support',
    'Construct a physical Gallium panel','Master Snap Step','Morrow district training complete'][s.stage],
-  scrap:s.scrap,collected:[...s.collected],supportIntegrity:s.supportIntegrity,
+  scrap:s.scrap,collected:[...s.collected],builtOnce:s.builtOnce,supportIntegrity:s.supportIntegrity,
   structures:s.structures.map(o=>({...o,pos:{...o.pos}})),
   focus:s.focus,clock:s.clock,cooldownStep:s.cooldownStep,cooldownScan:s.cooldownScan,
   lastAction:s.lastAction,unlocks:{
@@ -105,7 +106,7 @@ export function applyPowerLab(s,action,opts={}){
   if(!sane(distance)||distance<2||distance>7)return fail('bad-placement-range');
   const obj={id:s.nextId++,type:'panel',pos:{x:point.x,z:point.z},
    integrity:1,spentGal:POWER_LAB_COST.build};
-  s.structures.push(obj);s.scrap--;if(s.stage===2)s.stage=3;
+  s.structures.push(obj);s.scrap--;s.builtOnce=true;if(s.stage===2)s.stage=3;
   s.lastAction='build';return {ok:true,action,spentGal:POWER_LAB_COST.build,returnedGal:0,object:{...obj}};
  }
  if(action==='impact'){
