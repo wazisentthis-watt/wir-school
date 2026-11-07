@@ -114,7 +114,7 @@ export function mountMetalPowerLab({THREE,scene,P,st,vel,colliders,camera,ground
  syncPanels();
  // Gallium committed to restored structures must not be regenerated on reload.
  const committed=S.structures.reduce((v,o)=>v+o.spentGal,0);
- st.gal=Math.max(0,(finite(st.gal)?st.gal:0)-committed);
+ st.gal=Math.max(0,(finite(st.gal)?st.gal:0)-committed-S.galLost);
  const scanRing=new THREE.Mesh(new THREE.RingGeometry(2.8,3,48),
   new THREE.MeshBasicMaterial({color:0xa8e4ff,transparent:true,opacity:.75,side:THREE.DoubleSide,depthWrite:false}));
  scanRing.rotation.x=-Math.PI/2;scanRing.visible=false;scene.add(scanRing);
