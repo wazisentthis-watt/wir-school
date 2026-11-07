@@ -11,7 +11,8 @@ const browser=await chromium.launch({headless:true,args:[
 const cases=[
  {name:'normal-savannah',path:'?lite=1',lab:false,touch:false},
  {name:'reframer-hunt-desktop',path:'?lite=1&reframer_hunt=1',lab:true,touch:false},
- {name:'reframer-hunt-touch',path:'?lite=1&reframer_hunt=1',lab:true,touch:true}
+ {name:'reframer-hunt-touch',path:'?lite=1&reframer_hunt=1',lab:true,touch:true},
+ {name:'reframer-hunt-real-car-qa',path:'?lite=1&reframer_hunt=1&reframer_qa=1',lab:true,touch:false,qa:true}
 ];
 const results=[];
 try{
@@ -41,6 +42,16 @@ try{
     assert.equal(await btn.count(),1,'Missing touch escape control');
     assert.equal(await btn.isVisible(),false,'Escape button must only appear if physically caught');
     assert.equal(await page.evaluate(()=>document.querySelector('#reframerBreakFree').classList.contains('wir-keep')),true);
+    if(c.qa){
+     const prep=await page.evaluate(()=>window.__game.reframerQA?.begin());
+     assert.equal(prep?.ok,true,'No actual car mesh / rooftop nest available for test');
+     if(!prep.alreadyActive)assert.ok(prep.carMeshes>0,'ReFramer donor must be an existing real car GLB, not a fake cube');
+     await page.evaluate(()=>window.__game.stepForTest(4,.04));
+     await page.waitForFunction(()=>window.__game?.reframerHunt?.()?.active===true,null,{timeout:15000});
+     const engaged=await page.evaluate(()=>window.__game.reframerHunt());
+     assert.ok(['drop','read','anchor','release','reframe','chase','stagger','stun'].includes(engaged.stage));
+     console.log('REFRAMER REAL-CAR ENCOUNTER',JSON.stringify({stage:engaged.stage,arms:engaged.arms,carMeshes:prep.carMeshes}));
+    }
    }
    assert.equal(errors.length,0,'JavaScript errors: '+errors.join(' | '));
    await page.screenshot({path:'test-results/'+c.name+'.png'});
