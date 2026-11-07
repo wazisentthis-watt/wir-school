@@ -1107,7 +1107,7 @@ function reframerInit(){if(RFR.W||!colliders.length)return;
   btn.style.cssText='position:fixed;bottom:calc(92px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:65;touch-action:manipulation;border-radius:14px;padding:13px 18px;background:#822b32;color:#fff;border:2px solid #f3ae9d;font:bold 13px system-ui';
   btn.addEventListener('click',()=>{RFR.escapeTouch=true;});document.body.append(btn);RFR.escapeButton=btn;
   if(window.__game)window.__game.reframerHunt=()=>({enabled:true,active:!!RFR.W?.enc,stage:RFR.W?.enc?.stage??'idle',
-    ...reframerHuntSnapshot(RFR.hunt),stats:{...RFR.W.stats}});
+    ...reframerHuntSnapshot(RFR.hunt),arms:RFR.arms.length,nests:RFR.W?.nests?.length??0,stats:{...RFR.W.stats}});
  }
 }
 const _ra=new THREE.Vector3(),_rb=new THREE.Vector3(),_rc=new THREE.Vector3(),_rup=new THREE.Vector3(0,1,0);
