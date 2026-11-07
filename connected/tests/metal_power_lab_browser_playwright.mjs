@@ -44,7 +44,15 @@ try{
    assert.equal(start.power.registry.total,73);
    assert.equal(start.power.stage,0);
    assert.equal(start.power.sceneObjects.salvage,5);
-   await page.getByRole('button',{name:'Toggle the opt-in Metal abilities and mission laboratory'}).click();
+   const rootInfo=await page.evaluate(()=>{
+    const node=document.getElementById('metalPowerLab'),button=node?.querySelector('button');
+    return {root:!!node,button:!!button,hidden:button?.hidden,outer:button?.outerHTML.slice(0,220),
+     display:button?getComputedStyle(button).display:null,
+     parentDisplay:node?getComputedStyle(node).display:null,visibility:button?getComputedStyle(button).visibility:null};
+   });
+   console.log('POWER LAB BUTTON DIAGNOSTICS',c.name,JSON.stringify(rootInfo));
+   assert.equal(rootInfo.button,true,'Power Lab button not created');
+   await page.locator('#metalPowerLab > button').first().click({timeout:8000});
    const collect=page.locator('button[data-ability="collect"]');
    await page.evaluate(()=>{
     const p=window.__game.P.o.position,o=window.__powerLabOrigin;
