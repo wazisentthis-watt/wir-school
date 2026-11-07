@@ -1114,15 +1114,35 @@ const _ra=new THREE.Vector3(),_rb=new THREE.Vector3(),_rc=new THREE.Vector3(),_r
 function limb(m,a,b){const d=_rc.copy(b).sub(a),L=d.length();m.position.copy(a).addScaledVector(d,.5);m.scale.set(1,L,1);m.quaternion.setFromUnitVectors(_rup,d.normalize());}
 function reframerSay(k,title,sub){if(RFR.said[k])return;RFR.said[k]=true;whisper(title,sub);if(HELP.on)toast(title);}
 function reframerHit(kind,power,pos){const E=RFR.W&&RFR.W.enc;if(!E)return false;const c=E.stage==='chase'||E.stage==='reframe'?_ra.set(E.target.x,1,E.target.z):_ra.set(E.pos.x,E.pos.y,E.pos.z);
- if(pos&&pos.distanceTo(c)>3.2)return false;const r=hit(RFR.W,kind,power);if(!r)return false;burst(c,24,6);beep(70,.08,'square',.05);
+ const arm=RFR.arms[0];
+ const weakPos=arm?.cl?.getWorldPosition(_rb);
+ const armHit=REFRAMER_HUNT&&E.stage==='chase'&&!RFR.hunt?.armBroken&&pos&&weakPos&&pos.distanceTo(weakPos)<1.35;
+ if(pos&&pos.distanceTo(c)>3.2&&!armHit)return false;
+ if(armHit){
+  const weak=hitReframerArm(RFR.hunt,kind,power);
+  if(weak.ok){
+   burst(weakPos,20,6);beep(550,.10,'triangle',.04);
+   if(weak.broken){
+    // Physically detachable mechanical attachment, copied from the existing
+    // claw mesh; Metal can draw its finite metal mass into Galaxy Gallium.
+    const shard=arm.cl.clone();shard.position.copy(weakPos);shard.scale.setScalar(1.8);scene.add(shard);
+    DRW.scrap.push({kind:'scrap',id:'reframer-arm-'+E.id,x:shard.position.x,y:shard.position.y,z:shard.position.z,
+      reserve:weak.salvage,mesh:shard});
+    arm.g.visible=false;
+    reframerSay('armBreak','TENTACLE ATTACHMENT SEVERED','draw the recovered metal into Galaxy Gallium');
+   }
+   return true;
+  }
+ }
+ const r=hit(RFR.W,kind,power);if(!r)return false;burst(c,24,6);beep(70,.08,'square',.05);
  if(r.type==='jam')reframerSay('jam'+E.jams,'SCAN JAMMED','one more and it aborts');if(r.type==='tipped')reframerSay('tip','TIPPED','hit it while it\'s down');
  if(r.type==='end')reframerEnd(r);return true;}
 function reframerEnd(r){const car=RFR.car;
- if(r.outcome==='roadframeDown'||r.outcome==='escaped'){ // the donor car is gone — its metal is left as scrap you can draw
+ if(r.outcome==='roadframeDown'||r.outcome==='escaped'||r.outcome==='lostTarget'){ // shell-car material remains scrap when abandoned
   if(car){scene.remove(car);const i=cars.indexOf(car);if(i>=0)cars.splice(i,1);for(const w of RFR.wheels){w.position.set(car.position.x+(Math.random()-.5)*4,.45,car.position.z+(Math.random()-.5)*4);w.rotation.set(0,Math.random()*6,Math.PI/2);DRW.scrap.push({kind:'scrap',x:w.position.x,y:.45,z:w.position.z,mesh:w});}}
  }else if(car){for(let k=0;k<RFR.wheels.length;k++){const w=RFR.wheels[k];if(w){car.add(w);w.position.copy(RFR.wheelHome[k].p);w.quaternion.copy(RFR.wheelHome[k].q);}}car.userData.reframed=false;car.position.y=.05;car.rotation.x=car.rotation.z=0;car.userData.spd=car.userData.spd0||car.userData.spd;}
  if(r.residue){st.gal=Math.min(1,st.gal+r.residue);}
- st.comboPend+=3;whisper(r.outcome==='aborted'?'REFRAMER FLED':r.outcome==='clean'?'REFRAMER DOWN — car saved':r.outcome==='roadframeDown'?'ROADFRAME DOWN — salvage the scrap':'ROADFRAME GOT AWAY','');if(HELP.on)toast('ReFramer: '+r.outcome);
+ st.comboPend+=3;whisper(r.outcome==='aborted'?'REFRAMER FLED':r.outcome==='clean'?'REFRAMER DOWN — car saved':r.outcome==='roadframeDown'?'ROADFRAME DOWN — salvage the scrap':r.outcome==='lostTarget'?'ROADFRAME LOST THE TRAIL — Metal escaped':'ROADFRAME GOT AWAY','');if(HELP.on)toast('ReFramer: '+r.outcome);
  RFR.car=null;RFR.wheels=[];RFR.mesh.visible=false;for(const a of RFR.arms)a.g.visible=false;RFR.scan.visible=false;RFR.said={};
  if(RFR.escapeButton)RFR.escapeButton.hidden=true;
  RFR.hunt=REFRAMER_HUNT?createReframerHunt():null;RFR.escapeTouch=false;RFR.escapePadPrev=false;}
@@ -1132,7 +1152,39 @@ function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=R
    RFR.wheels=[];RFR.wheelHome=[];RFR.car.traverse(o=>{if(/wheel/i.test(o.name)&&o.parent&&!RFR.wheels.includes(o)){RFR.wheels.push(o);RFR.wheelHome.push({p:o.position.clone(),q:o.quaternion.clone()});}});
    reframerSay('wake','REFRAMER WAKING','it\'s dropping on a car — hit the scan to jam it');beep(120,.3,'sawtooth',.04);}
   return;}
- const E=W.enc,car=RFR.car,o=step(W,{x:p.x,z:p.z},car&&E.stage!=='chase'?{x:car.position.x,z:car.position.z}:null,dt);
+ const E=W.enc,car=RFR.car;
+ let hunted=null;
+ if(REFRAMER_HUNT&&E.stage==='chase'&&RFR.hunt){
+  const padDown=!!RSK.gp?.buttons?.[0]?.pressed;
+  const padTap=padDown&&!RFR.escapePadPrev;RFR.escapePadPrev=padDown;
+  const struggle=(RFR.hunt.tether==='hold')&&(!!pressed.KeyE||padTap||RFR.escapeTouch);
+  if(struggle)pressed.KeyE=false;
+  RFR.escapeTouch=false;
+  const dist=Math.hypot(E.target.x-p.x,E.target.z-p.z);
+  hunted=stepReframerHunt(RFR.hunt,{
+    metal:{x:p.x,z:p.z},robot:{x:E.target.x,z:E.target.z},
+    visible:dist<=HUNT.SIGHT,escapeTap:struggle},dt);
+  if(RFR.escapeButton)RFR.escapeButton.hidden=!hunted.held;
+  if(hunted.lost){
+   const out=loseReframerTarget(W);if(out)reframerEnd(out);
+   return; // Robot lost Metal; no teleporting to current player position.
+  }
+  for(const ev of hunted.events){
+   if(ev.type==='tether-warn')reframerSay('tetherWarn','REFRAMER TENTACLE CHARGING','move out of its reach or break the attachment');
+   if(ev.type==='tether-caught')reframerSay('tetherCaught','TENTACLE LOCK · STRUGGLE','tap E, A, or the red touch button three times');
+   if(ev.type==='tether-escaped'||ev.type==='tether-dodged'){
+    RFR.said.tetherWarn=false;RFR.said.tetherCaught=false;
+    whisper('ESCAPED THE TENTACLE','');
+   }
+  }
+  if(hunted.held){
+   // Pull on the real player's velocity, never replace Metal's movement owner.
+   vel.x=vel.x*Math.exp(-2*dt)+(E.target.x-p.x)*.85*dt;
+   vel.z=vel.z*Math.exp(-2*dt)+(E.target.z-p.z)*.85*dt;
+  }
+  if(hunted.damage>0)metalHurt(hunted.damage,_ra.set(E.target.x,p.y,E.target.z),HELP.on?'ReFramer grapple impact':null);
+ }else if(RFR.escapeButton)RFR.escapeButton.hidden=true;
+ const o=step(W,{x:p.x,z:p.z},car&&E.stage!=='chase'?{x:car.position.x,z:car.position.z}:null,dt,hunted);
  for(const e of o.events){if(e.type==='stage'){if(e.stage==='anchor')reframerSay('anchor','CLAMPING','tip it: big glob or throw a car · E at the car = pull the driver');if(e.stage==='release')reframerSay('release','PULLING IT APART','');if(e.stage==='chase')reframerSay('chase','ROADFRAME','it hunts you — globs and cars break it');}
   if(e.type==='end')reframerEnd(e);if(e.type==='occupantShaken'&&car){const pz=makeChar(0xd6aa7d);pz.o.position.copy(car.position).add(new THREE.Vector3(2.6,.3,0));scene.add(pz.o);pz.target=pz.o.position.clone().add(new THREE.Vector3(9,0,9));pz.speed=3.6;pz.wait=0;pz.role='shaken driver';npcs.push(pz);car.userData.occupantExited=true;}}
  if(o.ram>0)metalHurt(o.ram,_ra.set(E.target.x,p.y,E.target.z),HELP.on?'Roadframe ram':null);
@@ -1149,9 +1201,14 @@ function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=R
   if(E.stage==='release'&&car){RFR.wheels.forEach((w,i)=>{if(i<E.parts+1){if(w.parent!==scene)scene.attach(w);w.position.y=Math.min(4,w.position.y+dt*2.4);w.rotation.x+=dt*8;}});}}
  RFR.scan.visible=E.stage==='read'&&!!car;if(car){RFR.scan.position.set(car.position.x,2.2,car.position.z);RFR.scan.rotation.y+=dt*4;}
  const clamp=E.stage==='anchor'||E.stage==='release'||E.stage==='stagger'||E.stage==='stun';
- for(const a of RFR.arms){a.g.visible=E.stage!=='drop';const ang=a.ang+(clamp?0:Math.sin(T*3+a.ang)*.4);
+ for(const [index,a] of RFR.arms.entries()){
+  a.g.visible=E.stage!=='drop'&&!(REFRAMER_HUNT&&E.stage==='chase'&&RFR.hunt?.armBroken&&index===0);
+  if(!a.g.visible)continue;
+  const ang=a.ang+(clamp?0:Math.sin(T*3+a.ang)*.4);
   const base=_ra.copy(m.position);const tip=clamp&&car?_rb.set(car.position.x+Math.cos(ang)*1.4,car.position.y+.5,car.position.z+Math.sin(ang)*2.2):_rb.set(m.position.x+Math.cos(ang)*2.4,m.position.y-1.6+Math.sin(T*4+a.ang)*.3,m.position.z+Math.sin(ang)*2.4);
-  const mid=_rc.copy(base).lerp(tip,.5);mid.y+=1.1;const midV=mid.clone();limb(a.s1,base,midV);limb(a.s2,midV,tip);a.cl.position.copy(tip);}
+  if(REFRAMER_HUNT&&index===0&&hunted&&(hunted.tether==='windup'||hunted.tether==='hold'))
+    tip.set(p.x,p.y+1.05,p.z); // first existing mechanical arm is a real extending player grabber
+   const mid=_rc.copy(base).lerp(tip,.5);mid.y+=1.1;const midV=mid.clone();limb(a.s1,base,midV);limb(a.s2,midV,tip);a.cl.position.copy(tip);}
 }
 
 // ---- sparks (contact bursts + charge aura; silver-white so violet stays on the seams) ----
