@@ -1108,6 +1108,19 @@ function reframerInit(){if(RFR.W||!colliders.length)return;
   btn.addEventListener('click',()=>{RFR.escapeTouch=true;});document.body.append(btn);RFR.escapeButton=btn;
   if(window.__game)window.__game.reframerHunt=()=>({enabled:true,active:!!RFR.W?.enc,stage:RFR.W?.enc?.stage??'idle',
     ...reframerHuntSnapshot(RFR.hunt),arms:RFR.arms.length,nests:RFR.W?.nests?.length??0,stats:{...RFR.W.stats}});
+  // QA-only: deliberately place ONE EXISTING loaded car by ONE EXISTING roof nest.
+  // This cannot run in the user's actual game or write a save/checkpoint.
+  if(window.__game&&new URLSearchParams(location.search).get('reframer_qa')==='1')
+   window.__game.reframerQA=Object.freeze({begin:()=>{
+    if(RFR.W.enc)return {ok:true,alreadyActive:true,stage:RFR.W.enc.stage};
+    const nest=RFR.W.nests.find(n=>n.cool<=0);
+    const donor=cars.find(c=>!c.userData.worldBody&&!c.userData.reframed);
+    if(!nest||!donor)return {ok:false,reason:'missing-original-nest-or-car'};
+    donor.userData.spd=0;donor.userData.occupantExited=false;
+    donor.position.set(nest.x+8,.05,nest.z+3);P.o.position.set(nest.x+14,groundY,nest.z+3);
+    let carMeshes=0;donor.traverse(o=>{if(o.isMesh)carMeshes++;});
+    return {ok:true,carMeshes,nestId:nest.id,donorId:donor.uuid};
+   }});
  }
 }
 const _ra=new THREE.Vector3(),_rb=new THREE.Vector3(),_rc=new THREE.Vector3(),_rup=new THREE.Vector3(0,1,0);
