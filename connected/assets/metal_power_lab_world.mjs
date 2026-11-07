@@ -17,6 +17,9 @@ export function mountMetalPowerLab({THREE,scene,P,st,vel,colliders,camera,ground
  catch{} // private/quota-restricted Safari is allowed to keep an in-memory run
  const S=makePowerLab(raw),live=new Map(),pickupMeshes=new Map();
  const root=document.createElement('div');root.id='metalPowerLab';
+ // Explicitly opted-in power lab must survive the default HUD-free clean mode.
+ // Existing CSS hides body children except .wir-keep; nothing added in baseline.
+ root.classList.add('wir-keep');
  root.style.cssText='position:fixed;right:calc(12px + env(safe-area-inset-right,0px));top:calc(55px + env(safe-area-inset-top,0px));z-index:53;font:12px system-ui;color:#f2eafd;max-width:min(345px,90vw)';
  const trigger=document.createElement('button');trigger.type='button';trigger.textContent='⚙ METAL ABILITY LAB';
  trigger.setAttribute('aria-label','Toggle the opt-in Metal abilities and mission laboratory');
