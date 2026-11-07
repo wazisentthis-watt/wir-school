@@ -179,7 +179,7 @@ export function mountMetalPowerLab({THREE,scene,P,st,vel,colliders,camera,ground
    feedback.textContent='SALVAGE COLLECTED · '+result.id;
   }else if(action==='scan'){
    scanLife=result.seconds;scanRing.visible=true;
-   feedback.textContent='PRESSURE READ · nearby support and constructed panels outlined by scan';
+   feedback.textContent='PRESSURE READ · the real district support is marked for inspection';
   }else if(action==='snap-step'){
    const old=Math.hypot(vel.x,vel.z);
    vel.x+=result.impulse.x;vel.z+=result.impulse.z;
