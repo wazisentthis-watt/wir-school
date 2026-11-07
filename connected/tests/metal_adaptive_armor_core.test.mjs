@@ -1,10 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {abilityById,registryCounts} from '../assets/metal_power_registry_73.mjs';
 import {ARMOR_COST,ARMOR_DURATION,ARMOR_CAPACITY,ARMOR_FRACTION,
  createMetalArmor,activateMetalArmor,stepMetalArmor,absorbMetalDamage,metalArmorSnapshot}
  from '../assets/metal_adaptive_armor_core.mjs';
 
+test('power registry counts correctly identify armor as mission-gated playable, not a fabricated 73rd power',()=>{
+ assert.equal(abilityById(12).name,'Adaptive Armor');
+ assert.equal(abilityById(12).status,'opt-in-lab');
+ assert.equal(abilityById(12).action,'adaptive-armor');
+ assert.equal(registryCounts()['opt-in-lab'],9);
+ assert.equal(registryCounts()['design-only'],51);
+});
 test('armor activates only after real mission unlock and finite Gallium payment',()=>{
  const s=createMetalArmor();
  assert.equal(activateMetalArmor(s,{unlocked:false,gallium:1}).reason,'not-unlocked');
