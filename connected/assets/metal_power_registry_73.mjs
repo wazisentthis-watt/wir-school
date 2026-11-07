@@ -31,7 +31,7 @@ if(NAMES.length!==73)throw Error('Power registry incomplete');
 // Source-verified mechanics implemented in this opt-in laboratory only.
 // Similar named features elsewhere in WIR Connected are not treated as complete
 // without specific scene-level, rig, save and hardware evidence.
-const LAB=new Map([[2,'snap-step'],[4,'pressure-read'],[5,'pressure-read'],
+const LAB=new Map([[2,'snap-step'],[4,'pressure-read'],[5,'pressure-read'],[12,'adaptive-armor'],
   [11,'build-panel'],[18,'reinforce'],[20,'build-panel'],[23,'reclaim'],
   [29,'pressure-read']]);
 const EXISTING=new Map([[13,'form-switch-prototype'],[15,'existing-grapple'],
