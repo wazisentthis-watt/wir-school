@@ -2395,7 +2395,11 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
    // Reuse loaded original Kenney car GLBs, rooftop nests, combat and Gallium Draw.
    // No second player control loop, no automatic publish, no story-save mutation.
    reframerInit();
-   import('./reframer_squad_world.mjs').then(({mountReframerSquad})=>{
+   Promise.all([import('./reframer_kit_v1.js'),import('./reframer_squad_world.mjs')]).then(([, {mountReframerSquad}])=>{
+    // The complete original owner kit is present, checksumable, and tested by the bridge.
+    // We reuse its rig and donor physics canon; do not step a competing 2D simulation.
+    const kit=window.ReframerKit;
+    if(!kit)throw Error('Owner ReFramer Kit v1 did not mount');
     reframerSquad=mountReframerSquad({
      THREE,scene,cars,player:P,vel,leaderNests:RFR.W.nests,
      leaderInfo:()=>{const e=RFR.W?.enc;
@@ -2413,10 +2417,12 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
       civilian.speed=3.6;civilian.wait=0;civilian.role=saved?'rescued driver':'shaken driver';
       npcs.push(civilian);
      },
-     drawScrap:DRW.scrap,isTouch,
+     drawScrap:DRW.scrap,isTouch,kit,
      qa:new URLSearchParams(location.search).get('reframer_squad_qa')==='1'
     });
     window.__game.reframerSquad=()=>reframerSquad.snapshot();
+    window.__game.reframerKit=()=>({version:kit.DATA.meta.version,parts:kit.DATA.donor.parts.length,
+     tested:reframerSquad.snapshot().kit?.passed,source:kit.DATA.meta.source});
     if(new URLSearchParams(location.search).get('reframer_squad_qa')==='1')
      window.__game.reframerSquadQA=Object.freeze({begin:()=>reframerSquad.qaStart(),advance:(n,dt)=>reframerSquad.qaAdvance(n,dt),attack:(id,kind)=>reframerSquad.qaAttack(id,kind)});
    }).catch(err=>{console.warn('[WIR ReFramer Squad]',err);window.__errors.push(String(err));});
