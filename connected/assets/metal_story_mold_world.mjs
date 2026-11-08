@@ -71,9 +71,9 @@ export function mountMetalStoryMold({P,st,vel,grounded,skatepark,storage,legacyS
  capture.addEventListener('click',()=>{
   const result=attemptFirstPush(S,state());
   if(result.ok)saveMetalMold(storage,S);
+  refresh();
   status.textContent=result.ok?'FIRST PUSH RECORDED · the board’s actual roll qualified · next: Ballast / awning rescue (not yet built)'
    :'NOT YET · '+result.reason.replace(/-/g,' ');
-  refresh();
  });
  finish.addEventListener('toggle',()=>{if(finish.open){S.finalePreviewSeen=true;saveMetalMold(storage,S)}});
  refresh();
