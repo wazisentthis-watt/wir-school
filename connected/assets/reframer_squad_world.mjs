@@ -365,7 +365,8 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
    carId:u.donor?.uuid||null,arms:u.arms.length,attachedMeshes:u.claimedMesh.size,
    hunt:{tether:u.hunt.tether,armBroken:u.hunt.armBroken},
    rescue:u.stats.rescues,rammed:u.stats.rammed,
-   rigJoints:u.kitRig?.arms?.[0]?.j?.length??0})),...squadSnapshot(brain),
+   rigJoints:u.kitRig?.arms?.[0]?.j?.length??0,
+   distanceMeters:u.W.enc?Math.hypot((u.W.enc.stage==='chase'?u.W.enc.target.x:u.W.enc.pos.x)-player.o.position.x,(u.W.enc.stage==='chase'?u.W.enc.target.z:u.W.enc.pos.z)-player.o.position.z):null})),...squadSnapshot(brain),
    activeEscape:!btn.hidden,kit:bound?{version:bound.version,passed:bound.proof.passed,total:bound.proof.total,carMassKg:bound.massKg,actualWheelMassKg:bound.wheelSpecs.reduce((n,w)=>n+w.mass,0),rig:'3-link-eight-arm'}:null};
  }
  function startSighting(){
