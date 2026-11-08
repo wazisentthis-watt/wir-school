@@ -6,15 +6,17 @@
 // This is NOT general-purpose aircraft fabrication nor verified Titanium Talons.
 import {createReframers,wake,step,hit as hitCore,rescue as rescueCore,loseReframerTarget,RF} from './reframer_core.mjs';
 import {createReframerHunt,stepReframerHunt,hitReframerArm,HUNT} from './reframer_hunt_core.mjs';
+import {verifyReframerKit,kitWheelSpec,updateSavannahKitRig,kitJointVector} from './reframer_kit_savannah_bridge.mjs';
 import {SQUAD,createReframerSquad,reserveVehicle,attachVehiclePart,damageVehiclePart,
  releaseVehicle,reserveTentacle,releaseTentacle,squadOrders,squadSnapshot} from './reframer_squad_core.mjs';
 const sq=n=>n*n;
 const d2=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 const cool=()=>({key:'',time:0});
 export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,leaderInfo,
- heldCar,gamepad,keys,pressed,onHurt,onAlert,onRescue,drawScrap,isTouch=false,qa=false}){
+ heldCar,gamepad,keys,pressed,onHurt,onAlert,onRescue,drawScrap,isTouch=false,qa=false,kit=null}){
  if(!THREE||!scene||!Array.isArray(cars)||!player?.o||!vel||!Array.isArray(leaderNests)||leaderNests.length<2)
   throw Error('REFRAMER_SQUAD_NEEDS_ORIGINAL_SCENE_AND_NESTS');
+ const bound=kit?verifyReframerKit(kit):null;
  const brain=createReframerSquad(isTouch?1:2),units=[],cache={};
  const meshMat=new THREE.MeshStandardMaterial({color:0x2a313a,metalness:.85,roughness:.34});
  const clawMat=new THREE.MeshStandardMaterial({color:0x292a30,metalness:.8,roughness:.37});
@@ -52,16 +54,16 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
   const arms=[];
   for(let j=0;j<8;j++){
    const g=new THREE.Group(),s1=new THREE.Mesh(shaftGeo,clawMat),
-    s2=new THREE.Mesh(shaftGeo,clawMat),cl=new THREE.Mesh(tipGeo,eyeMat);
-   g.add(s1,s2,cl);g.visible=false;scene.add(g);
-   arms.push({g,s1,s2,cl,ang:j/8*Math.PI*2});
+    s2=new THREE.Mesh(shaftGeo,clawMat),s3=new THREE.Mesh(shaftGeo,clawMat),cl=new THREE.Mesh(tipGeo,eyeMat);
+   g.add(s1,s2,s3,cl);s3.visible=!!bound;g.visible=false;scene.add(g);
+   arms.push({g,s1,s2,s3,cl,ang:j/8*Math.PI*2});
   }
   const scan=new THREE.Mesh(new THREE.ConeGeometry(2.5,3,16,1,true),
    new THREE.MeshBasicMaterial({color:0xff7626,transparent:true,opacity:.16,
     side:THREE.DoubleSide,depthWrite:false}));scan.visible=false;scene.add(scan);
   units.push({id:a.id,role:a.role,W,hunt:createReframerHunt(),root,eye,arms,scan,
    donor:null,wheels:[],wheelHome:[],claimedMesh:new Set(),phase:0,elapsed:0,
-   lastStage:'idle',padPrev:false,brokenParts:new Set(),stats:{rescues:0,rammed:0}});
+   lastStage:'idle',padPrev:false,kitRig:null,brokenParts:new Set(),stats:{rescues:0,rammed:0}});
  }
  const btn=document.createElement('button');btn.id='reframerSquadBreakFree';btn.type='button';
  btn.textContent='BREAK FREE · E / A';btn.setAttribute('aria-label','Escape coordinated ReFramer grapple');
@@ -84,7 +86,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
   if(!reserved.ok||!car){u.W.enc=null;return false;}
   car.userData.reframed=true;car.userData.spd0=car.userData.spd;car.userData.spd=0;
   u.donor=car;u.hunt=createReframerHunt();u.root.visible=true;
-  u.wheels=wheelList(car);u.brokenParts.clear();
+  u.wheels=wheelList(car);u.brokenParts.clear();u.kitRig=null;
   u.wheelHome=u.wheels.map(w=>({node:w,parent:w.parent,pos:w.position.clone(),q:w.quaternion.clone(),scale:w.scale.clone()}));
   u.claimedMesh.clear();u.lastStage='drop';
   announce(u,'wake','REFRAMER '+u.id+' WOKE · '+u.role.toUpperCase());
@@ -92,7 +94,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
  }
  function takePart(u,index){
   const w=u.wheels[index],E=u.W.enc;if(!w||!E||u.claimedMesh.has(w.uuid))return;
-  const o=attachVehiclePart(brain,u.id,{id:w.uuid,kind:'wheel',vehicleId:u.donor.uuid});
+  const o=attachVehiclePart(brain,u.id,{id:w.uuid,kind:'wheel',vehicleId:u.donor.uuid,...(bound?{sourceKey:kitWheelSpec(bound,index).key,massKg:kitWheelSpec(bound,index).mass}:{})});
   if(!o.ok)return;
   scene.attach(w);u.claimedMesh.add(w.uuid);
   w.position.set(E.target.x+Math.cos(index*Math.PI/2)*1.8,.6,E.target.z+Math.sin(index*Math.PI/2)*1.8);
@@ -126,7 +128,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
     if(match)salvageMesh(match,p.integrity*.14,'squad-part-'+u.id+'-'+p.id);
    }
   }
-  u.wheels=[];u.wheelHome=[];u.claimedMesh.clear();u.brokenParts.clear();u.donor=null;
+  u.wheels=[];u.wheelHome=[];u.claimedMesh.clear();u.brokenParts.clear();u.kitRig=null;u.donor=null;
   u.root.visible=false;u.scan.visible=false;for(const arm of u.arms)arm.g.visible=false;
   u.hunt=createReframerHunt();u.lastStage='idle';
   for(const key of [...brief.keys()])if(key.startsWith(u.id))brief.delete(key);
@@ -150,12 +152,14 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
    wheel.rotation.x+=.09;
   }
  }
- function visuals(u,T){
+ function visuals(u,T,dt){
   const E=u.W.enc,m=u.root,car=u.donor;
   if(!E){m.visible=false;return;}
   const stage=E.stage,activeCar=stage==='reframe'||stage==='chase';
   const pos=activeCar?E.target:E.pos;
   m.visible=true;m.position.set(pos.x,activeCar?2.8:E.pos.y,pos.z);
+  const rig=bound?updateSavannahKitRig(bound,u,player.o.position,dt,T):null;
+  if(rig?.body?.z!==undefined)m.position.y=Math.max(.5,rig.body.z/40*1.6);
   m.rotation.y+=.024;
   u.eye.material.emissiveIntensity=stage==='read'?2:1;
   if(car&&activeCar){
@@ -170,6 +174,18 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
    arm.g.visible=stage!=='drop'&&!hidden;
    if(!arm.g.visible)continue;
    const ang=arm.ang,base=va.copy(m.position);
+   // Owner kit three-segment FABRIK gait is rendered from the SAME encounter.
+   // Metal's live tentacle capture remains a special high-priority arm pose.
+   const joints=rig?.arms?.[k]?.j;
+   const capturing=k===0&&(u.hunt.tether==='windup'||u.hunt.tether==='hold');
+   if(joints?.length===4&&!capturing){
+    const q=joints.map(pt=>kitJointVector(THREE,pt));
+    if(q.every(Boolean)){
+     limb(arm.s1,q[0],q[1]);limb(arm.s2,q[1],q[2]);limb(arm.s3,q[2],q[3]);
+     arm.s3.visible=true;arm.cl.position.copy(q[3]);continue;
+    }
+   }
+   arm.s3.visible=false;
    let end;
    if(stage==='anchor'||stage==='release'){
     end=vb.set(car.position.x+Math.cos(ang)*1.4,car.position.y+.8,car.position.z+Math.sin(ang)*1.5);
@@ -265,7 +281,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
     if(rescueCore(u.W)){onRescue?.(car,true);u.stats.rescues++;}
    }
    updateWheels(u,e.stage,brain.clock);
-   visuals(u,brain.clock);
+   visuals(u,brain.clock,t);
   }
  }
  function hitWing(kind,power,pos){
@@ -320,8 +336,9 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
    id:u.id,role:u.role,stage:u.W.enc?.stage||'idle',active:!!u.W.enc,
    carId:u.donor?.uuid||null,arms:u.arms.length,attachedMeshes:u.claimedMesh.size,
    hunt:{tether:u.hunt.tether,armBroken:u.hunt.armBroken},
-   rescue:u.stats.rescues,rammed:u.stats.rammed})),...squadSnapshot(brain),
-   activeEscape:!btn.hidden};
+   rescue:u.stats.rescues,rammed:u.stats.rammed,
+   rigJoints:u.kitRig?.arms?.[0]?.j?.length??0})),...squadSnapshot(brain),
+   activeEscape:!btn.hidden,kit:bound?{version:bound.version,passed:bound.proof.passed,total:bound.proof.total,carMassKg:bound.massKg,actualWheelMassKg:bound.wheelSpecs.reduce((n,w)=>n+w.mass,0),rig:'3-link-eight-arm'}:null};
  }
  function qaStart(){
   if(!qa)return {ok:false,reason:'qa-disabled'};
@@ -341,7 +358,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
    const ok=reserveVehicle(brain,u.id,c.uuid);
    if(!ok.ok)return {ok:false,reason:'claim-failed',agent:u.id};
    c.userData.reframed=true;c.userData.spd0=c.userData.spd;c.userData.spd=0;
-   u.donor=c;u.wheels=wheelList(c);
+   u.donor=c;u.wheels=wheelList(c);u.kitRig=null;
    u.wheelHome=u.wheels.map(w=>({node:w,parent:w.parent,pos:w.position.clone(),q:w.quaternion.clone(),scale:w.scale.clone()}));
    u.root.visible=true;
   }
