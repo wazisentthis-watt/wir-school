@@ -348,6 +348,16 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
   const originals=units.map(u=>({id:u.id,carId:u.donor.uuid,meshCount:(()=>{let n=0;u.donor.traverse(o=>{if(o.isMesh)n++});return n;})()}));
   return {ok:true,originals,distinct:new Set(originals.map(o=>o.carId)).size};
  }
+ function qaAttack(agentId,kind='car'){
+  if(!qa)return {ok:false,reason:'qa-disabled'};
+  const u=units.find(x=>x.id===agentId&&x.W.enc);
+  if(!u)return {ok:false,reason:'no-active-agent'};
+  const inventory=brain.wings.find(x=>x.id===agentId);
+  const first=inventory?.parts[0],part=u.wheels.find(w=>w.uuid===first?.id);
+  if(!part)return {ok:false,reason:'no-source-mesh-part'};
+  const success=hitWing(kind,1,part.position.clone());
+  return {ok:success,agentId,partId:part.uuid,state:snapshot()};
+ }
  function qaAdvance(count=1,dt=.05){
   if(!qa)return {ok:false,reason:'qa-disabled'};
   const n=Math.max(0,Math.min(450,Number.isInteger(count)?count:0));
@@ -370,5 +380,5 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
   meshMat.dispose();clawMat.dispose();eyeMat.dispose();
   for(const u of units){u.scan.geometry.dispose();u.scan.material.dispose();}
  }
- return Object.freeze({tick,hit:hitWing,snapshot,destroy,qaStart,qaAdvance});
+ return Object.freeze({tick,hit:hitWing,snapshot,destroy,qaStart,qaAdvance,qaAttack});
 }
