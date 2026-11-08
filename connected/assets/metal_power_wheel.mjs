@@ -18,7 +18,7 @@ export function mountMetalPowerWheel({getLab,onShortBack,storage}={}){
  const toggle=style(make('button','','⚡ POWERS'), 'pointer-events:auto;touch-action:manipulation;min-height:42px;padding:9px 13px;border-radius:12px;background:#25203c;color:white;border:1px solid #a991f6;font:700 12px system-ui;cursor:pointer');
  toggle.type='button';toggle.id='metalPowerWheelToggle';toggle.setAttribute('aria-label','Open Metal Power Wheel');
  const overlay=style(make('section',''), 'position:fixed;inset:0;z-index:83;background:#090914da;pointer-events:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(12px + env(safe-area-inset-top,0px)) 8px calc(8px + env(safe-area-inset-bottom,0px));gap:7px;overflow:auto');
- overlay.id='metalPowerWheelDialog';overlay.hidden=true;overlay.setAttribute('role','dialog');
+ overlay.id='metalPowerWheelDialog';overlay.hidden=true;overlay.style.display='none';overlay.setAttribute('role','dialog');
  overlay.setAttribute('aria-modal','true');overlay.setAttribute('aria-label','Metal Galaxy Power Wheel');
  const header=make('div','','⚡ GALAXY POWER WHEEL · 73 ABILITIES');
  header.style.cssText='font:bold 13px system-ui;letter-spacing:.7px;text-align:center';
@@ -70,7 +70,7 @@ export function mountMetalPowerWheel({getLab,onShortBack,storage}={}){
   memory();
  };
  const setOpen=v=>{
-  open=!!v;overlay.hidden=!open;toggle.setAttribute('aria-expanded',String(open));
+  open=!!v;overlay.hidden=!open;overlay.style.display=open?'flex':'none';toggle.setAttribute('aria-expanded',String(open));
   if(open){draw();toggle.textContent='⚡ WHEEL OPEN';}
   else toggle.textContent='⚡ POWERS';
  };
