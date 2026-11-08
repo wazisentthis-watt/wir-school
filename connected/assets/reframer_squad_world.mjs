@@ -349,6 +349,12 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
   const originals=units.map(u=>({id:u.id,carId:u.donor.uuid,meshCount:(()=>{let n=0;u.donor.traverse(o=>{if(o.isMesh)n++});return n;})()}));
   return {ok:true,originals,distinct:new Set(originals.map(o=>o.carId)).size};
  }
+ function qaAdvance(count=1,dt=.05){
+  if(!qa)return {ok:false,reason:'qa-disabled'};
+  const n=Math.max(0,Math.min(450,Number.isInteger(count)?count:0));
+  for(let i=0;i<n;i++)tick(Math.max(0,Math.min(.05,dt)));
+  return {ok:true,state:snapshot()};
+ }
  function destroy(){
   active=false;btn.remove();
   for(const u of units){
@@ -365,5 +371,5 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
   meshMat.dispose();clawMat.dispose();eyeMat.dispose();
   for(const u of units){u.scan.geometry.dispose();u.scan.material.dispose();}
  }
- return Object.freeze({tick,hit:hitWing,snapshot,destroy,qaStart});
+ return Object.freeze({tick,hit:hitWing,snapshot,destroy,qaStart,qaAdvance});
 }
