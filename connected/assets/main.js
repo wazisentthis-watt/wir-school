@@ -2418,7 +2418,7 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
     });
     window.__game.reframerSquad=()=>reframerSquad.snapshot();
     if(new URLSearchParams(location.search).get('reframer_squad_qa')==='1')
-     window.__game.reframerSquadQA=Object.freeze({begin:()=>reframerSquad.qaStart()});
+     window.__game.reframerSquadQA=Object.freeze({begin:()=>reframerSquad.qaStart(),advance:(n,dt)=>reframerSquad.qaAdvance(n,dt)});
    }).catch(err=>{console.warn('[WIR ReFramer Squad]',err);window.__errors.push(String(err));});
   }
   if(METAL_POWER_LAB){
