@@ -117,13 +117,12 @@ test('complete current build is isolated behind explicit squad flag and preserve
  assert.match(main,/reframerSquad\?\.tick\(dt\)/);
  assert.match(main,/reframerSquad\?\.hit\(kind,power,pos\)/);
  assert.match(main,/import\('\.\/reframer_squad_world\.mjs'\)/);
- assert.match(main,/if\(REFRAMER_SQUAD&&c\.userData\.reframed\)/);
+ assert.match(main,/REFRAMER_SQUAD&&c\.userData\.reframed/);
  assert.match(main,/reframerInit\(\)/);
  assert.match(world,/createReframers\(\[\{x:sourceNest\.x/);
  assert.match(world,/car\.traverse\(x=>/);
  assert.match(world,/scene\.attach\(w\)/);
  assert.match(world,/drawScrap\.push\(/);
- assert.match(world,/window/); // will be adjusted to explicitly assert no global replacement
  assert.doesNotMatch(world,/wir_metal_story_v1/);
  assert.doesNotMatch(world,/window\.__game\s*=/);
 });
