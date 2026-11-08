@@ -13,7 +13,7 @@ const sq=n=>n*n;
 const d2=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 const cool=()=>({key:'',time:0});
 export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,leaderInfo,
- heldCar,gamepad,keys,pressed,onHurt,onAlert,onRescue,drawScrap,isTouch=false,qa=false,kit=null}){
+ heldCar,gamepad,keys,pressed,onHurt,onAlert,onRescue,drawScrap,isTouch=false,qa=false,kit=null,colliders=[]}){
  if(!THREE||!scene||!Array.isArray(cars)||!player?.o||!vel||!Array.isArray(leaderNests)||leaderNests.length<2)
   throw Error('REFRAMER_SQUAD_NEEDS_ORIGINAL_SCENE_AND_NESTS');
  const bound=kit?verifyReframerKit(kit):null;
@@ -70,6 +70,20 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
  btn.classList.add('wir-keep');btn.hidden=true;
  btn.style.cssText='position:fixed;bottom:calc(91px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:68;touch-action:manipulation;border:2px solid #e8a28a;background:#742b35;color:white;border-radius:14px;padding:12px 20px;font:bold 13px system-ui;cursor:pointer';
  btn.addEventListener('click',()=>{escapeTouch=true;});document.body.append(btn);
+ // Visibility is a gameplay requirement: a deployed enemy that never becomes
+ // discoverable is not a playable encounter. Clean-screen must show this prompt.
+ const dispatch=document.createElement('div');dispatch.id='reframerSighting';dispatch.classList.add('wir-keep');
+ dispatch.style.cssText='position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:calc(12px + env(safe-area-inset-left,0px));z-index:79;color:#f0eeff;max-width:min(225px,50vw);font:11px/1.4 system-ui;pointer-events:none';
+ const sight=document.createElement('button');sight.type='button';sight.id='reframerSightingButton';
+ sight.textContent='🐙 REFRAMER SIGHTING';sight.style.cssText='display:block;min-height:44px;padding:9px 11px;border-radius:12px;border:1px solid #f78f60;background:#412020;color:#ffe7d7;font:bold 11px system-ui;pointer-events:auto;touch-action:manipulation';
+ const status=document.createElement('div');status.id='reframerSightingStatus';status.setAttribute('role','status');
+ status.textContent='Start a nearby ReFramer encounter';
+ status.style.cssText='margin-top:5px;padding:6px 9px;background:#161320e9;border:1px solid #795b59;border-radius:8px';
+ dispatch.append(sight,status);document.body.append(dispatch);
+ sight.addEventListener('click',()=>{
+  const result=startSighting();
+  status.textContent=result.ok?'Machine signal detected · follow the nearby Roadframe':'Sighting unavailable · '+result.reason;
+ });
  function wheelList(car){
   const out=[];car.traverse(x=>{if(/wheel/i.test(x.name)&&x.parent&&!out.includes(x))out.push(x);});
   return out.slice(0,4);
@@ -203,6 +217,20 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
  let worldTick=0,startedOnce=false;
  function tick(dt){
   if(!active||!Number.isFinite(dt)||dt<=0)return;
+  if(++frame%18===0){
+   const p=player.o.position,enc=units.filter(u=>u.W.enc);
+   if(enc.length){
+    const nearest=Math.min(...enc.map(u=>{
+     const e=u.W.enc,q=e.stage==='chase'?e.target:e.pos;
+     return Math.hypot(q.x-p.x,q.z-p.z)
+    }));
+    status.textContent=enc.length+' ReFramer'+(enc.length>1?'s':'')+' active · nearest '+Math.round(nearest)+'m · chase, rescue or fight';
+    sight.textContent='🐙 TRACK ACTIVE REFRAMERS';
+   }else{
+    status.textContent='No nearby encounter · tap to start a sighting';
+    sight.textContent='🐙 REFRAMER SIGHTING';
+   }
+  }
   const t=Math.min(.05,dt),p=player.o.position,meta=[];
   const leader=leaderInfo?.();
   if(leader?.position&&leader.stage==='chase')meta.push({id:'RF-LEAD',
@@ -340,6 +368,50 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
    rigJoints:u.kitRig?.arms?.[0]?.j?.length??0})),...squadSnapshot(brain),
    activeEscape:!btn.hidden,kit:bound?{version:bound.version,passed:bound.proof.passed,total:bound.proof.total,carMassKg:bound.massKg,actualWheelMassKg:bound.wheelSpecs.reduce((n,w)=>n+w.mass,0),rig:'3-link-eight-arm'}:null};
  }
+ function startSighting(){
+  if(!active)return {ok:false,reason:'squad-not-ready'};
+  if(units.some(u=>u.W.enc))return {ok:true,alreadyActive:true,state:snapshot()};
+  const p=player.o.position;
+  const donors=cars.filter(c=>c&&!c.userData?.worldBody&&!c.userData?.reframed&&c!==heldCar?.()&&!brain.vehicleClaims.has(c.uuid));
+  if(donors.length<units.length)return {ok:false,reason:'No original car models available to dismantle'};
+  // An explicit player-triggered event repositions only ORIGINAL already-loaded
+  // traffic cars onto collision-clear road positions close enough to be seen.
+  // It does not teleport Metal, manufacture vehicle geometry or alter saves.
+  const offsets=[[14,3],[-13,11],[7,-17],[-17,-9],[19,12],[-8,-19],[24,0],[-23,5]];
+  const spots=[];
+  for(const [dx,dz] of offsets){
+   const x=p.x+dx,z=p.z+dz;
+   const blocked=Array.isArray(colliders)&&colliders.some(b=>
+    b?.min&&b?.max&&x>b.min.x-3&&x<b.max.x+3&&z>b.min.z-3&&z<b.max.z+3);
+   if(!blocked&&spots.every(q=>Math.hypot(q.x-x,q.z-z)>9))spots.push({x,z});
+   if(spots.length>=units.length)break;
+  }
+  if(spots.length<units.length)return {ok:false,reason:'Need a clear street nearby'};
+  // Reserve the donor and stage its authentic rooftop-drop source FSM atomically.
+  const candidates=[...donors].sort((a,b)=>d2(a.position,p)-d2(b.position,p)).slice(0,units.length);
+  let started=0;
+  for(let i=0;i<units.length;i++){
+   const u=units[i],car=candidates[i],where=spots[i];
+   const n=u.W.nests[0];
+   n.x=where.x+4;n.z=where.z-3;n.y=Math.max(9,n.y);n.cool=0;
+   car.userData.spd0=car.userData.spd;
+   car.userData.spd=0;car.position.set(where.x,.05,where.z);
+   car.userData.lane=car.userData.axis?where.x:where.z;
+   car.userData.t=car.userData.axis?where.z:where.x;
+   const E=wake(u.W,{x:p.x,z:p.z},[{
+    id:car.uuid,x:where.x,z:where.z,occupied:!car.userData.occupantExited
+   }]);
+   if(!E)continue;
+   const claim=reserveVehicle(brain,u.id,car.uuid);
+   if(!claim.ok){u.W.enc=null;continue}
+   car.userData.reframed=true;u.donor=car;u.hunt=createReframerHunt();
+   u.wheels=wheelList(car);u.brokenParts.clear();u.kitRig=null;
+   u.wheelHome=u.wheels.map(w=>({node:w,parent:w.parent,pos:w.position.clone(),q:w.quaternion.clone(),scale:w.scale.clone()}));
+   u.claimedMesh.clear();u.root.visible=true;u.lastStage='drop';started++;
+  }
+  if(started){onAlert?.('🐙 REFRAMER SIGHTING · '+started+' vehicles under attack');return {ok:true,started,state:snapshot()}}
+  return {ok:false,reason:'No safe source-machine encounter could start'};
+ }
  function qaStart(){
   if(!qa)return {ok:false,reason:'qa-disabled'};
   const donors=cars.filter(c=>!c.userData.reframed&&!c.userData.worldBody);
@@ -382,7 +454,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
   return {ok:true,state:snapshot()};
  }
  function destroy(){
-  active=false;btn.remove();
+  active=false;btn.remove();dispatch.remove();
   for(const u of units){
    scene.remove(u.root);scene.remove(u.scan);
    for(const a of u.arms)scene.remove(a.g);
@@ -397,5 +469,5 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
   meshMat.dispose();clawMat.dispose();eyeMat.dispose();
   for(const u of units){u.scan.geometry.dispose();u.scan.material.dispose();}
  }
- return Object.freeze({tick,hit:hitWing,snapshot,destroy,qaStart,qaAdvance,qaAttack});
+ return Object.freeze({tick,hit:hitWing,snapshot,destroy,qaStart,qaAdvance,qaAttack,startSighting});
 }
