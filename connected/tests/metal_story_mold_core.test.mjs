@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {METAL_CHAPTERS,createMetalStory,advanceMetalStory} from '../assets/metal_story_engine.js';
 import {METAL_MOLD_KEY,METAL_MOLD_VERSION,METAL_SEASON_ARCS,METAL_SEASON_30,
  METAL_SERIES_LOCKS,FIRST_PUSH,FINAL_BEATS,finaleGate,createMetalMold,
  metalMoldSnapshot,attemptFirstPush,saveMetalMold,loadMetalMold}
@@ -78,6 +79,17 @@ test('saves isolate existing story v1 and recover safely from malformed storage'
  store.set(METAL_MOLD_KEY,'not json');
  assert.equal(loadMetalMold(storage).firstPush,false);
  assert.equal(saveMetalMold({setItem:()=>{throw Error('quota')}},s),false);
+});
+test('legacy 4-chapter progression is preserved and cannot be advanced by new mold',()=>{
+ assert.deepEqual(METAL_CHAPTERS.map(x=>x.id),['awakening','phantom','aftershock','free-roam']);
+ const original=createMetalStory();
+ assert.equal(original.chapter,0);
+ assert.equal(advanceMetalStory(original,'first_push_recorded'),false);
+ assert.equal(advanceMetalStory(original,'skate_reached'),true);
+ assert.equal(original.chapter,1);
+ assert.equal(advanceMetalStory(original,'slotta_resolved'),true);
+ assert.equal(advanceMetalStory(original,'home_returned'),true);
+ assert.equal(original.chapter,3);
 });
 test('Game adapter mounts only behind explicit campaign query and retains original player/physics owner',()=>{
  const main=readFileSync(new URL('../assets/main.js',import.meta.url),'utf8');
