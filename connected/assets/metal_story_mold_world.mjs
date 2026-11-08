@@ -10,7 +10,9 @@ export function mountMetalStoryMold({P,st,vel,grounded,skatepark,storage,legacyS
  if(!P?.o?.position||!st||!vel||!skatepark)
   throw Error('METAL_STORY_MOLD_REQUIRES_EXISTING_PLAYER_AND_SKATEPARK');
  const S=loadMetalMold(storage);
- const root=css(el('div'),'position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:78;color:#f4f0ff;font:12px system-ui;pointer-events:none');
+ const touch=document.body.classList.contains('touch');
+ // iPhone's analog stick occupies the lower left. Never cover gameplay input.
+ const root=css(el('div'),'position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc('+(touch?'175px':'12px')+' + env(safe-area-inset-bottom,0px));z-index:78;color:#f4f0ff;font:12px system-ui;pointer-events:none');
  root.id='metalStoryMold';root.classList.add('wir-keep');
  const open=css(el('button','🎬 METAL STORY · FIRST PUSH'),'pointer-events:auto;min-height:44px;padding:9px 13px;border-radius:12px;background:#241d39;border:1px solid #b596ff;color:white;font:bold 12px system-ui;touch-action:manipulation;cursor:pointer');
  open.id='metalStoryMoldToggle';open.type='button';open.setAttribute('aria-expanded','false');
