@@ -208,8 +208,10 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
   btn.hidden=!heldUnit;
   for(const u of units)u.padPrev=button;
   for(const u of units){
-   step(u.W,{x:p.x,z:p.z},null,t); // progresses nest cooldown in all states
-   if(!u.W.enc){startWing(u);continue;}
+   if(!u.W.enc){
+    step(u.W,{x:p.x,z:p.z},null,t); // nest cooldown only while idle
+    startWing(u);continue;
+   }
    const e=u.W.enc,car=u.donor;
    const order=orders.find(x=>x.id===u.id);
    let hunt=null;
@@ -217,7 +219,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
     const distance=d2(e.target,p);
     hunt=stepReframerHunt(u.hunt,{metal:{x:p.x,z:p.z},
       robot:{x:e.target.x,z:e.target.z},visible:distance<SQUAD.SIGHT,
-      allowTether:order?.allowTether===true,
+      allowTether:order?.allowTether===true&&(!brain.activeGrabber||brain.activeGrabber===u.id),
       escapeTap:heldUnit===u&&tap},t);
     for(const evt of hunt.events){
      if(evt.type==='tether-warn'){
@@ -242,8 +244,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
     }
     if(order?.goal)hunt={...hunt,goal:order.goal,canRam:hunt.canRam&&distance<2.4};
    }
-   // IMPORTANT: only one call advances the core encounter stage each frame.
-   // The no-encounter cooldown update above does not advance an active encounter.
+   // Exactly one original ReFramer state-machine update per active agent per frame.
    const out=step(u.W,{x:p.x,z:p.z},car&&e.stage!=='chase'?{x:car.position.x,z:car.position.z}:null,t,hunt);
    if(out.ram>0&&d2(e.target,p)<2.5){
     onHurt?.(out.ram,new THREE.Vector3(e.target.x,p.y,e.target.z));
