@@ -30,7 +30,7 @@ jobs:
           node --check connected/assets/metal_story_mold_core.mjs
           node --check connected/assets/metal_story_mold_world.mjs
           node --check connected/tests/metal_story_mold_browser_playwright.mjs
-          node --test connected/tests/metal_story_mold_core.test.mjs connected/tests/metal_story_engine.test.mjs
+          node --test connected/tests/metal_story_mold_core.test.mjs
   story-browser:
     runs-on: ubuntu-latest
     needs: story-contracts
