@@ -3,16 +3,20 @@ on:
   push:
     paths:
       - 'connected/assets/reframer_squad_*'
+      - 'connected/assets/reframer_kit_*'
       - 'connected/assets/reframer_hunt_core.mjs'
       - 'connected/assets/main.js'
       - 'connected/tests/reframer_squad_*'
+      - 'connected/tests/reframer_kit_*'
       - '.github/workflows/reframer-squad-v01.yml'
   pull_request:
     paths:
       - 'connected/assets/reframer_squad_*'
+      - 'connected/assets/reframer_kit_*'
       - 'connected/assets/reframer_hunt_core.mjs'
       - 'connected/assets/main.js'
       - 'connected/tests/reframer_squad_*'
+      - 'connected/tests/reframer_kit_*'
       - '.github/workflows/reframer-squad-v01.yml'
   workflow_dispatch:
 permissions:
@@ -31,9 +35,11 @@ jobs:
           node --check connected/assets/main.js
           node --check connected/assets/reframer_squad_core.mjs
           node --check connected/assets/reframer_squad_world.mjs
+          node --check connected/assets/reframer_kit_v1.js
+          node --check connected/assets/reframer_kit_savannah_bridge.mjs
           node --check connected/assets/reframer_hunt_core.mjs
           node --check connected/tests/reframer_squad_browser_playwright.mjs
-          node --test connected/tests/reframer_squad_core.test.mjs connected/tests/reframer_hunt_core.test.mjs connected/tests/draw_combo_reframer.test.mjs
+          node --test connected/tests/reframer_squad_core.test.mjs connected/tests/reframer_hunt_core.test.mjs connected/tests/draw_combo_reframer.test.mjs connected/tests/reframer_kit_savannah_bridge.test.mjs
   physical-scene:
     runs-on: ubuntu-latest
     needs: squad-contracts
