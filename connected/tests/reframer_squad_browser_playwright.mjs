@@ -63,6 +63,22 @@ try{
       stages:snap.wingActors.map(x=>x.stage),
       partCounts:snap.wings.map(x=>x.parts.length),distinct: init.distinct
      }));
+     // Hit one of the REAL, detached donor wheels, not a fictional enemy HP value.
+     // No vehicle part may respawn or be removed from the other independent agent.
+     const target=snap.wings[0].id,other=snap.wings[1];
+     const first=await page.evaluate(id=>window.__game.reframerSquadQA.attack(id,'car'),target);
+     assert.equal(first.ok,true,'Real source-wheel attack missed');
+     const second=await page.evaluate(id=>window.__game.reframerSquadQA.attack(id,'car'),target);
+     assert.equal(second.ok,true,'Source-wheel break did not register');
+     const final=second.state;
+     assert.equal(final.wings[0].parts.length,snap.wings[0].parts.length-1,'Destroyed wheel was not removed from the owner inventory');
+     assert.equal(final.wings[1].parts.length,other.parts.length,'Attack stole parts from another agent');
+     assert.equal(new Set(final.wings.flatMap(x=>x.parts.map(p=>p.id))).size,
+      final.wings.reduce((n,x)=>n+x.parts.length,0),'Duplicate physical wheel inventory after combat');
+     console.log('REFRAMER REAL COMPONENT BREAK',JSON.stringify({
+      targeted:target,remaining:final.wings[0].parts.length,
+      otherUnchanged:final.wings[1].parts.length
+     }));
     }
    }
    assert.equal(errors.length,0,'Runtime JS errors: '+errors.join(' | '));
