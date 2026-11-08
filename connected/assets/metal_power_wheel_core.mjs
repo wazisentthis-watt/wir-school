@@ -14,7 +14,7 @@ const assigned=new Set(POWER_FAMILIES.flatMap(f=>f.ids));
 if(assigned.size!==73||POWER_FAMILIES.flatMap(f=>f.ids).length!==73
  ||METAL_POWER_REGISTRY.some(x=>!assigned.has(x.id)))throw Error('POWER_WHEEL_73_MAPPING_INCOMPLETE');
 const allowed=new Set(['adaptive-armor','snap-step','pressure-read','build-panel','reinforce','reclaim','collect','impact']);
-const aliases=Object.freeze({'build-panel':'build','pressure-read':'scan','snap-step':'step'});
+const aliases=Object.freeze({'build-panel':'build','pressure-read':'scan','adaptive-armor':'armor'});
 export function wheelAction(a){return allowed.has(a)?(aliases[a]||a):null;}
 export function wheelAbilities(family){
  const f=POWER_FAMILIES.find(x=>x.id===family);
@@ -28,7 +28,7 @@ export function wheelAvailability(ability,snapshot){
  if(!action)return {state:'future',why:'Ability has no valid gameplay action',action:null};
  if(!snapshot)return {state:'unavailable',why:'Ability laboratory not loaded',action:null};
  const unlocks=snapshot.unlocks||{};
- const requirements={build:'build',reinforce:'reinforce',step:'snapStep',armor:'build',impact:'impact'};
+ const requirements={build:'build',reinforce:'reinforce','snap-step':'snapStep',armor:'build',impact:'impact'};
  const check=requirements[action];
  if(check&&!unlocks[check])return {state:'locked',why:'Complete the district salvage/repair mission to unlock',action:null};
  return {state:'ready',why:'Ready · uses real world/energy rules',action};
