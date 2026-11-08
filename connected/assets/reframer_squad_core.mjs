@@ -38,6 +38,9 @@ export function attachVehiclePart(S,agentId,part){
  if(part.vehicleId!==a.donor)return {ok:false,reason:'not-claimed-donor'};
  if(a.seenParts.has(part.id)||a.parts.length>=SQUAD.MAX_PARTS)return {ok:false,reason:'duplicate-or-full'};
  const item={id:part.id,kind:part.kind,vehicleId:a.donor,integrity:1};
+ // Optional owner-kit provenance. Reject infinite/negative fabricated mass.
+ if(cleanId(part.sourceKey))item.sourceKey=part.sourceKey;
+ if(safe(part.massKg)&&part.massKg>0&&part.massKg<=10000)item.massKg=part.massKg;
  a.parts.push(item);a.seenParts.add(item.id);
  return {ok:true,part:{...item},used:a.parts.length};
 }
@@ -55,7 +58,7 @@ export function releaseVehicle(S,agentId,outcome){
  S.vehicleClaims.delete(donor);a.donor=null;a.active=false;
  a.parts=[];a.seenParts.clear();
  if(outcome==='roadframeDown'||outcome==='clean')a.downs++;
- S.ledger.push({agentId,donor,outcome,parts:parts.map(p=>({id:p.id,integrity:p.integrity}))});
+ S.ledger.push({agentId,donor,outcome,parts:parts.map(p=>({id:p.id,integrity:p.integrity,massKg:p.massKg??null,sourceKey:p.sourceKey??null}))});
  // Returns part identities so the world can detach original meshes exactly once,
  // restore on abort or publish the remaining matter as finite drawable scrap.
  return {ok:true,agentId,donor,outcome,parts};
