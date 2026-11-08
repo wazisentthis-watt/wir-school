@@ -32,6 +32,7 @@ try{
    if(!c.squad){
     assert.equal(await page.evaluate(()=>typeof window.__game?.reframerSquad),'undefined');
     assert.equal(await page.locator('#reframerSquadBreakFree').count(),0,'Opt-in HUD leaked');
+    assert.equal(await page.evaluate(()=>typeof window.ReframerKit),'undefined','Kit loaded into ordinary baseline');
    }else{
     await page.waitForFunction(()=>typeof window.__game?.reframerSquad==='function',null,{timeout:20000});
     const snap=await page.evaluate(()=>window.__game.reframerSquad());
@@ -39,6 +40,12 @@ try{
     assert.equal(snap.wingActors.length,c.mobile?1:2);
     assert.ok(snap.wingActors.every(x=>x.arms===8),'Independent agents missing authentic 8-limb procedural rigs');
     assert.equal(snap.vehicleClaims.length,0,'Cars stolen without an encounter');
+    assert.equal(snap.kit?.version,'1.0.0','Original owner kit not mounted');
+    assert.equal(snap.kit?.passed,16,'Kit source self-tests incomplete');
+    assert.equal(snap.kit?.carMassKg,878,'Source donor mass changed');
+    assert.equal(snap.kit?.actualWheelMassKg,88,'Extractable source wheel mass changed');
+    assert.equal(snap.kit?.rig,'3-link-eight-arm','Uploaded articulated rig not in game');
+    assert.equal((await page.evaluate(()=>window.__game.reframerKit?.()?.parts)),12,'Missing owner source components');
     assert.equal(await page.locator('#reframerSquadBreakFree').count(),1);
     assert.equal(await page.locator('#reframerSquadBreakFree').isVisible(),false,'No unexplained escape HUD');
     if(c.qa){
@@ -55,6 +62,9 @@ try{
      assert.ok(snap.wingActors.every(x=>x.stage==='chase'),'Original source machine did not finish actual car dismantle / Roadframe state');
      assert.ok(snap.wingActors.every(x=>x.attachedMeshes>0),'No actual donor wheel mesh removed and attached to machine');
      assert.equal(snap.vehicleClaims.length,2);
+     assert.ok(snap.wingActors.every(x=>x.rigJoints===4),'Owner kit IK joints did not drive both real 3D agents');
+     assert.ok(snap.wings.every(x=>x.parts.every(p=>p.massKg===22&&/^wheel/.test(p.sourceKey))),
+      'Real wheel meshes did not inherit owner kit mass and slot provenance');
      assert.ok(snap.wings.every(x=>x.parts.length>0),'Missing individual finite part inventories');
      const partIds=snap.wings.flatMap(x=>x.parts.map(p=>p.id));
      assert.equal(new Set(partIds).size,partIds.length,'Duplicated salvaged parts across machines');
