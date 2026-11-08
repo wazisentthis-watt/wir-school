@@ -58,7 +58,7 @@ export function stepReframerHunt(H,context={},dt=1/60){
  if(H.armBroken&&H.tether!=='idle')release(H,'tether-arm-broken',events);
  // A roadframe cannot instantly grapple Metal. First it projects a
  // visible attachment, allowing a real jump/dodge/power interruption.
- if(H.tether==='idle'&&!H.armBroken&&H.tetherCooldown===0&&seen&&
+ if(H.tether==='idle'&&!H.armBroken&&H.tetherCooldown===0&&seen&&context.allowTether!==false&&
     dist>=HUNT.TETHER_MIN&&dist<=HUNT.TETHER_MAX){
    H.tether='windup';H.tetherT=0;H.warnings++;
    events.push({type:'tether-warn'});

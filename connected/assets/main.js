@@ -58,12 +58,14 @@ const MISSION05=new URLSearchParams(location.search).get('mission05')==='1'; // 
 const AERIAL_DUEL_PILOT=new URLSearchParams(location.search).get('aerial_duel')==='1'&&!MISSION05;
 // Asset IK probe is opt-in and never runs during Mission 05 or the ordinary Savannah loop.
 const REFRAMER_IK_PROBE=AERIAL_DUEL_PILOT&&new URLSearchParams(location.search).get('reframer_ik')==='1';
-const REFRAMER_HUNT=new URLSearchParams(location.search).get('reframer_hunt')==='1'&&!MISSION05&&!AERIAL_DUEL_PILOT; // original ReFramer bodies; optional search/tether
+const REFRAMER_SQUAD=new URLSearchParams(location.search).get('reframer_squad')==='1'&&!MISSION05&&!AERIAL_DUEL_PILOT; // extra independent ReFramers, source-preserving and opt-in
+const REFRAMER_HUNT=(new URLSearchParams(location.search).get('reframer_hunt')==='1'||REFRAMER_SQUAD)&&!MISSION05&&!AERIAL_DUEL_PILOT; // original ReFramer bodies; optional search/tether
 const TEST_YARD_SKATE=new URLSearchParams(location.search).get('skate_yard')==='1'||MISSION05;
 const REAL_SKATE=new URLSearchParams(location.search).get('real_skate')!=='0'&&!MISSION05; // ON by default since 2026-11-06 (RB1); ?real_skate=0 restores the old skate + box kickers
 const METAL_POWER_LAB=new URLSearchParams(location.search).get('metal_abilities')==='1'&&!MISSION05&&!AERIAL_DUEL_PILOT; // strictly opt-in training / HOLD
 let skYard=null; // real-skate park heightfield (only with ?real_skate=1) // fix missing flag from merged PR34; preserve default
 let metalPowerLab=null; // never mounted during ordinary Savannah or Mission05
+let reframerSquad=null; // no extra AI or meshes in baseline; dynamic source adapter only on explicit opt-in
 function armorDamage(dmg){return metalPowerLab?.absorbDamage(dmg)??dmg;} // opt-in only; ordinary baseline unchanged
 if(SLOTTA_BROWSER_QA)window.__testHold=true;
 const boot=window.__bootRecovery||{stage:()=>{},warning:()=>{},failed:()=>{},ready:()=>{},getStatus:()=>({warnings:[]})};
@@ -1126,7 +1128,7 @@ function reframerInit(){if(RFR.W||!colliders.length)return;
 const _ra=new THREE.Vector3(),_rb=new THREE.Vector3(),_rc=new THREE.Vector3(),_rup=new THREE.Vector3(0,1,0);
 function limb(m,a,b){const d=_rc.copy(b).sub(a),L=d.length();m.position.copy(a).addScaledVector(d,.5);m.scale.set(1,L,1);m.quaternion.setFromUnitVectors(_rup,d.normalize());}
 function reframerSay(k,title,sub){if(RFR.said[k])return;RFR.said[k]=true;whisper(title,sub);if(HELP.on)toast(title);}
-function reframerHit(kind,power,pos){const E=RFR.W&&RFR.W.enc;if(!E)return false;const c=E.stage==='chase'||E.stage==='reframe'?_ra.set(E.target.x,1,E.target.z):_ra.set(E.pos.x,E.pos.y,E.pos.z);
+function reframerHit(kind,power,pos){if(REFRAMER_SQUAD&&reframerSquad?.hit(kind,power,pos))return true;const E=RFR.W&&RFR.W.enc;if(!E)return false;const c=E.stage==='chase'||E.stage==='reframe'?_ra.set(E.target.x,1,E.target.z):_ra.set(E.pos.x,E.pos.y,E.pos.z);
  const arm=RFR.arms[0];
  const weakPos=arm?.cl?.getWorldPosition(_rb);
  const armHit=REFRAMER_HUNT&&E.stage==='chase'&&!RFR.hunt?.armBroken&&pos&&weakPos&&pos.distanceTo(weakPos)<1.35;
@@ -2099,7 +2101,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  for(const mt of seamMats)mt.emissiveIntensity=Math.max(0,mt.emissiveIntensity-dt*3);
  if(galLimb){const hb=P.handBone;if(hb){hb.updateMatrixWorld(true);hb.getWorldPosition(_hand);}else _hand.copy(P.o.position).setY(P.o.position.y+1.2);galLimb.tick(dt,{swing:st.swing,grip:worldGripActive&&gripTarget?gripTarget:null,hand:_hand,model:P.model,st,groundY,playerPos:P.o.position});} // PROPOSAL Gallium limb visuals
  // systems
- fightTick(dt);blastTick(dt);globTick(dt);villainFx(dt);villainProjTick(dt);if(FG.breakerT>0)FG.breakerT-=dt;drawTick(dt);reframerTick(dt);helpTick(dt,RSK.gp);doStrings(dt);doFootball(dt);
+ fightTick(dt);blastTick(dt);globTick(dt);villainFx(dt);villainProjTick(dt);if(FG.breakerT>0)FG.breakerT-=dt;drawTick(dt);reframerTick(dt);reframerSquad?.tick(dt);helpTick(dt,RSK.gp);doStrings(dt);doFootball(dt);
  for(const s of slabs){if(s.t<1){s.t+=dt;s.m.position.y=Math.min(.8,s.m.position.y+s.vy*dt);}else if(s.t<6)s.t+=dt;else{s.m.position.y-=dt;if(s.m.position.y<-1){scene.remove(s.m);s.dead=true;}}}
  for(let i=slabs.length-1;i>=0;i--)if(slabs[i].dead)slabs.splice(i,1);
  // interact prompts
@@ -2124,7 +2126,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   const nb=n.o.position.clone();for(const b of colliders)if(b.containsPoint(nb.setY(1))){n.target=wp();break;}}
  // traffic
  updateCarBodies(dt);
- for(const c of cars){if(c.userData.worldBody)continue;const u=c.userData;u.t+=u.dir*u.spd*dt;if(u.t>220)u.t=-220;if(u.t<-220)u.t=220;
+ for(const c of cars){if(c.userData.worldBody||(REFRAMER_SQUAD&&c.userData.reframed))continue;const u=c.userData;u.t+=u.dir*u.spd*dt;if(u.t>220)u.t=-220;if(u.t<-220)u.t=220;
   if(u.axis){c.position.set(u.lane,0.05,u.t);c.rotation.y=u.dir>0?0:Math.PI;}else{c.position.set(u.t,0.05,u.lane);c.rotation.y=u.dir>0?Math.PI/2:-Math.PI/2;}
   if(c.position.distanceTo(pp)<2.4&&pp.y<1.5){vel.add(pp.clone().sub(c.position).setY(0).normalize().multiplyScalar(8));vel.y=5;onGround=false;if(yard&&st.board)skBail('SIDEWAYS TRAFFIC SLIDE');else bail();bodyMachine.fall(vel.x,vel.z);bodyMachine.impact=Math.hypot(vel.x,vel.z);toast('Clipped by traffic!');}}
  // day/night + weather
@@ -2389,6 +2391,42 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   if(AERIAL_DUEL_PILOT)window.__aerialPilot=aerialDuel; // query-flagged browser QA and training entry only
   window.__game.setForm=setForm;window.__game.sk=sk;if(yard){window.__game.testYard=()=>yard.snapshot();if(yardSession)window.__game.testYardSession=()=>yardSession.snapshot();}window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.metalControllerV3=metalPadV3;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.RSK=RSK;window.__game.GLB=GLB;window.__game.HELP=HELP;window.__game.toggleHelp=toggleHelp;window.__game.DRW=DRW;window.__game.CMB=CMB;window.__game.RFR=RFR;window.__game.comboFeed=comboFeed;window.__game.lamps=lamps;window.__game.cars=cars;window.__game.STORY_FIGHTS=STORY_FIGHTS;window.__game.hitFoe=hitFoe;window.__game.tumbleResult=tumbleResult;window.__game.setCamYaw=v=>{camYaw=v;};window.__game.setYaw=v=>{yaw=v;};window.__game.endCrewForTest=(c,w=false)=>endCrew(c,w);window.__game.skYard=()=>skYard;window.__game.ground=()=>onGround;window.__game.bootReport=()=>boot.getStatus();initMetalStory();
   if(MISSION05)initMission05();
+  if(REFRAMER_SQUAD){
+   // Reuse loaded original Kenney car GLBs, rooftop nests, combat and Gallium Draw.
+   // No second player control loop, no automatic publish, no story-save mutation.
+   reframerInit();
+   Promise.all([import('./reframer_kit_v1.js'),import('./reframer_squad_world.mjs')]).then(([, {mountReframerSquad}])=>{
+    // The complete original owner kit is present, checksumable, and tested by the bridge.
+    // We reuse its rig and donor physics canon; do not step a competing 2D simulation.
+    const kit=window.ReframerKit;
+    if(!kit)throw Error('Owner ReFramer Kit v1 did not mount');
+    reframerSquad=mountReframerSquad({
+     THREE,scene,cars,player:P,vel,leaderNests:RFR.W.nests,
+     leaderInfo:()=>{const e=RFR.W?.enc;
+      return {stage:e?.stage??'idle',position:e?e.stage==='chase'?e.target:e.pos:null};},
+     heldCar:()=>heldCar,gamepad:()=>RSK.gp,keys,pressed,
+     onHurt:(damage,pos)=>metalHurt(damage,pos,HELP.on?'Coordinated ReFramer attack':null),
+     onAlert:(message)=>whisper(message,''),
+     onRescue:(car,saved)=>{
+      if(car.userData.occupantExited)return;
+      car.userData.occupantExited=true;car.userData.occupantCount=0;
+      const civilian=makeChar(0xd6aa7d);
+      civilian.o.position.copy(car.position).add(new THREE.Vector3(2.6,.3,0));
+      scene.add(civilian.o);
+      civilian.target=civilian.o.position.clone().add(new THREE.Vector3(9,0,9));
+      civilian.speed=3.6;civilian.wait=0;civilian.role=saved?'rescued driver':'shaken driver';
+      npcs.push(civilian);
+     },
+     drawScrap:DRW.scrap,isTouch,kit,
+     qa:new URLSearchParams(location.search).get('reframer_squad_qa')==='1'
+    });
+    window.__game.reframerSquad=()=>reframerSquad.snapshot();
+    window.__game.reframerKit=()=>({version:kit.DATA.meta.version,parts:kit.DATA.donor.parts.length,
+     tested:reframerSquad.snapshot().kit?.passed,source:kit.DATA.meta.source});
+    if(new URLSearchParams(location.search).get('reframer_squad_qa')==='1')
+     window.__game.reframerSquadQA=Object.freeze({begin:()=>reframerSquad.qaStart(),advance:(n,dt)=>reframerSquad.qaAdvance(n,dt),attack:(id,kind)=>reframerSquad.qaAttack(id,kind)});
+   }).catch(err=>{console.warn('[WIR ReFramer Squad]',err);window.__errors.push(String(err));});
+  }
   if(METAL_POWER_LAB){
    import('./metal_power_lab_world.mjs').then(({mountMetalPowerLab})=>{
     // Shares actual Gallium, scene collision bounds and velocity.
