@@ -24,7 +24,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
  const shaftGeo=new THREE.CylinderGeometry(.075,.1,1,6);
  const tipGeo=new THREE.ConeGeometry(.18,.3,6);
  const tmpU=new THREE.Vector3(0,1,0),va=new THREE.Vector3(),vb=new THREE.Vector3(),vc=new THREE.Vector3();
- const brief=new Map(),ownerParts=new Map();
+ const brief=new Map();
  let active=true,frame=0,escapeTouch=false;
  function announce(agent,key,title){
   if(brief.get(agent.id+key))return;
@@ -61,7 +61,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
     side:THREE.DoubleSide,depthWrite:false}));scan.visible=false;scene.add(scan);
   units.push({id:a.id,role:a.role,W,hunt:createReframerHunt(),root,eye,arms,scan,
    donor:null,wheels:[],wheelHome:[],claimedMesh:new Set(),phase:0,elapsed:0,
-   lastStage:'idle',lastCapture:false,padPrev:false,stats:{rescues:0,rammed:0}});
+   lastStage:'idle',padPrev:false,brokenParts:new Set(),stats:{rescues:0,rammed:0}});
  }
  const btn=document.createElement('button');btn.id='reframerSquadBreakFree';btn.type='button';
  btn.textContent='BREAK FREE · E / A';btn.setAttribute('aria-label','Escape coordinated ReFramer grapple');
@@ -84,7 +84,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
   if(!reserved.ok||!car){u.W.enc=null;return false;}
   car.userData.reframed=true;car.userData.spd0=car.userData.spd;car.userData.spd=0;
   u.donor=car;u.hunt=createReframerHunt();u.root.visible=true;
-  u.wheels=wheelList(car);
+  u.wheels=wheelList(car);u.brokenParts.clear();
   u.wheelHome=u.wheels.map(w=>({node:w,parent:w.parent,pos:w.position.clone(),q:w.quaternion.clone(),scale:w.scale.clone()}));
   u.claimedMesh.clear();u.lastStage='drop';
   announce(u,'wake','REFRAMER '+u.id+' WOKE · '+u.role.toUpperCase());
@@ -95,7 +95,6 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
   const o=attachVehiclePart(brain,u.id,{id:w.uuid,kind:'wheel',vehicleId:u.donor.uuid});
   if(!o.ok)return;
   scene.attach(w);u.claimedMesh.add(w.uuid);
-  ownerParts.set(w.uuid,{unitId:u.id,wheel:w});
   w.position.set(E.target.x+Math.cos(index*Math.PI/2)*1.8,.6,E.target.z+Math.sin(index*Math.PI/2)*1.8);
  }
  function salvageMesh(w,amount,id){
@@ -112,7 +111,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
   releaseTentacle(brain,u.id,false);
   if(clean){
    for(const h of u.wheelHome){
-    if(!h.node||!h.parent)continue;
+    if(!h.node||!h.parent||u.brokenParts.has(h.node.uuid))continue;
     h.parent.attach(h.node);h.node.position.copy(h.pos);
     h.node.quaternion.copy(h.q);h.node.scale.copy(h.scale);
    }
@@ -127,7 +126,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
     if(match)salvageMesh(match,p.integrity*.14,'squad-part-'+u.id+'-'+p.id);
    }
   }
-  u.wheels=[];u.wheelHome=[];u.claimedMesh.clear();u.donor=null;
+  u.wheels=[];u.wheelHome=[];u.claimedMesh.clear();u.brokenParts.clear();u.donor=null;
   u.root.visible=false;u.scan.visible=false;for(const arm of u.arms)arm.g.visible=false;
   u.hunt=createReframerHunt();u.lastStage='idle';
   for(const key of [...brief.keys()])if(key.startsWith(u.id))brief.delete(key);
@@ -290,7 +289,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
       // Detached part goes into DRAW, with the damaged part's remaining matter.
       // It is no longer part of the unit's inventory or future assembly.
       salvageMesh(mesh,.10,'squad-broken-part-'+u.id+'-'+mesh.uuid);
-      u.claimedMesh.delete(mesh.uuid);
+      u.claimedMesh.delete(mesh.uuid);u.brokenParts.add(mesh.uuid);
       onAlert?.('REFRAMER '+u.id+' LOST A VEHICLE COMPONENT');
      }
      return true;
@@ -361,7 +360,7 @@ export function mountReframerSquad({THREE,scene,cars,player,vel,leaderNests,lead
    scene.remove(u.root);scene.remove(u.scan);
    for(const a of u.arms)scene.remove(a.g);
    if(u.donor){
-    for(const h of u.wheelHome)if(h.node&&h.parent){
+    for(const h of u.wheelHome)if(h.node&&h.parent&&!u.brokenParts.has(h.node.uuid)){
      h.parent.attach(h.node);h.node.position.copy(h.pos);h.node.quaternion.copy(h.q);h.node.scale.copy(h.scale);
     }
     u.donor.userData.reframed=false;u.donor.userData.spd=u.donor.userData.spd0||u.donor.userData.spd;
