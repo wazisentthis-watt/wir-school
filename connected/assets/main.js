@@ -66,6 +66,7 @@ const METAL_POWER_LAB=new URLSearchParams(location.search).get('metal_abilities'
 let skYard=null; // real-skate park heightfield (only with ?real_skate=1) // fix missing flag from merged PR34; preserve default
 let metalPowerLab=null; // never mounted during ordinary Savannah or Mission05
 let reframerSquad=null; // no extra AI or meshes in baseline; dynamic source adapter only on explicit opt-in
+let metalPowerWheel=null; // opt-in actual ability selection, never owns Metal locomotion
 function armorDamage(dmg){return metalPowerLab?.absorbDamage(dmg)??dmg;} // opt-in only; ordinary baseline unchanged
 if(SLOTTA_BROWSER_QA)window.__testHold=true;
 const boot=window.__bootRecovery||{stage:()=>{},warning:()=>{},failed:()=>{},ready:()=>{},getStatus:()=>({warnings:[]})};
@@ -363,6 +364,9 @@ function showControllerLegend(){
 const padMap={0:'Space',1:'KeyB',2:'Numpad4',3:'Numpad6',4:'KeyQ',5:'KeyF',6:'Numpad2',7:'Numpad5',8:'KeyM',9:'KeyP',12:'KeyE',13:'KeyX',14:'Numpad1',15:'Numpad3'};const padPrev={};
 function pollPad(dt=1/60){
  const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g&&g.connected):null;
+ // View long-hold opens wheel; short tap still opens the original map.
+ // While the wheel is open, never synthesize conflicting grapple/swing/board inputs.
+ if(metalPowerWheel?.pollGamepad(gp,dt)){RSK.gp=gp||null;return {x:0,y:0};}
  const v3=metalPadV3.poll(gp,dt);
  RSK.gp=gp||null;
  if(RSK.active&&gp){ // REAL SKATE owns A, L2, R2 and both sticks while riding; B still dissolves / bails, Menu still pauses
@@ -2404,7 +2408,7 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
      THREE,scene,cars,player:P,vel,leaderNests:RFR.W.nests,
      leaderInfo:()=>{const e=RFR.W?.enc;
       return {stage:e?.stage??'idle',position:e?e.stage==='chase'?e.target:e.pos:null};},
-     heldCar:()=>heldCar,gamepad:()=>RSK.gp,keys,pressed,
+     heldCar:()=>heldCar,gamepad:()=>RSK.gp,keys,pressed,colliders,
      onHurt:(damage,pos)=>metalHurt(damage,pos,HELP.on?'Coordinated ReFramer attack':null),
      onAlert:(message)=>whisper(message,''),
      onRescue:(car,saved)=>{
@@ -2421,6 +2425,7 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
      qa:new URLSearchParams(location.search).get('reframer_squad_qa')==='1'
     });
     window.__game.reframerSquad=()=>reframerSquad.snapshot();
+    window.__game.startReframerSighting=()=>reframerSquad.startSighting();
     window.__game.reframerKit=()=>({version:kit.DATA.meta.version,parts:kit.DATA.donor.parts.length,
      tested:reframerSquad.snapshot().kit?.passed,source:kit.DATA.meta.source});
     if(new URLSearchParams(location.search).get('reframer_squad_qa')==='1')
@@ -2434,6 +2439,14 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
     metalPowerLab=mountMetalPowerLab({THREE,scene,P,st,vel,colliders,camera,
      grounded:()=>onGround&&!st.wall&&!st.swing&&!st.flying,storage:safeStorage});
     window.__game.metalPowerLab=()=>metalPowerLab.snapshot();
+    // Actual 73-entry wheel, action calls are delegated to real mission rules.
+    import('./metal_power_wheel.mjs').then(({mountMetalPowerWheel})=>{
+     metalPowerWheel=mountMetalPowerWheel({
+      getLab:()=>metalPowerLab,
+      onShortBack:()=>{pressed.KeyM=true;},storage:safeStorage
+     });
+     window.__game.metalPowerWheel=()=>metalPowerWheel.snapshot();
+    }).catch(err=>{console.warn('[METAL power wheel]',err);window.__errors.push(String(err));});
    }).catch(e=>{console.warn('METAL ability lab unavailable',e);window.__errors.push(String(e));});
   }
   if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(0);
