@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {METAL_SPEC,normalizeAISpec,validateCharacterTopology,createSeededRNG,HEAD_GEAR,APPEARANCE} from '../assets/ai_3d_model_spec.mjs';
+test('METAL preset preserves covered armor and coiled Afro Crown',()=>{const s=normalizeAISpec(METAL_SPEC);assert.equal(s.appearance,'metal');assert.equal(s.features.sealedSuit,true);assert.equal(s.features.headGear,'afro-crown');assert.equal(s.features.board,false);});
+test('untrusted JSON cannot execute JS or break limits',()=>{const s=normalizeAISpec({name:'test',scale:88,proportions:{shoulder:1e8,waist:-5,torsoSquareness:100}});assert.equal(s.scale,1.4);assert.equal(s.proportions.shoulder,1.6);assert.equal(s.proportions.waist,.6);assert.equal(s.proportions.torsoSquareness,4.5);});
+test('reject invalid dimensions, colors and seeds',()=>{assert.throws(()=>normalizeAISpec({seed:NaN}));assert.throws(()=>normalizeAISpec({proportions:{head:Infinity}}));assert.throws(()=>normalizeAISpec({palette:{skin:'not-a-color'}}));});
+test('palette hex text accepts # and 0x safely',()=>{const s=normalizeAISpec({palette:{skin:'#662e1d',glow:'0x8855ff'}});assert.equal(s.palette.skin,0x662e1d);assert.equal(s.palette.glow,0x8855ff);});
+test('role and appearance options are bounded',()=>{assert.deepEqual(HEAD_GEAR,['afro-crown','coils','visor','none']);assert.deepEqual(APPEARANCE,['metal','civilian']);assert.throws(()=>normalizeAISpec({features:{headGear:'alien-script'}}));});
+test('seeded material placement is deterministic',()=>{const a=createSeededRNG(42),b=createSeededRNG(42);assert.deepEqual(Array.from({length:20},a),Array.from({length:20},b));});
+test('4 weighted bone influences sum to unity and indexes are valid',()=>{assert.equal(validateCharacterTopology([.2,.3,.5,0],[0,1,2,0],4),true);assert.throws(()=>validateCharacterTopology([.2,.3,.3,0],[0,1,2,0],4));assert.throws(()=>validateCharacterTopology([.2,.3,.5,0],[0,1,88,0],4));});
