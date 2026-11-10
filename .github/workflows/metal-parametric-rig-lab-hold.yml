@@ -1,0 +1,45 @@
+name: METAL parametric rig lab (HOLD)
+on:
+  pull_request:
+    paths:
+      - 'connected/assets/ai_3d_model_*'
+      - 'connected/labs/metal-procedural-rig.html'
+      - 'connected/labs/METAL_PARAMETRIC_RIG_LAB_HOLD.md'
+      - 'connected/tests/ai_3d_model_*'
+      - '.github/workflows/metal-parametric-rig-lab-hold.yml'
+  workflow_dispatch:
+jobs:
+  pure-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax
+        run: |
+          node --check connected/assets/ai_3d_model_spec.mjs
+          node --check connected/assets/ai_3d_model_generator.js
+          node --check connected/tests/ai_3d_model_browser_qa.mjs
+      - name: Pure JSON and skin weight specs
+        run: node --test connected/tests/ai_3d_model_spec.test.mjs
+  browser:
+    runs-on: ubuntu-latest
+    needs: pure-tests
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium runner
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Serve local Three.js vendor module
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 > /tmp/metal-rig.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:8765/connected/assets/lib/three.module.min.js > /dev/null
+      - name: Check skinned mesh and morph in browser
+        run: node connected/tests/ai_3d_model_browser_qa.mjs
