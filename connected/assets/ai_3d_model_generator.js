@@ -110,7 +110,7 @@ export function sweepHingedLimb(builder,start,hinge,end,radA,radB,wA,wB,{segs=14
   const center=a.clone().lerp(b,local),tangent=b.clone().sub(a).normalize();const helper=Math.abs(tangent.y)>.95?V(1,0,0):V(0,1,0);
   const normal=V(0,0,0).crossVectors(helper,tangent).normalize(),binormal=V(0,0,0).crossVectors(tangent,normal).normalize();
   const pts=[];for(let j=0;j<=rad;j++){const th=j/rad*Math.PI*2;const r=(first?radA:radB)(local,th);
-   pts.push(center.clone().addScaledVector(normal,r*Math.cos(th)).addScaledVector(binormal,r*Math.sin(th));}
+   pts.push(center.clone().addScaledVector(normal,r*Math.cos(th)).addScaledVector(binormal,r*Math.sin(th)));}
   const w=blendWeights(wA,wB,smoothstep((t-.43)/.14));rings.push({pts,w,v:t});
  }builder.loft(rings,{capStart:true,capEnd:true});
 }
