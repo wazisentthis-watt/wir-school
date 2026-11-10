@@ -7,6 +7,7 @@ try{
  page.on('pageerror',e=>{errors.push(String(e));console.error('BROWSER PAGE ERROR',String(e));});
  page.on('console',m=>{if(m.type()==='error')console.error('BROWSER CONSOLE',m.text());});
  page.on('requestfailed',req=>console.error('BROWSER REQUEST',req.url(),req.failure()?.errorText));
+ await page.addInitScript(()=>window.addEventListener('error',e=>console.error('RIG_PARSE_ERROR',JSON.stringify({message:e.message,file:e.filename,line:e.lineno,col:e.colno}))));
  await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});
  try{await page.waitForFunction(()=>!!window.previewRig,null,{timeout:15000});}catch(e){console.error('BROWSER WAIT DEBUG',JSON.stringify({errors,url:page.url(),text:await page.locator('#stats').textContent()}));throw e;}
  const before=await page.evaluate(()=>{const r=window.previewRig,stats=r.stats(),skin=Object.values(r.meshes)[0].geometry.attributes;let valid=true;
