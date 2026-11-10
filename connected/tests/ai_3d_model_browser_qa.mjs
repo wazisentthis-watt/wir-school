@@ -4,9 +4,11 @@ const url=process.env.WIR_PARAMETRIC_URL||'http://127.0.0.1:8765/connected/labs/
 const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-webgl','--disable-dev-shm-usage']});
 try{
  const page=await browser.newPage({viewport:{width:1220,height:800}});const errors=[];
- page.on('pageerror',e=>errors.push(String(e)));
+ page.on('pageerror',e=>{errors.push(String(e));console.error('BROWSER PAGE ERROR',String(e));});
+ page.on('console',m=>{if(m.type()==='error')console.error('BROWSER CONSOLE',m.text());});
+ page.on('requestfailed',req=>console.error('BROWSER REQUEST',req.url(),req.failure()?.errorText));
  await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});
- await page.waitForFunction(()=>!!window.previewRig,null,{timeout:20000});
+ try{await page.waitForFunction(()=>!!window.previewRig,null,{timeout:15000});}catch(e){console.error('BROWSER WAIT DEBUG',JSON.stringify({errors,url:page.url(),text:await page.locator('#stats').textContent()}));throw e;}
  const before=await page.evaluate(()=>{const r=window.previewRig,stats=r.stats(),skin=Object.values(r.meshes)[0].geometry.attributes;let valid=true;
   for(let j=0;j<Math.min(40,skin.skinWeight.count);j++){let sum=0;for(let k=0;k<4;k++)sum+=skin.skinWeight.getComponent(j,k);if(Math.abs(sum-1)>1e-4)valid=false;}
   return {stats,valid,rig:r.group.userData.rigged,metal:r.spec.appearance,head:r.bones.Head?.name};});
