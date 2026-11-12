@@ -1602,8 +1602,34 @@ function proCard(){const el=PR.el;if(!el)return;const M=PR.M,T=PRO_TEXT[M.step];
  else if(M.step==='powers')prog='cards '+M.seen.length+' / '+POWER_CARDS.length+' · '+['glob','blast','pull'].map(k=>k+(M.used.includes(k)?' ✓':' —')).join(' · ')+' · form '+(PRO.FORMS.some(k=>M.used.includes(k))?'✓':'—');
  const left=PRO.GRACE-M.t;const skip=['fight','toCrew','pickup','next'].includes(M.step)?'':left<20?' · moving on in '+Math.ceil(left)+' s':'';
  el.innerHTML='<div style="font-size:10px;letter-spacing:2px;color:#ffcf8a">PROLOGUE · LEARN THE CITY</div><div style="font-weight:700;font-size:14px;margin:2px 0">'+T[0]+'</div>'+(T[1]()?'<div style="opacity:.85;margin-bottom:4px">'+T[1]()+'</div>':'')+'<div style="color:#ffcf8a">'+T[2](pad)+'</div>'+(prog||skip?'<div style="opacity:.75;font-size:11px;margin-top:3px">'+prog+skip+'</div>':'');}
-function powerCardTick(dt){const gp=RSK.gp,dd=!!(gp&&gp.buttons[13]&&gp.buttons[13].pressed),e=(dd&&!PCARD.prev)||tap('Digit3');PCARD.prev=dd;
- if(e){if(PCARD.T>0)PCARD.i=(PCARD.i+1)%POWER_CARDS.length;PCARD.T=6;proFeed('card',POWER_CARDS[PCARD.i].id);beep(420+PCARD.i*20,.04,'triangle',.03);}
+// POWER PINWHEEL: tap D-pad ▼ / 3 = next card · hold it = a ring of all 14 powers. Stick (or ←/→) picks, release equips.
+// Equipping only chooses the power the card shows; each power still fires from its own buttons.
+const PW={open:false,hold:0,sel:0,el:null,prevDown:false};
+function pwBuild(){const N=POWER_CARDS.length,d=document.createElement('div');d.id='powerWheel';d.className='wir-keep';
+ d.style.cssText='position:fixed;left:50%;top:50%;width:330px;height:330px;margin:-165px 0 0 -165px;z-index:32;display:none;pointer-events:none;border-radius:50%;background:radial-gradient(circle,rgba(12,10,22,.82) 40%,rgba(12,10,22,.35) 72%,transparent 73%)';
+ POWER_CARDS.forEach((c,i)=>{const th=i/N*Math.PI*2,a=th-Math.PI/2,r=128;const s=document.createElement('div');s.dataset.i=i;
+  s.style.cssText='position:absolute;left:50%;top:50%;width:92px;text-align:center;padding:3px 4px;border-radius:6px;font:600 10.5px/1.15 system-ui;color:#efe9ff;transform:translate(-50%,-50%) translate('+(Math.cos(a)*r).toFixed(1)+'px,'+(Math.sin(a)*r).toFixed(1)+'px)';
+  s.textContent=c.name;d.appendChild(s);});
+ const ctr=document.createElement('div');ctr.id='powerWheelCenter';ctr.style.cssText='position:absolute;left:50%;top:50%;width:150px;margin-left:-75px;margin-top:-42px;text-align:center;font:500 11px/1.35 system-ui;color:#efe9ff';d.appendChild(ctr);
+ document.body.appendChild(d);PW.el=d;}
+function powerCardTick(dt){const N=POWER_CARDS.length,gp=RSK.gp,dd=!!(gp&&gp.buttons[13]&&gp.buttons[13].pressed),down=dd||!!keys.Digit3;
+ if(!PW.el)pwBuild();
+ if(down&&!PW.prevDown){PW.hold=0;PW.open=false;}
+ if(down){PW.hold+=dt;if(!PW.open&&PW.hold>=.25){PW.open=true;PW.sel=PCARD.i;beep(300,.05,'triangle',.03);}}
+ if(PW.open){
+  if(gp&&gp.axes){const x=gp.axes[0]||0,y=gp.axes[1]||0;if(Math.hypot(x,y)>.55){let th=Math.atan2(x,-y);if(th<0)th+=Math.PI*2;PW.sel=Math.round(th/(Math.PI*2/N))%N;}}
+  if(tap('ArrowRight'))PW.sel=(PW.sel+1)%N;if(tap('ArrowLeft'))PW.sel=(PW.sel+N-1)%N;
+ }
+ if(!down&&PW.prevDown){
+  if(PW.open){PCARD.i=PW.sel;beep(520,.05,'triangle',.04);}
+  else{PCARD.i=(PCARD.i+1)%N;beep(420+PCARD.i*20,.04,'triangle',.03);}
+  PCARD.T=6;proFeed('card',POWER_CARDS[PCARD.i].id);PW.open=false;
+ }
+ PW.prevDown=down;
+ PW.el.style.display=PW.open?'block':'none';
+ if(PW.open){const c=POWER_CARDS[PW.sel],pad=!!gp;
+  [...PW.el.children].forEach(ch=>{if(ch.dataset&&ch.dataset.i!==undefined){const on=+ch.dataset.i===PW.sel;ch.style.background=on?'#b983ff':'rgba(12,10,22,.7)';ch.style.color=on?'#0c0a16':'#efe9ff';ch.style.fontWeight=on?'800':'600';}});
+  document.getElementById('powerWheelCenter').innerHTML='<div style="font-weight:700;font-size:13px">'+c.name+'</div><div>'+(pad?c.pad:c.keys)+'</div><div style="opacity:.6;font-size:10px;margin-top:3px">'+(pad?'release to equip':'release to equip · ← → to pick')+'</div>';}
  PCARD.T-=dt;const show=PCARD.T>0||PR.on&&PR.M&&PR.M.step==='powers';
  if(!PCARD.el){const d=document.createElement('div');d.id='powerCard';d.className='wir-keep';d.style.cssText='position:fixed;right:12px;bottom:84px;z-index:31;width:250px;padding:8px 11px;background:rgba(12,10,22,.78);color:#efe9ff;border-right:3px solid #b983ff;border-radius:8px;font:500 12px/1.4 system-ui;pointer-events:none';document.body.appendChild(d);PCARD.el=d;}
  PCARD.el.style.display=show?'block':'none';if(!show)return;const c=POWER_CARDS[PCARD.i],pad=!!RSK.gp;
