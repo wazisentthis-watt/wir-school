@@ -5,6 +5,10 @@ on:
       - 'connected/index.html'
       - 'connected/assets/savannah_native_*'
       - 'connected/tests/savannah_native_*'
+      - 'connected/assets/metal_visual_*'
+      - 'connected/tests/metal_visual_*'
+      - 'connected/assets/metal_native_beast_adapter.js'
+      - 'connected/assets/metal_native_beast_core.mjs'
       - 'connected/SAVANNAH_NATIVE_PILOT.md'
       - '.github/workflows/savannah-native-pilot.yml'
   workflow_dispatch:
@@ -22,8 +26,14 @@ jobs:
           node --check connected/assets/savannah_native_bridge.js
           node --check connected/assets/savannah_native_core.mjs
           node --check connected/tests/savannah_native_browser_qa.mjs
+          node --check connected/assets/metal_native_beast_adapter.js
+          node --check connected/assets/metal_native_beast_core.mjs
+          node --check connected/tests/metal_native_beast_browser_qa.mjs
+          node --check connected/assets/metal_visual_evolution.js
+          node --check connected/assets/metal_visual_rules.mjs
+          node --check connected/tests/metal_visual_browser_qa.mjs
       - name: Native mission behavior
-        run: node --test connected/tests/savannah_native_core.test.mjs
+        run: node --test connected/tests/savannah_native_core.test.mjs connected/tests/savannah_campaign_expansion.test.mjs connected/tests/metal_native_beast_core.test.mjs connected/tests/metal_visual_rules.test.mjs
   native-browser:
     name: Connected + native Savannah desktop smoke
     runs-on: ubuntu-latest
@@ -44,4 +54,15 @@ jobs:
           sleep 2
           curl -fsS http://127.0.0.1:8765/connected/ > /dev/null
       - name: Validate actual shared 3D scene and unchanged saves
-        run: node connected/tests/savannah_native_browser_qa.mjs
+        run: |
+          node connected/tests/savannah_native_browser_qa.mjs
+          node connected/tests/metal_native_beast_browser_qa.mjs
+          node connected/tests/metal_visual_browser_qa.mjs
+      - name: Keep visual review screenshot, no canon art replacement
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metal-build04-visual-evidence
+          path: test-results/native-metal-build04-*.png
+          retention-days: 7
+          if-no-files-found: ignore

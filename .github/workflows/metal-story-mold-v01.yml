@@ -1,0 +1,61 @@
+name: METAL InDa RIFFT End-Backward Story Mold & First Push (HOLD)
+on:
+  push:
+    paths:
+      - 'connected/assets/metal_story_mold_*.mjs'
+      - 'connected/assets/main.js'
+      - 'connected/tests/metal_story_mold_*'
+      - '.github/workflows/metal-story-mold-v01.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/metal_story_mold_*.mjs'
+      - 'connected/assets/main.js'
+      - 'connected/tests/metal_story_mold_*'
+      - '.github/workflows/metal-story-mold-v01.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  story-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify old story save and new source
+        run: |
+          node --check connected/assets/main.js
+          node --check connected/assets/metal_story_mold_core.mjs
+          node --check connected/assets/metal_story_mold_world.mjs
+          node --check connected/tests/metal_story_mold_browser_playwright.mjs
+          node --test connected/tests/metal_story_mold_core.test.mjs
+  story-browser:
+    runs-on: ubuntu-latest
+    needs: story-contracts
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm install --no-save --no-fund --no-audit playwright
+          npx playwright install --with-deps chromium
+      - name: Serve unmerged source offline, never deploy this build
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/story-mold.log 2>&1 &
+          sleep 2
+          curl -fI http://127.0.0.1:8765/connected/
+      - name: First mission, real skating evidence, 30-episode map and touch
+        run: node connected/tests/metal_story_mold_browser_playwright.mjs
+      - name: Archive screenshots and tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metal-story-mold-first-push-v01-HOLD
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: warn

@@ -91,14 +91,21 @@ export function rescue(W) {
 function end(W, outcome) {
   const E = W.enc; W.enc = null; E.nest.cool = RF.NEST_COOL;
   if (outcome === 'clean') W.stats.clean++; if (outcome === 'aborted') W.stats.aborted++; if (outcome === 'roadframeDown') W.stats.roadframesDown++;
-  const lostCar = outcome === 'roadframeDown' || outcome === 'escaped' || outcome === 'fledWithParts' && E.parts >= 4;
+  const lostCar = outcome === 'roadframeDown' || outcome === 'escaped' || outcome === 'lostTarget' || outcome === 'fledWithParts' && E.parts >= 4;
   const scatter = outcome === 'clean' && E.released ? E.parts : 0;                                   // parts on the ground to bring back
   W.ledger.push({ id: E.id, outcome, rescued: E.rescued, occupied: E.occupied, jams: E.jams, carLost: lostCar, scatter, armsLost: E.armsLost, wheelsLost: E.wheelsLost, repaired: 0 });
   return { type: 'end', outcome, residue: outcome === 'roadframeDown' || outcome === 'clean' ? RF.RESIDUE : 0, donor: E.donor, carLost: lostCar, scatter, id: E.id };
 }
 
-// metal: {x,z}; donorPos: {x,z} (live car position). returns { events[], ram: dmg }
-export function step(W, metal, donorPos, dt) {
+// A Roadframe that loses Metal still keeps the donor shell, leaves evidence,
+// and returns to nest cooldown. The owner scene must clear its physical meshes.
+export function loseReframerTarget(W){
+ if(!W?.enc||W.enc.stage!=='chase')return null;
+ return end(W,'lostTarget');
+}
+// metal: {x,z}; donorPos: {x,z}; optional hunt state supplies last-known target.
+// Default behavior is unchanged when hunt is absent.
+export function step(W, metal, donorPos, dt, hunt=null) {
   const out = { events: [], ram: 0 };
   for (const n of W.nests) if (n.cool > 0) n.cool -= dt;
   const E = W.enc; if (!E) return out;
@@ -118,9 +125,10 @@ export function step(W, metal, donorPos, dt) {
       E.released = true; E.parts = Math.min(4, Math.floor(E.t / D.release * 5)); if (E.t >= D.release) at('reframe'); break;
     case 'reframe': if (E.t >= D.reframe) { at('chase'); out.events.push({ type: 'roadframe' }); } break;
     case 'chase': {
-      const dx = metal.x - E.target.x, dz = metal.z - E.target.z, d = Math.hypot(dx, dz) || 1;
+      const goal=hunt?.goal&&Number.isFinite(hunt.goal.x)&&Number.isFinite(hunt.goal.z)?hunt.goal:metal;
+      const dx = goal.x - E.target.x, dz = goal.z - E.target.z, d = Math.hypot(dx, dz) || 1;
       E.target.x += dx / d * RF.ROAD_SPEED * dt; E.target.z += dz / d * RF.ROAD_SPEED * dt; E.heading = Math.atan2(dx, dz);
-      E.ramCd -= dt; if (d < 2.4 && E.ramCd <= 0) { E.ramCd = RF.RAM_CD; out.ram = RF.RAM_DMG; out.events.push({ type: 'ram' }); }
+      E.ramCd -= dt; if ((!hunt||hunt.canRam===true) && d < 2.4 && E.ramCd <= 0) { E.ramCd = RF.RAM_CD; out.ram = RF.RAM_DMG; out.events.push({ type: 'ram' }); }
       if (E.t > 45) { out.events.push(end(W, 'escaped')); return out; }
       break;
     }

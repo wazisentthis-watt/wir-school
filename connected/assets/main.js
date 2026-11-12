@@ -36,7 +36,7 @@ import {GLOB,createGlob,formGlob,launchGlob,stepGlob,globRadius,carImpulse,foeIm
 import {VILLAINS,createVillainState,stepVillain,damageMul,echoWarnings,pullSpike,douseZone} from './villain_core.mjs';
 import {DRAW,createDraw,stepDraw} from './metal_draw_core.mjs'; // PROPOSAL / HOLD
 import {COMBOS,createCombos,feed} from './power_combo_core.mjs';
-import {RF,createReframers,wake,hit,rescue,step,hitArm,hitWheel,react,repairPart,coolNests} from './reframer_core.mjs';
+import {RF,createReframers,wake,hit,rescue,step,hitArm,hitWheel,react,repairPart,coolNests,loseReframerTarget} from './reframer_core.mjs';
 import {vehicle,step as driveStepPhys,deadzone} from './drive_physics.mjs';
 import {KIT,createKit,bAction as kitBAction,addPuddle as kitAddPuddle,pullStep as kitPullStep,form as kitForm,meltHand as kitMeltHand,blast as kitBlast,shieldHit as kitShieldHit,strikeMods as kitStrikeMods,serializePuddles as kitSerializePuddles,loadPuddles as kitLoadPuddles} from './gallium_kit_core.mjs'; // PROPOSAL / HOLD
 import {FB,createSquad as fbCreateSquad,hitUnit as fbHitUnit,hitDrone as fbHitDrone,step as fbStep,allDown as fbAllDown,platesOn as fbPlatesOn} from './framebreaker_core.mjs'; // PROPOSAL / HOLD
@@ -44,6 +44,7 @@ import {createLoose} from './board_body.mjs';
 import {WT,createWT,step as wtStep,hitLimb,hitKeeper,observe as wtObserve,serialize as wtSave,restore as wtRestore} from './wrong_target_core.mjs'; // Wrong Target PROPOSAL / HOLD
 import {EP1,createEp1,step as ep1Step,feed as ep1Feed,fightAbandoned as ep1Abandon,replay as ep1Replay,serialize as ep1Save,deserialize as ep1Load} from './ep1_mission_core.mjs'; // Ep.1 PROPOSAL / HOLD // ReFramer Rush drive model (owner source)
 import {MAT,build,constructHeight,constructRails,reclaim,damageConstruct,railFrom,railSegments,bendRail,straightenRail,createWall,hitWall,wallState,repairWall,createWorldState,currentJob,checkJobs,serialize,deserialize} from './malleable_world_core.mjs'; // PROPOSAL / HOLD
+import {HUNT,createReframerHunt,stepReframerHunt,hitReframerArm,reframerHuntSnapshot} from './reframer_hunt_core.mjs';
 import {MetalForgeController,FORGE_COST,FORGE_REFUND} from './metal_forge_controller.js';
 import {selectForgePose} from './metal_forge_choreography.mjs';
 import {ForgePerformanceOverlay} from './metal_forge_performance.js';
@@ -68,9 +69,18 @@ const MISSION05=new URLSearchParams(location.search).get('mission05')==='1'; // 
 const AERIAL_DUEL_PILOT=new URLSearchParams(location.search).get('aerial_duel')==='1'&&!MISSION05;
 // Asset IK probe is opt-in and never runs during Mission 05 or the ordinary Savannah loop.
 const REFRAMER_IK_PROBE=AERIAL_DUEL_PILOT&&new URLSearchParams(location.search).get('reframer_ik')==='1';
+const REFRAMER_SQUAD=new URLSearchParams(location.search).get('reframer_squad')==='1'&&!MISSION05&&!AERIAL_DUEL_PILOT; // extra independent ReFramers, source-preserving and opt-in
+const REFRAMER_HUNT=(new URLSearchParams(location.search).get('reframer_hunt')==='1'||REFRAMER_SQUAD)&&!MISSION05&&!AERIAL_DUEL_PILOT; // original ReFramer bodies; optional search/tether
 const TEST_YARD_SKATE=new URLSearchParams(location.search).get('skate_yard')==='1'||MISSION05;
 const REAL_SKATE=new URLSearchParams(location.search).get('real_skate')!=='0'&&!MISSION05; // ON by default since 2026-11-06 (RB1); ?real_skate=0 restores the old skate + box kickers
+const METAL_POWER_LAB=new URLSearchParams(location.search).get('metal_abilities')==='1'&&!MISSION05&&!AERIAL_DUEL_PILOT; // strictly opt-in training / HOLD
+const METAL_STORY_MOLD=new URLSearchParams(location.search).get('metal_campaign')==='1'&&!MISSION05&&!AERIAL_DUEL_PILOT; // end-backward canon story preview, opt-in PUBLISH HOLD
 let skYard=null; // real-skate park heightfield (only with ?real_skate=1) // fix missing flag from merged PR34; preserve default
+let metalPowerLab=null; // never mounted during ordinary Savannah or Mission05
+let reframerSquad=null; // no extra AI or meshes in baseline; dynamic source adapter only on explicit opt-in
+let metalPowerWheel=null; // opt-in actual ability selection, never owns Metal locomotion
+let metalStoryMold=null; // source 30-episode narrative + physically demonstrated first rhythm
+function armorDamage(dmg){return metalPowerLab?.absorbDamage(dmg)??dmg;} // opt-in only; ordinary baseline unchanged
 if(SLOTTA_BROWSER_QA)window.__testHold=true;
 const boot=window.__bootRecovery||{stage:()=>{},warning:()=>{},failed:()=>{},ready:()=>{},getStatus:()=>({warnings:[]})};
 const safeStorage=(()=>{try{return window.localStorage}catch(e){boot.warning({asset:'localStorage',reason:String(e)});return {getItem:()=>null,setItem:()=>{throw Error('Storage is unavailable')}};}})();
@@ -369,6 +379,9 @@ function showControllerLegend(){
 const padMap={0:'Space',1:'KeyB',2:'Numpad4',3:'Numpad6',4:'KeyQ',5:'KeyF',6:'Numpad2',7:'Numpad5',8:'KeyM',9:'KeyP',12:'KeyE',13:'KeyX',14:'Numpad1',15:'Numpad3'};const padPrev={};
 function pollPad(dt=1/60){
  const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g&&g.connected):null;
+ // View long-hold opens wheel; short tap still opens the original map.
+ // While the wheel is open, never synthesize conflicting grapple/swing/board inputs.
+ if(metalPowerWheel?.pollGamepad(gp,dt)){RSK.gp=gp||null;return {x:0,y:0};}
  const v3=metalPadV3.poll(gp,dt);
  RSK.gp=gp||null;
  if(typeof DRV!=='undefined'&&DRV.active){for(const [i,k] of Object.entries(padMap)){if(padPrev[i])keys[k]=false;padPrev[i]=false;}return {x:0,y:0};}
@@ -1062,11 +1075,12 @@ function globHitCar(c,pr){const u=c.userData;
 // ---- villain abilities (Season One blueprint) ----
 const VFX={rings:[],spikes:[],slick:[],heat:null};
 function vRing(x,z,r,life,color){const m=new THREE.Mesh(new THREE.RingGeometry(r*.92,r,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8,side:THREE.DoubleSide,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.set(x,groundY+.06,z);scene.add(m);VFX.rings.push({m,t:0,life});return m;}
-function metalHurt(dmg,from,why){if(FG.iframe>0||dmg<=0)return;dmg=kitShieldBlock(dmg,from);st.hp=Math.max(0,st.hp-dmg);if(from){const d=P.o.position.clone().sub(from).setY(0).normalize();FG.kb.addScaledVector(d,6);}FG.shake=Math.max(FG.shake,.2);if(why)toast(why);
+function metalHurt(dmg,from,why){if(FG.iframe>0||dmg<=0)return;dmg=kitShieldBlock(dmg,from);st.hp=Math.max(0,st.hp-armorDamage(dmg));if(from){const d=P.o.position.clone().sub(from).setY(0).normalize();FG.kb.addScaledVector(d,6);}FG.shake=Math.max(FG.shake,.2);if(why)toast(why);
+
  if(st.hp<=0){st.hp=1;for(const c of STORY_FIGHTS)if(c.state==='fight')endCrew(c,false);}}
 function villainAbility(foe,dt){const R=foe.R,V=R.vil,rp=foe.ch.o.position,mp=P.o.position;
  const o=stepVillain(V,{dist:R.d,active:R.active&&!R.out,self:{x:rp.x,z:rp.z},metal:{x:mp.x,z:mp.z}},dt);
- if(o.metalDmg>0)st.hp=Math.max(.02,st.hp-o.metalDmg);
+ if(o.metalDmg>0)st.hp=Math.max(.02,st.hp-armorDamage(o.metalDmg));
  for(const e of o.events){
   if(e.type==='slam'){const ring=vRing(e.x,e.z,e.r,e.warn+.25,0xffb11f);playT(foe.ch,'Hook',.6);R.animLock=.6;
    setTimeout(()=>{if(!R.active)return;burst(new THREE.Vector3(e.x,groundY+.3,e.z),40,7);FG.shake=.35;if(P.o.position.distanceTo(new THREE.Vector3(e.x,P.o.position.y,e.z))<e.r&&onGround&&!st.board)metalHurt(.14,rp,'Ballast slam — jump or roll out of the ring');},e.warn*1000);}
@@ -1177,7 +1191,8 @@ function comboFeed(type){const c=feed(CMB,type,performance.now()/1000);if(!c)ret
  CMB.last=c;return c;}
 
 // ---------- REFRAMERS (from ReFramer Rush): wake on rooftops, take a real car apart, rebuild it into a Roadframe ----------
-const RFR={W:null,mesh:null,arms:[],scan:null,car:null,wheels:[],wheelHome:[],said:{},t:0,parts:[],reactT:0};
+const RFR={W:null,mesh:null,arms:[],scan:null,car:null,wheels:[],wheelHome:[],said:{},t:0,parts:[],reactT:0,
+ hunt:null,escapeButton:null,escapeTouch:false,escapePadPrev:false};
 function reframerInit(){if(RFR.W||!colliders.length)return;
  const tall=colliders.filter(b=>b.max.y>7&&b.max.y<40).map(b=>({x:(b.min.x+b.max.x)/2,y:b.max.y,z:(b.min.z+b.max.z)/2}));
  const pick=[];for(const sp of [SPOTS.home,SPOTS.skate,SPOTS.field,SPOTS.fight,SPOTS.forge]){if(!sp||!sp.c)continue;let best=null,bd=1e9;for(const t of tall){const d=Math.hypot(t.x-sp.c.x,t.z-sp.c.z);if(d>25&&d<bd&&!pick.includes(t)){bd=d;best=t;}}if(best)pick.push(best);}
@@ -1187,23 +1202,60 @@ function reframerInit(){if(RFR.W||!colliders.length)return;
  for(let i=0;i<8;i++){const a=new THREE.Group();const s1=new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,1,6),gm),s2=new THREE.Mesh(new THREE.CylinderGeometry(.05,.07,1,6),gm),cl=new THREE.Mesh(new THREE.ConeGeometry(.12,.3,5),em);
   s1.castShadow=s2.castShadow=true;a.add(s1,s2,cl);scene.add(a);RFR.arms.push({g:a,s1,s2,cl,ang:i/8*Math.PI*2});}
  RFR.scan=new THREE.Mesh(new THREE.ConeGeometry(2.6,3.2,24,1,true),new THREE.MeshBasicMaterial({color:0xff7a2a,transparent:true,opacity:.18,side:THREE.DoubleSide,depthWrite:false}));scene.add(RFR.scan);
- g.visible=false;for(const a of RFR.arms)a.g.visible=false;RFR.scan.visible=false;scene.add(g);RFR.mesh=g;}
+ g.visible=false;for(const a of RFR.arms)a.g.visible=false;RFR.scan.visible=false;scene.add(g);RFR.mesh=g;
+ if(REFRAMER_HUNT){
+  RFR.hunt=createReframerHunt();
+  const btn=document.createElement('button');btn.id='reframerBreakFree';btn.type='button';
+  btn.textContent='BREAK FREE · E / A';btn.setAttribute('aria-label','Struggle free of ReFramer tentacle');
+  btn.classList.add('wir-keep');btn.hidden=true;
+  btn.style.cssText='position:fixed;bottom:calc(92px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:65;touch-action:manipulation;border-radius:14px;padding:13px 18px;background:#822b32;color:#fff;border:2px solid #f3ae9d;font:bold 13px system-ui';
+  btn.addEventListener('click',()=>{RFR.escapeTouch=true;});document.body.append(btn);RFR.escapeButton=btn;
+  if(window.__game)window.__game.reframerHunt=()=>({enabled:true,active:!!RFR.W?.enc,stage:RFR.W?.enc?.stage??'idle',
+    ...reframerHuntSnapshot(RFR.hunt),arms:RFR.arms.length,nests:RFR.W?.nests?.length??0,stats:{...RFR.W.stats}});
+  // QA-only: deliberately place ONE EXISTING loaded car by ONE EXISTING roof nest.
+  // This cannot run in the user's actual game or write a save/checkpoint.
+  if(window.__game&&new URLSearchParams(location.search).get('reframer_qa')==='1')
+   window.__game.reframerQA=Object.freeze({begin:()=>{
+    if(RFR.W.enc)return {ok:true,alreadyActive:true,stage:RFR.W.enc.stage};
+    const nest=RFR.W.nests.find(n=>n.cool<=0);
+    const donor=cars.find(c=>!c.userData.worldBody&&!c.userData.reframed);
+    if(!nest||!donor)return {ok:false,reason:'missing-original-nest-or-car'};
+    donor.userData.spd=0;donor.userData.occupantExited=false;
+    donor.position.set(nest.x+8,.05,nest.z+3);P.o.position.set(nest.x+14,groundY,nest.z+3);
+    let carMeshes=0;donor.traverse(o=>{if(o.isMesh)carMeshes++;});
+    return {ok:true,carMeshes,nestId:nest.id,donorId:donor.uuid};
+   }});
+ }
+}
 const _ra=new THREE.Vector3(),_rb=new THREE.Vector3(),_rc=new THREE.Vector3(),_rup=new THREE.Vector3(0,1,0);
 function limb(m,a,b){const d=_rc.copy(b).sub(a),L=d.length();m.position.copy(a).addScaledVector(d,.5);m.scale.set(1,L,1);m.quaternion.setFromUnitVectors(_rup,d.normalize());}
 function reframerSay(k,title,sub){if(RFR.said[k])return;RFR.said[k]=true;whisper(title,sub);if(HELP.on)toast(title);}
-function reframerHit(kind,power,pos){if(fbDroneHit(kind,pos)||wtHit(kind,power,pos))return true;const E=RFR.W&&RFR.W.enc;if(!E)return false;
- if(kind==='glob'&&power>=.85){const rr=react(RFR.W,{bigHit:power});if(rr&&rr.type==='end'){reframerEnd(rr);return true;}}
- // limb-level: hit the actual outriggers (arms while it clamps, wheels on the Roadframe)
- if(pos&&['anchor','release','stagger','stun','read'].includes(E.stage)){let bi=-1,bd=1.35;RFR.arms.forEach((a,i)=>{if(E.arms[i]<=0)return;const d=a.cl.position.distanceTo(pos);if(d<bd){bd=d;bi=i;}});
-  if(bi>=0){const r=hitArm(RFR.W,bi,power);if(r){burst(RFR.arms[bi].cl.position,14,4);beep(90,.06,'square',.04);if(r.type==='armOff'){const a=RFR.arms[bi];a.g.visible=false;DRW.scrap.push({kind:'scrap',x:a.cl.position.x,y:.4,z:a.cl.position.z});whisper('Arm torn off ('+E.armsLost+'/8)',r.tipped?'it toppled — hit it while it\'s down':'three arms off during the clamp topples it');}}return true;}}
- if(pos&&E.stage==='chase'){let bi=-1,bd=1.5;RFR.wheels.forEach((w,i)=>{if(E.wheels[i]<=0)return;const d=w.position.distanceTo(pos);if(d<bd){bd=d;bi=i;}});
-  if(bi>=0){const r=hitWheel(RFR.W,bi,power);burst(RFR.wheels[bi].position,16,5);beep(80,.07,'square',.04);if(r&&r.type==='wheelOff'){const w=RFR.wheels[bi];w.userData.off=true;w.position.y=.45;w.rotation.set(0,0,Math.PI/2);DRW.scrap.push({kind:'scrap',x:w.position.x,y:.45,z:w.position.z,mesh:w});whisper('Outrigger off','3 off and it collapses');}if(r&&r.type==='end')reframerEnd(r);return true;}}
- const c=E.stage==='chase'||E.stage==='reframe'?_ra.set(E.target.x,1,E.target.z):_ra.set(E.pos.x,E.pos.y,E.pos.z);
- if(pos&&pos.distanceTo(c)>3.2)return false;const r=hit(RFR.W,kind,power);if(!r)return false;burst(c,24,6);beep(70,.08,'square',.05);
+function reframerHit(kind,power,pos){if(REFRAMER_SQUAD&&reframerSquad?.hit(kind,power,pos))return true;const E=RFR.W&&RFR.W.enc;if(!E)return false;const c=E.stage==='chase'||E.stage==='reframe'?_ra.set(E.target.x,1,E.target.z):_ra.set(E.pos.x,E.pos.y,E.pos.z);
+ const arm=RFR.arms[0];
+ const weakPos=arm?.cl?.getWorldPosition(_rb);
+ const armHit=REFRAMER_HUNT&&E.stage==='chase'&&!RFR.hunt?.armBroken&&pos&&weakPos&&pos.distanceTo(weakPos)<1.35;
+ if(pos&&pos.distanceTo(c)>3.2&&!armHit)return false;
+ if(armHit){
+  const weak=hitReframerArm(RFR.hunt,kind,power);
+  if(weak.ok){
+   burst(weakPos,20,6);beep(550,.10,'triangle',.04);
+   if(weak.broken){
+    // Physically detachable mechanical attachment, copied from the existing
+    // claw mesh; Metal can draw its finite metal mass into Galaxy Gallium.
+    const shard=arm.cl.clone();shard.position.copy(weakPos);shard.scale.setScalar(1.8);scene.add(shard);
+    DRW.scrap.push({kind:'scrap',id:'reframer-arm-'+E.id,x:shard.position.x,y:shard.position.y,z:shard.position.z,
+      reserve:weak.salvage,mesh:shard});
+    arm.g.visible=false;
+    reframerSay('armBreak','TENTACLE ATTACHMENT SEVERED','draw the recovered metal into Galaxy Gallium');
+   }
+   return true;
+  }
+ }
+ const r=hit(RFR.W,kind,power);if(!r)return false;burst(c,24,6);beep(70,.08,'square',.05);
  if(r.type==='jam')reframerSay('jam'+E.jams,'SCAN JAMMED','one more and it aborts');if(r.type==='tipped')reframerSay('tip','TIPPED','hit it while it\'s down');
  if(r.type==='end')reframerEnd(r);return true;}
-function reframerEnd(r){RSIG.gap=RF_GAP;const car=RFR.car;
- if(r.outcome==='roadframeDown'||r.outcome==='escaped'){ // the donor car is gone — its metal is left as scrap you can draw
+function reframerEnd(r){const car=RFR.car;
+ if(r.outcome==='roadframeDown'||r.outcome==='escaped'||r.outcome==='lostTarget'){ // shell-car material remains scrap when abandoned
   if(car){scene.remove(car);const i=cars.indexOf(car);if(i>=0)cars.splice(i,1);for(const w of RFR.wheels){w.position.set(car.position.x+(Math.random()-.5)*4,.45,car.position.z+(Math.random()-.5)*4);w.rotation.set(0,Math.random()*6,Math.PI/2);DRW.scrap.push({kind:'scrap',x:w.position.x,y:.45,z:w.position.z,mesh:w});}}
  }else if(car){car.position.y=.05;car.rotation.x=car.rotation.z=0;let out=0;
   for(let k=0;k<RFR.wheels.length;k++){const w=RFR.wheels[k];if(!w)continue;
@@ -1214,25 +1266,49 @@ function reframerEnd(r){RSIG.gap=RF_GAP;const car=RFR.car;
   if(r.outcome==='fledWithParts'){whisper('It fled with the wheels','');}
   else if(!out){car.userData.reframed=false;car.userData.spd=car.userData.spd0||car.userData.spd;}else if(r.scatter)whisper('Parts on the ground','hold draw near the car to guide them back');}
  if(r.residue){st.gal=Math.min(1,st.gal+r.residue);}
- st.comboPend+=3;whisper(r.outcome==='aborted'?'REFRAMER FLED':r.outcome==='clean'?'REFRAMER DOWN — car saved':r.outcome==='roadframeDown'?'ROADFRAME DOWN — salvage the scrap':'ROADFRAME GOT AWAY','');if(HELP.on)toast('ReFramer: '+r.outcome);
- RFR.car=null;RFR.wheels=[];RFR.mesh.visible=false;for(const a of RFR.arms)a.g.visible=false;RFR.scan.visible=false;RFR.said={};}
-function reframerParts(dt){const p=P.o.position;
- for(let i=RFR.parts.length-1;i>=0;i--){const q=RFR.parts[i];if(q.t<0){if(DRW.drawing&&q.car.position.distanceTo(p)<12&&q.w.position.distanceTo(p)<14)q.t=0;continue;}
-  q.t+=dt*1.6;const home=q.car.localToWorld(q.home.p.clone());q.w.position.lerp(home,Math.min(1,q.t));q.w.rotation.x+=dt*10;
-  if(q.t>=1){q.car.add(q.w);q.w.position.copy(q.home.p);q.w.quaternion.copy(q.home.q);RFR.parts.splice(i,1);repairPart(RFR.W,q.enc);beep(360,.05,'triangle',.03);
-   if(!RFR.parts.some(o=>o.car===q.car)){q.car.userData.reframed=false;q.car.userData.spd=q.car.userData.spd0||9;whisper('Car rebuilt','back in traffic');st.comboPend+=2;}}}}
-function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=RFR.W,p=P.o.position;reframerParts(dt);
- if(W.enc){RFR.reactT-=dt;if(RFR.reactT<=0){RFR.reactT=.5;let con=null;if(MWB.S){let bd=15;for(const c of MWB.S.constructs){const d=Math.hypot(c.x-W.enc.target.x,c.z-W.enc.target.z);if(d<bd){bd=d;con=c;}}}
-  const rr=react(W,{swinging:!!st.swing,construct:con});
-  if(rr&&rr.type==='outriggersUp'){beep(150,.1,'sawtooth',.03);whisper('Outriggers up','it shields the side you swing at');}
-  if(rr&&rr.type==='smashConstruct'){whisper('It\'s going after your Gallium','reclaim it or defend it');setTimeout(()=>{if(!MWB.S)return;const d=damageConstruct(MWB.S,rr.id,.6);if(d&&d.destroyed){mwConRemove(rr.id);mwSave();whisper('Construct smashed','material lost');}else if(d){mwSave();}const W2=RFR.W.enc;if(W2)W2.smashing=null;},1200);}
-  if(rr&&rr.type==='end')reframerEnd(rr);}}
- if(!W.enc){coolNests(W,dt);const donors=cars.filter(c=>!c.userData.worldBody&&c!==heldCar&&!c.userData.reframed&&!c.userData.bike&&!c.userData.driven).map(c=>({id:c.uuid,x:c.position.x,z:c.position.z,occupied:!c.userData.occupantExited,c}));
-  const E=reframerSignal(dt)?wake(W,{x:p.x,z:p.z},donors):null;if(E){RFR.car=donors.find(d=>d.id===E.donor).c;const u=RFR.car.userData;u.reframed=true;u.spd0=u.spd;u.spd=0;RFR.mesh.visible=true;sfx('phase',.55);
+ st.comboPend+=3;whisper(r.outcome==='aborted'?'REFRAMER FLED':r.outcome==='clean'?'REFRAMER DOWN — car saved':r.outcome==='roadframeDown'?'ROADFRAME DOWN — salvage the scrap':r.outcome==='lostTarget'?'ROADFRAME LOST THE TRAIL — Metal escaped':'ROADFRAME GOT AWAY','');if(HELP.on)toast('ReFramer: '+r.outcome);
+ RFR.car=null;RFR.wheels=[];RFR.mesh.visible=false;for(const a of RFR.arms)a.g.visible=false;RFR.scan.visible=false;RFR.said={};
+ if(RFR.escapeButton)RFR.escapeButton.hidden=true;
+ RFR.hunt=REFRAMER_HUNT?createReframerHunt():null;RFR.escapeTouch=false;RFR.escapePadPrev=false;}
+function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=RFR.W,p=P.o.position;
+ if(!W.enc){const donors=cars.filter(c=>!c.userData.worldBody&&c!==heldCar&&!c.userData.reframed).map(c=>({id:c.uuid,x:c.position.x,z:c.position.z,occupied:!c.userData.occupantExited,c}));
+  const E=wake(W,{x:p.x,z:p.z},donors);if(E){if(REFRAMER_HUNT)RFR.hunt=createReframerHunt();RFR.car=donors.find(d=>d.id===E.donor).c;const u=RFR.car.userData;u.reframed=true;u.spd0=u.spd;u.spd=0;RFR.mesh.visible=true;if(REFRAMER_HUNT)RFR.mesh.scale.setScalar(1.45); // original disc-like machine is taller beside cars
    RFR.wheels=[];RFR.wheelHome=[];RFR.car.traverse(o=>{if(/wheel/i.test(o.name)&&o.parent&&!RFR.wheels.includes(o)){RFR.wheels.push(o);RFR.wheelHome.push({p:o.position.clone(),q:o.quaternion.clone()});}});
    reframerSay('wake','REFRAMER WAKING','it\'s dropping on a car — hit the scan to jam it');beep(120,.3,'sawtooth',.04);}
   return;}
- const E=W.enc,car=RFR.car,o=step(W,{x:p.x,z:p.z},car&&E.stage!=='chase'?{x:car.position.x,z:car.position.z}:null,dt);
+ const E=W.enc,car=RFR.car;
+ let hunted=null;
+ if(REFRAMER_HUNT&&E.stage==='chase'&&RFR.hunt){
+  const padDown=!!RSK.gp?.buttons?.[0]?.pressed;
+  const padTap=padDown&&!RFR.escapePadPrev;RFR.escapePadPrev=padDown;
+  const struggle=(RFR.hunt.tether==='hold')&&(!!pressed.KeyE||padTap||RFR.escapeTouch);
+  if(struggle)pressed.KeyE=false;
+  RFR.escapeTouch=false;
+  const dist=Math.hypot(E.target.x-p.x,E.target.z-p.z);
+  hunted=stepReframerHunt(RFR.hunt,{
+    metal:{x:p.x,z:p.z},robot:{x:E.target.x,z:E.target.z},
+    visible:dist<=HUNT.SIGHT,escapeTap:struggle},dt);
+  if(RFR.escapeButton)RFR.escapeButton.hidden=!hunted.held;
+  if(hunted.lost){
+   const out=loseReframerTarget(W);if(out)reframerEnd(out);
+   return; // Robot lost Metal; no teleporting to current player position.
+  }
+  for(const ev of hunted.events){
+   if(ev.type==='tether-warn')reframerSay('tetherWarn','REFRAMER TENTACLE CHARGING','move out of its reach or break the attachment');
+   if(ev.type==='tether-caught')reframerSay('tetherCaught','TENTACLE LOCK · STRUGGLE','tap E, A, or the red touch button three times');
+   if(ev.type==='tether-escaped'||ev.type==='tether-dodged'){
+    RFR.said.tetherWarn=false;RFR.said.tetherCaught=false;
+    whisper('ESCAPED THE TENTACLE','');
+   }
+  }
+  if(hunted.held){
+   // Pull on the real player's velocity, never replace Metal's movement owner.
+   vel.x=vel.x*Math.exp(-2*dt)+(E.target.x-p.x)*.85*dt;
+   vel.z=vel.z*Math.exp(-2*dt)+(E.target.z-p.z)*.85*dt;
+  }
+  if(hunted.damage>0)metalHurt(hunted.damage,_ra.set(E.target.x,p.y,E.target.z),HELP.on?'ReFramer grapple impact':null);
+ }else if(RFR.escapeButton)RFR.escapeButton.hidden=true;
+ const o=step(W,{x:p.x,z:p.z},car&&E.stage!=='chase'?{x:car.position.x,z:car.position.z}:null,dt,hunted);
  for(const e of o.events){if(e.type==='stage'){if(e.stage==='anchor')reframerSay('anchor','CLAMPING','tip it: big glob or throw a car · E at the car = pull the driver');if(e.stage==='release')reframerSay('release','PULLING IT APART','');if(e.stage==='chase')reframerSay('chase','ROADFRAME','it hunts you — globs and cars break it');}
   if(e.type==='end')reframerEnd(e);if(e.type==='occupantShaken'&&car){const pz=makeChar(0xd6aa7d);pz.o.position.copy(car.position).add(new THREE.Vector3(2.6,.3,0));scene.add(pz.o);pz.target=pz.o.position.clone().add(new THREE.Vector3(9,0,9));pz.speed=3.6;pz.wait=0;pz.role='shaken driver';npcs.push(pz);car.userData.occupantExited=true;}}
  if(o.ram>0)metalHurt(o.ram,_ra.set(E.target.x,p.y,E.target.z),HELP.on?'Roadframe ram':null);
@@ -1249,9 +1325,14 @@ function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=R
   if(E.stage==='release'&&car){RFR.wheels.forEach((w,i)=>{if(i<E.parts+1){if(w.parent!==scene)scene.attach(w);w.position.y=Math.min(4,w.position.y+dt*2.4);w.rotation.x+=dt*8;}});}}
  RFR.scan.visible=E.stage==='read'&&!!car;if(car){RFR.scan.position.set(car.position.x,2.2,car.position.z);RFR.scan.rotation.y+=dt*4;}
  const clamp=E.stage==='anchor'||E.stage==='release'||E.stage==='stagger'||E.stage==='stun';
- for(const a of RFR.arms){a.g.visible=E.stage!=='drop';const ang=a.ang+(clamp?0:Math.sin(T*3+a.ang)*.4);
+ for(const [index,a] of RFR.arms.entries()){
+  a.g.visible=E.stage!=='drop'&&!(REFRAMER_HUNT&&E.stage==='chase'&&RFR.hunt?.armBroken&&index===0);
+  if(!a.g.visible)continue;
+  const ang=a.ang+(clamp?0:Math.sin(T*3+a.ang)*.4);
   const base=_ra.copy(m.position);const tip=clamp&&car?_rb.set(car.position.x+Math.cos(ang)*1.4,car.position.y+.5,car.position.z+Math.sin(ang)*2.2):_rb.set(m.position.x+Math.cos(ang)*2.4,m.position.y-1.6+Math.sin(T*4+a.ang)*.3,m.position.z+Math.sin(ang)*2.4);
-  const mid=_rc.copy(base).lerp(tip,.5);mid.y+=1.1;const midV=mid.clone();limb(a.s1,base,midV);limb(a.s2,midV,tip);a.cl.position.copy(tip);}
+  if(REFRAMER_HUNT&&index===0&&hunted&&(hunted.tether==='windup'||hunted.tether==='hold'))
+    tip.set(p.x,p.y+1.05,p.z); // first existing mechanical arm is a real extending player grabber
+   const mid=_rc.copy(base).lerp(tip,.5);mid.y+=1.1;const midV=mid.clone();limb(a.s1,base,midV);limb(a.s2,midV,tip);a.cl.position.copy(tip);}
 }
 
 
@@ -2328,8 +2409,8 @@ function hitMetal(s,foe){const R=foe.R,v=toFoe(foe);const dir=v.clone().normaliz
  const facing=Math.abs(angDiff(yaw,Math.atan2(v.x,v.z)))<1.3;
  if(blocking&&facing){if(FG.guardT<.18){FG.parries++;toast('PARRY');FG.hitstop=.12;FG.slow=.3;R.stun=.9;R.act=null;R.queue=[];playT(foe.ch,'GuardBreak',.9);R.animLock=.9;R.sm.changeTo('stagger');
    burst(_fv2.copy(P.o.position).setY(P.o.position.y+1.3).addScaledVector(dir,-.5),20,5);beep(880,.08,'triangle',.06);return;}
-  st.hp=Math.max(.02,st.hp-s.dmg*.15);FG.kb.addScaledVector(dir,s.kb*.8);FG.hitstop=.04;burst(_fv2.copy(P.o.position).setY(P.o.position.y+1.3),6,2.5);beep(95,.05,'square',.04);return;}
- st.hp=Math.max(0,st.hp-s.dmg);FG.act=null;FG.buf=null;FG.kb.addScaledVector(dir,s.kb*1.8);FG.shake=.22;FG.hitstop=.07;
+  st.hp=Math.max(.02,st.hp-armorDamage(s.dmg*.15));FG.kb.addScaledVector(dir,s.kb*.8);FG.hitstop=.04;burst(_fv2.copy(P.o.position).setY(P.o.position.y+1.3),6,2.5);beep(95,.05,'square',.04);return;}
+ st.hp=Math.max(0,st.hp-armorDamage(s.dmg));FG.act=null;FG.buf=null;FG.kb.addScaledVector(dir,s.kb*1.8);FG.shake=.22;FG.hitstop=.07;
  burst(_fv2.copy(P.o.position).setY(P.o.position.y+1.3),14,4);beep(60,.08,'square',.06);
  if(s.down){FG.stun=1.6;if(playT(P,'Knock',.7)){setTimeout(()=>{if(FG.stun>0)playT(P,'GetUp',.9);},700);}actT=1.6;}else{FG.stun=s.stun;playT(P,s.react,s.stun+.1);actT=s.stun;}
  if(st.hp<=0){st.hp=1;if(R.kind==='rival')endSpar(false);else endCrew(R.crew,false);}}
@@ -2909,6 +2990,8 @@ function tickCitySystems(dt){if(!P)return;const p=P.o.position;
 }
 let worldGripWarned=false,worldGripRetry=0,worldSwingLatch=false,worldGrabLatch=false,worldThrowLatch=false,worldGripActive=false,gripAxisX=0,gripAxisY=0;
 function update(dt){
+ metalPowerLab?.tick(dt); // bounded optional district effects; never owns the player's movement solver
+ metalStoryMold?.tick(dt); // tiny story HUD update, no physical or legacy-save writes
  if(missionDuel?.active){
   missionDuel.update(dt);
   mission05?.duelFrame(missionDuel.state);
@@ -3066,7 +3149,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  for(const mt of seamMats)mt.emissiveIntensity=Math.max(0,mt.emissiveIntensity-dt*3);
  if(galLimb){const hb=P.handBone;if(hb){hb.updateMatrixWorld(true);hb.getWorldPosition(_hand);}else _hand.copy(P.o.position).setY(P.o.position.y+1.2);galLimb.tick(dt,{swing:st.swing,grip:worldGripActive&&gripTarget?gripTarget:null,hand:_hand,model:P.model,st,groundY,playerPos:P.o.position});} // PROPOSAL Gallium limb visuals
  // systems
- fightTick(dt);blastTick(dt);globTick(dt);villainFx(dt);villainProjTick(dt);if(FG.breakerT>0)FG.breakerT-=dt;drawTick(dt);reframerTick(dt);mwTick(dt);lilHeavyTick(dt);mariTick(dt);ep1Tick(dt);proTick(dt);wtTick(dt);fbTick(dt);audioTick(dt);helpTick(dt,RSK.gp);doStrings(dt);doFootball(dt);
+ fightTick(dt);blastTick(dt);globTick(dt);villainFx(dt);villainProjTick(dt);if(FG.breakerT>0)FG.breakerT-=dt;drawTick(dt);reframerTick(dt);reframerSquad?.tick(dt);mwTick(dt);lilHeavyTick(dt);mariTick(dt);ep1Tick(dt);proTick(dt);wtTick(dt);fbTick(dt);audioTick(dt);helpTick(dt,RSK.gp);doStrings(dt);doFootball(dt);
  for(const s of slabs){if(s.t<1){s.t+=dt;s.m.position.y=Math.min(.8,s.m.position.y+s.vy*dt);}else if(s.t<6)s.t+=dt;else{s.m.position.y-=dt;if(s.m.position.y<-1){scene.remove(s.m);s.dead=true;}}}
  for(let i=slabs.length-1;i>=0;i--)if(slabs[i].dead)slabs.splice(i,1);
  // interact prompts
@@ -3091,7 +3174,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   const nb=n.o.position.clone();for(const b of colliders)if(b.containsPoint(nb.setY(1))){n.target=wp();break;}}
  // traffic
  updateCarBodies(dt);
- for(const c of cars){if(c.userData.worldBody||c.userData.parked||c.userData.driven)continue;const u=c.userData;u.t+=u.dir*u.spd*dt;if(u.t>220)u.t=-220;if(u.t<-220)u.t=220;
+ for(const c of cars){if(c.userData.worldBody||c.userData.parked||c.userData.driven||(REFRAMER_SQUAD&&c.userData.reframed))continue;const u=c.userData;u.t+=u.dir*u.spd*dt;if(u.t>220)u.t=-220;if(u.t<-220)u.t=220;
   if(u.axis){c.position.set(u.lane,0.05,u.t);c.rotation.y=u.dir>0?0:Math.PI;}else{c.position.set(u.t,0.05,u.lane);c.rotation.y=u.dir>0?Math.PI/2:-Math.PI/2;}
   if(c.position.distanceTo(pp)<2.4&&pp.y<1.5){vel.add(pp.clone().sub(c.position).setY(0).normalize().multiplyScalar(8));vel.y=5;onGround=false;if(yard&&st.board)skBail('SIDEWAYS TRAFFIC SLIDE');else bail();bodyMachine.fall(vel.x,vel.z);bodyMachine.impact=Math.hypot(vel.x,vel.z);toast('Clipped by traffic!');}}
  // day/night + weather
@@ -3355,6 +3438,70 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   window.__game={galLimb:()=>galLimb,forge:()=>forgeController,forgePerformance:()=>forgePerformance.snapshot(),WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
   if(AERIAL_DUEL_PILOT)window.__aerialPilot=aerialDuel; // query-flagged browser QA and training entry only
   window.__game.setForm=setForm;window.__game.sk=sk;if(yard){window.__game.testYard=()=>yard.snapshot();if(yardSession)window.__game.testYardSession=()=>yardSession.snapshot();}window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.metalControllerV3=metalPadV3;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.RSK=RSK;window.__game.GLB=GLB;window.__game.DRV=DRV;window.__game.LH=LH;window.__game.MARI=MARI;window.__game.EP=EP;window.__game.KITV=KITV;window.__game.GLP=GLP;window.__game.PR=PR;window.__game.PCARD=PCARD;window.__game.CUFFS=CUFFS;window.__game.POWER_CARDS=POWER_CARDS;window.__game.snapHeight=snapHeight;window.__game.SNP=SNP;window.__game.RSK=RSK;window.__game.FBV=FBV;window.__game.kitDoB=h=>kitDoB(h);window.__game.fbShear=()=>fbShear(FBV.units[0]);window.__game.reframerHitForTest=(k,p,pos)=>reframerHit(k,p,pos);window.__game.WTV=WTV;window.__game.wtHit=(k,p,pos)=>wtHit(k,p,pos);window.__game.hitLimb=hitLimb;window.__game.ep1Feed=ep1Feed;window.__game.SFX=SFX;window.__game.actx=()=>actx;window.__game.ep1Event=e=>ep1Event(e);window.__game.driveEnter=driveEnter;window.__game.driveExit=driveExit;window.__game.MWB=MWB;window.__game.mwBuild=mwBuild;window.__game.HELP=HELP;window.__game.toggleHelp=toggleHelp;window.__game.DRW=DRW;window.__game.CMB=CMB;window.__game.RFR=RFR;window.__game.comboFeed=comboFeed;window.__game.lamps=lamps;window.__game.cars=cars;window.__game.STORY_FIGHTS=STORY_FIGHTS;window.__game.hitFoe=hitFoe;window.__game.tumbleResult=tumbleResult;window.__game.setCamYaw=v=>{camYaw=v;};window.__game.setYaw=v=>{yaw=v;};window.__game.endCrewForTest=(c,w=false)=>endCrew(c,w);window.__game.skYard=()=>skYard;window.__game.ground=()=>onGround;window.__game.bootReport=()=>boot.getStatus();initMetalStory();
+if(METAL_STORY_MOLD){
+   import('./metal_story_mold_world.mjs').then(({mountMetalStoryMold})=>{
+    metalStoryMold=mountMetalStoryMold({
+     P,st,vel,skatepark:SPOTS.skate.c,safeStorage,
+     storage:safeStorage,grounded:()=>onGround&&!st.wall&&!st.flying,
+     legacyStory:()=>metalStoryChapter(metalStory)
+    });
+    window.__game.metalStoryMold=()=>metalStoryMold.snapshot();
+   }).catch(err=>{console.warn('[METAL story mold]',err);window.__errors.push(String(err));});
+  }
   if(MISSION05)initMission05();
+  if(REFRAMER_SQUAD){
+   // Reuse loaded original Kenney car GLBs, rooftop nests, combat and Gallium Draw.
+   // No second player control loop, no automatic publish, no story-save mutation.
+   reframerInit();
+   Promise.all([import('./reframer_kit_v1.js'),import('./reframer_squad_world.mjs')]).then(([, {mountReframerSquad}])=>{
+    // The complete original owner kit is present, checksumable, and tested by the bridge.
+    // We reuse its rig and donor physics canon; do not step a competing 2D simulation.
+    const kit=window.ReframerKit;
+    if(!kit)throw Error('Owner ReFramer Kit v1 did not mount');
+    reframerSquad=mountReframerSquad({
+     THREE,scene,cars,player:P,vel,leaderNests:RFR.W.nests,
+     leaderInfo:()=>{const e=RFR.W?.enc;
+      return {stage:e?.stage??'idle',position:e?e.stage==='chase'?e.target:e.pos:null};},
+     heldCar:()=>heldCar,gamepad:()=>RSK.gp,keys,pressed,colliders,
+     onHurt:(damage,pos)=>metalHurt(damage,pos,HELP.on?'Coordinated ReFramer attack':null),
+     onAlert:(message)=>whisper(message,''),
+     onRescue:(car,saved)=>{
+      if(car.userData.occupantExited)return;
+      car.userData.occupantExited=true;car.userData.occupantCount=0;
+      const civilian=makeChar(0xd6aa7d);
+      civilian.o.position.copy(car.position).add(new THREE.Vector3(2.6,.3,0));
+      scene.add(civilian.o);
+      civilian.target=civilian.o.position.clone().add(new THREE.Vector3(9,0,9));
+      civilian.speed=3.6;civilian.wait=0;civilian.role=saved?'rescued driver':'shaken driver';
+      npcs.push(civilian);
+     },
+     drawScrap:DRW.scrap,isTouch,kit,
+     qa:new URLSearchParams(location.search).get('reframer_squad_qa')==='1'
+    });
+    window.__game.reframerSquad=()=>reframerSquad.snapshot();
+    window.__game.startReframerSighting=()=>reframerSquad.startSighting();
+    window.__game.reframerKit=()=>({version:kit.DATA.meta.version,parts:kit.DATA.donor.parts.length,
+     tested:reframerSquad.snapshot().kit?.passed,source:kit.DATA.meta.source});
+    if(new URLSearchParams(location.search).get('reframer_squad_qa')==='1')
+     window.__game.reframerSquadQA=Object.freeze({begin:()=>reframerSquad.qaStart(),advance:(n,dt)=>reframerSquad.qaAdvance(n,dt),attack:(id,kind)=>reframerSquad.qaAttack(id,kind)});
+   }).catch(err=>{console.warn('[WIR ReFramer Squad]',err);window.__errors.push(String(err));});
+  }
+  if(METAL_POWER_LAB){
+   import('./metal_power_lab_world.mjs').then(({mountMetalPowerLab})=>{
+    // Shares actual Gallium, scene collision bounds and velocity.
+    // Never replaces Metal movement, checkpoints or normal game startup.
+    metalPowerLab=mountMetalPowerLab({THREE,scene,P,st,vel,colliders,camera,
+     grounded:()=>onGround&&!st.wall&&!st.swing&&!st.flying,storage:safeStorage});
+    window.__game.metalPowerLab=()=>metalPowerLab.snapshot();
+    // Actual 73-entry wheel, action calls are delegated to real mission rules.
+    import('./metal_power_wheel.mjs').then(({mountMetalPowerWheel})=>{
+     metalPowerWheel=mountMetalPowerWheel({
+      getLab:()=>metalPowerLab,
+      onShortBack:()=>{pressed.KeyM=true;},storage:safeStorage
+     });
+     window.__game.metalPowerWheel=()=>metalPowerWheel.snapshot();
+    }).catch(err=>{console.warn('[METAL power wheel]',err);window.__errors.push(String(err));});
+   }).catch(e=>{console.warn('METAL ability lab unavailable',e);window.__errors.push(String(e));});
+  }
   if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(0);
  }catch(e){boot.failed(e);window.__errors.push(String(e));}})();

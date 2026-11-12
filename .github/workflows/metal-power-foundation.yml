@@ -1,0 +1,68 @@
+name: METAL 73 Power Registry and Morrow District Lab QA
+on:
+  push:
+    paths:
+      - 'connected/assets/metal_power_*'
+      - 'connected/tests/metal_power_*'
+      - 'connected/assets/metal_adaptive_armor_core.mjs'
+      - 'connected/tests/metal_adaptive_armor_core.test.mjs'
+      - 'connected/assets/main.js'
+      - '.github/workflows/metal-power-foundation.yml'
+  pull_request:
+    paths:
+      - 'connected/assets/metal_power_*'
+      - 'connected/tests/metal_power_*'
+      - 'connected/assets/metal_adaptive_armor_core.mjs'
+      - 'connected/tests/metal_adaptive_armor_core.test.mjs'
+      - 'connected/assets/main.js'
+      - '.github/workflows/metal-power-foundation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  power-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax and full original 73 entry registry
+        run: |
+          node --check connected/assets/main.js
+          node --check connected/assets/metal_power_registry_73.mjs
+          node --check connected/assets/metal_power_lab_core.mjs
+          node --check connected/assets/metal_power_lab_world.mjs
+          node --check connected/assets/metal_adaptive_armor_core.mjs
+          node --check connected/tests/metal_power_lab_browser_playwright.mjs
+          node --test connected/tests/metal_power_lab_core.test.mjs connected/tests/metal_adaptive_armor_core.test.mjs
+  live-scene-browser:
+    runs-on: ubuntu-latest
+    needs: power-contract
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium and Playwright
+        run: |
+          npm install --no-save --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+      - name: Start isolated preview using local branch source
+        run: |
+          mkdir -p test-results
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/wir-metal-power-lab.log 2>&1 &
+          sleep 2
+          curl -fI http://127.0.0.1:8765/connected/
+      - name: Test real scene, ordinary startup, game saves and desktop/mobile
+        run: node connected/tests/metal_power_lab_browser_playwright.mjs
+      - name: Preserve browser smoke screenshots and observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metal-73-catalogue-district-lab-proposal
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: warn
