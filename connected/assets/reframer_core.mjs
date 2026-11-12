@@ -19,6 +19,11 @@ export function createReframers(nests) {
 }
 
 // donors: [{id, x, z, occupied}] ; metal: {x,z}
+// nests cool down even when no ReFramer is out (step() only runs during an encounter)
+export function coolNests(W, dt) {
+  for (const n of W.nests) if (n.cool > 0) n.cool -= dt;
+}
+
 export function wake(W, metal, donors) {
   if (W.enc) return null;
   let nest = null, bd = 1e9;

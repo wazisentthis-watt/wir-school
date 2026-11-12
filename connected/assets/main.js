@@ -36,7 +36,7 @@ import {GLOB,createGlob,formGlob,launchGlob,stepGlob,globRadius,carImpulse,foeIm
 import {VILLAINS,createVillainState,stepVillain,damageMul,echoWarnings,pullSpike,douseZone} from './villain_core.mjs';
 import {DRAW,createDraw,stepDraw} from './metal_draw_core.mjs'; // PROPOSAL / HOLD
 import {COMBOS,createCombos,feed} from './power_combo_core.mjs';
-import {RF,createReframers,wake,hit,rescue,step,hitArm,hitWheel,react,repairPart} from './reframer_core.mjs';
+import {RF,createReframers,wake,hit,rescue,step,hitArm,hitWheel,react,repairPart,coolNests} from './reframer_core.mjs';
 import {vehicle,step as driveStepPhys,deadzone} from './drive_physics.mjs';
 import {KIT,createKit,bAction as kitBAction,addPuddle as kitAddPuddle,pullStep as kitPullStep,form as kitForm,meltHand as kitMeltHand,blast as kitBlast,shieldHit as kitShieldHit,strikeMods as kitStrikeMods,serializePuddles as kitSerializePuddles,loadPuddles as kitLoadPuddles} from './gallium_kit_core.mjs'; // PROPOSAL / HOLD
 import {FB,createSquad as fbCreateSquad,hitUnit as fbHitUnit,hitDrone as fbHitDrone,step as fbStep,allDown as fbAllDown,platesOn as fbPlatesOn} from './framebreaker_core.mjs'; // PROPOSAL / HOLD
@@ -1227,7 +1227,7 @@ function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=R
   if(rr&&rr.type==='outriggersUp'){beep(150,.1,'sawtooth',.03);whisper('Outriggers up','it shields the side you swing at');}
   if(rr&&rr.type==='smashConstruct'){whisper('It\'s going after your Gallium','reclaim it or defend it');setTimeout(()=>{if(!MWB.S)return;const d=damageConstruct(MWB.S,rr.id,.6);if(d&&d.destroyed){mwConRemove(rr.id);mwSave();whisper('Construct smashed','material lost');}else if(d){mwSave();}const W2=RFR.W.enc;if(W2)W2.smashing=null;},1200);}
   if(rr&&rr.type==='end')reframerEnd(rr);}}
- if(!W.enc){const donors=cars.filter(c=>!c.userData.worldBody&&c!==heldCar&&!c.userData.reframed&&!c.userData.bike&&!c.userData.driven).map(c=>({id:c.uuid,x:c.position.x,z:c.position.z,occupied:!c.userData.occupantExited,c}));
+ if(!W.enc){coolNests(W,dt);const donors=cars.filter(c=>!c.userData.worldBody&&c!==heldCar&&!c.userData.reframed&&!c.userData.bike&&!c.userData.driven).map(c=>({id:c.uuid,x:c.position.x,z:c.position.z,occupied:!c.userData.occupantExited,c}));
   const E=reframerSignal(dt)?wake(W,{x:p.x,z:p.z},donors):null;if(E){RFR.car=donors.find(d=>d.id===E.donor).c;const u=RFR.car.userData;u.reframed=true;u.spd0=u.spd;u.spd=0;RFR.mesh.visible=true;sfx('phase',.55);
    RFR.wheels=[];RFR.wheelHome=[];RFR.car.traverse(o=>{if(/wheel/i.test(o.name)&&o.parent&&!RFR.wheels.includes(o)){RFR.wheels.push(o);RFR.wheelHome.push({p:o.position.clone(),q:o.quaternion.clone()});}});
    reframerSay('wake','REFRAMER WAKING','it\'s dropping on a car — hit the scan to jam it');beep(120,.3,'sawtooth',.04);}
