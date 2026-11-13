@@ -2349,7 +2349,23 @@ const SPK={n:220,i:0};
 function initSparks(){const g=new THREE.BufferGeometry();SPK.pos=new Float32Array(SPK.n*3).fill(-999);SPK.vel=new Float32Array(SPK.n*3);SPK.life=new Float32Array(SPK.n);
  g.setAttribute('position',new THREE.BufferAttribute(SPK.pos,3));SPK.pts=new THREE.Points(g,new THREE.PointsMaterial({color:0xe8ecff,size:.08,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
  SPK.pts.frustumCulled=false;scene.add(SPK.pts);}
-function burst(p,count,speed,up=0){if(!SPK.pts)initSparks();for(let k=0;k<count;k++){const i=SPK.i++%SPK.n;SPK.pos[i*3]=p.x;SPK.pos[i*3+1]=p.y;SPK.pos[i*3+2]=p.z;
+// VFX (AI VFX workflow, billboard flipbook): every impact gets a camera-facing flash that plays an 8-frame
+// flipbook. Frames are drawn in code, so it costs no image files. Sparks above stay the code-driven points.
+const FLIP={pool:[],i:0,tex:null,cols:4,rows:2,frames:8};
+function flipTex(){if(FLIP.tex)return FLIP.tex;const c=document.createElement('canvas');c.width=256;c.height=128;const g=c.getContext('2d');
+ for(let f=0;f<FLIP.frames;f++){const x=(f%FLIP.cols)*64,y=Math.floor(f/FLIP.cols)*64,k=f/(FLIP.frames-1),r=6+k*26;
+  const grd=g.createRadialGradient(x+32,y+32,0,x+32,y+32,r);grd.addColorStop(0,'rgba(255,255,255,1)');grd.addColorStop(.35,'rgba(255,240,200,.9)');grd.addColorStop(.7,'rgba(180,140,255,.45)');grd.addColorStop(1,'rgba(120,80,255,0)');
+  g.fillStyle=grd;g.fillRect(x,y,64,64);g.strokeStyle='rgba(230,215,255,'+(1-k).toFixed(2)+')';g.lineWidth=2;
+  for(let q=0;q<6;q++){const a=q/6*Math.PI*2+k*1.3;g.beginPath();g.moveTo(x+32+Math.cos(a)*r*.5,y+32+Math.sin(a)*r*.5);g.lineTo(x+32+Math.cos(a)*r*.95,y+32+Math.sin(a)*r*.95);g.stroke();}}
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;FLIP.tex=t;return t;}
+function flashFx(p,size=1,hue=0xc9a8ff){if(!scene)return;
+ if(!FLIP.pool.length){for(let i=0;i<12;i++){const tx=flipTex().clone();tx.repeat.set(1/FLIP.cols,1/FLIP.rows);tx.needsUpdate=true;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tx,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));sp.visible=false;scene.add(sp);FLIP.pool.push({sp,t:1,life:.28,tx});}}
+ const f=FLIP.pool[FLIP.i++%FLIP.pool.length];f.sp.position.copy(p);f.sp.material.color.set(hue);f.sp.material.opacity=1;f.sp.scale.setScalar(size);f.t=0;f.sp.visible=true;}
+function flipTick(dt){for(const f of FLIP.pool){if(!f.sp.visible)continue;f.t+=dt;const k=Math.min(1,f.t/f.life);
+ const fr=Math.min(FLIP.frames-1,Math.floor(k*FLIP.frames));f.tx.offset.set((fr%FLIP.cols)/FLIP.cols,1-(Math.floor(fr/FLIP.cols)+1)/FLIP.rows);
+ f.sp.material.opacity=1-k;f.sp.scale.multiplyScalar(1+dt*2.5);if(k>=1)f.sp.visible=false;}}
+function burst(p,count,speed,up=0){flashFx(p,.5+Math.min(count,40)*.03);if(!SPK.pts)initSparks();for(let k=0;k<count;k++){const i=SPK.i++%SPK.n;SPK.pos[i*3]=p.x;SPK.pos[i*3+1]=p.y;SPK.pos[i*3+2]=p.z;
  const a=Math.random()*Math.PI*2,b=Math.random()*2-1,s=speed*(.4+Math.random()*.6);SPK.vel[i*3]=Math.cos(a)*Math.sqrt(1-b*b)*s;SPK.vel[i*3+1]=b*s+up;SPK.vel[i*3+2]=Math.sin(a)*Math.sqrt(1-b*b)*s;SPK.life[i]=.18+Math.random()*.3;}}
 function sparksTick(dt){if(!SPK.pts)return;for(let i=0;i<SPK.n;i++){if(SPK.life[i]<=0)continue;SPK.life[i]-=dt;SPK.vel[i*3+1]-=6*dt;
  SPK.pos[i*3]+=SPK.vel[i*3]*dt;SPK.pos[i*3+1]+=SPK.vel[i*3+1]*dt;SPK.pos[i*3+2]+=SPK.vel[i*3+2]*dt;if(SPK.life[i]<=0)SPK.pos[i*3+1]=-999;}SPK.pts.geometry.attributes.position.needsUpdate=true;}
@@ -2409,7 +2425,7 @@ function fightTick(dt){initFoes();
  if(FG.act)tickStrike(dt);
  if(FG.bufT>0)FG.bufT-=dt;else FG.buf=null;
  if(k)fightKey(k);
- for(const f of FOES)foeTick(f,dt);crewTick(dt);sparksTick(dt);
+ for(const f of FOES)foeTick(f,dt);crewTick(dt);sparksTick(dt);flipTick(dt);
  const t=FG.target;if(t){const fn=$('foeName');if(fn)fn.textContent=t.R.label+' · Lv '+(t.R.level||1)+(t.R.kind==='crew'?' · '+t.R.crew.members.filter(m=>!m.R.out).length+' left':'');}
  const me=$('mMe');if(me)me.style.width=(st.hp*100)+'%';
  const cb=$('fgCombo');if(cb){const on=FG.combo>=2&&FG.comboT<1.2;cb.style.opacity=on?1:0;if(on)cb.textContent=FG.combo+' HIT';}
