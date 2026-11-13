@@ -53,10 +53,10 @@ export function order(C, unit, type, args) {
   return r;
 }
 
-export function tick(C, dt, { blockers = [] } = {}) {
+export function tick(C, dt, { blockers = [], movePlayer = null } = {}) {
   C.elapsed += dt;
   const ev = [];
-  ev.push(...squadStep(C.squad, dt, { blockers, enemies: [{ x: C.hostile.x, z: C.hostile.z }] }));
+  ev.push(...squadStep(C.squad, dt, { blockers, movePlayer, enemies: [{ x: C.hostile.x, z: C.hostile.z }] }));
   const escorts = Object.values(C.squad.units).map(u => ({ id: u.id, x: u.x, z: u.z }));
   ev.push(...evacStep(C.evac, dt, { escorts, zone: C.zone, blockers }));
   ev.push(...stepMarkers(C.markers, dt));

@@ -70,3 +70,12 @@ test('a safe evacuee cannot be requested again or damaged back out of safety', (
   assert.equal(requestRescue(E, 'MEDIC-1').reason, 'already-safe');
   assert.equal(damage(E, 'MEDIC-1', 50), null);
 });
+
+test('a medic left behind resumes walking when an escort returns (regression)', () => {
+  const E = [createEvacuee('MEDIC-1', 5, 0)];
+  requestRescue(E, 'MEDIC-1');
+  run(E, 1, { escorts: [{ id: 'FOUNDRY', x: 60, z: 60 }] });
+  assert.equal(E[0].state, 'waiting');
+  follow(E, 30);
+  assert.equal(E[0].state, 'safe', 'it walked in once the escort came back');
+});
