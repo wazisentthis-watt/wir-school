@@ -16,7 +16,7 @@ export function createCommandSquad(start = {}) {
   const units = {};
   UNITS.forEach((id, i) => {
     const p = at(start[id]) || { x: i * 2, z: 0 };
-    units[id] = { id, x: p.x, z: p.z, hp: 100, cooldowns: {}, inventory: [], order: { type: 'FOLLOW' }, status: 'idle' };
+    units[id] = { id, x: p.x, z: p.z, hp: 100, cooldowns: {}, inventory: [], order: { type: 'FOLLOW' }, queue: [], status: 'idle' };
   });
   return { controlled: 'GENERAL', units, log: [] };
 }
@@ -72,12 +72,13 @@ export function step(S, dt, { blockers = [], enemies = [], movePlayer = null } =
     }
     if (o.type === 'REGROUP') {
       if (dist(u, G) > CMD.REGROUP_R) moveToward(u, G, CMD.SPEED[id] * dt, blockers, events, id);
-      else { u.status = 'regrouped'; u.order = { type: 'FOLLOW', target: 'GENERAL' }; events.push({ type: 'regrouped', id }); }
+      else { u.status = 'regrouped'; u.order = { type: 'FOLLOW', target: 'GENERAL' }; events.push({ type: 'regrouped', id }); promote(u, events, id); }
       continue;
     }
     if (o.type === 'MOVE' || o.type === 'DEFEND') {
       if (dist(u, o.at) > CMD.ARRIVE) moveToward(u, o.at, CMD.SPEED[id] * dt, blockers, events, id);
-      else u.status = o.type === 'DEFEND' ? 'defending' : 'arrived';
+      else if (o.type === 'MOVE') { u.status = 'arrived'; promote(u, events, id); }
+      else u.status = 'defending';
       if (o.type === 'DEFEND' && enemies.some(e => dist(e, u) <= o.r)) events.push({ type: 'engaged', id });
       continue;
     }
@@ -94,6 +95,7 @@ function moveToward(u, to, speed, blockers, events, id, player = false) {
   if (hit) {
     u.status = 'blocked';
     events.push({ type: 'blocked', id, by: { x: hit.x, z: hit.z } });
+    if (u.queue.length) { events.push({ type: 'queue-dropped', id, count: u.queue.length, reason: 'primary-blocked' }); u.queue = []; }
     return;
   }
   u.x = nx; u.z = nz;
@@ -106,11 +108,70 @@ export function snapshot(S) {
 }
 
 export function serialize(S) {
-  return JSON.stringify({ v: 1, controlled: S.controlled, units: S.units });
+  return JSON.stringify({ v: 2, controlled: S.controlled, units: S.units });
 }
 
 export function deserialize(txt) {
   const d = JSON.parse(txt);
-  if (d.v !== 1) throw new Error('unsupported-save-version');
+  if (d.v !== 1 && d.v !== 2) throw new Error('unsupported-save-version');
+  // v1 saves predate the queue: migrate by giving every unit an empty queue (#94)
+  for (const u of Object.values(d.units)) if (!Array.isArray(u.queue)) u.queue = [];
   return { controlled: d.controlled, units: d.units, log: [] };
+}
+
+// #12: one conditional follow-up per unit. Only orders that resolve (MOVE, REGROUP) can be queued behind.
+const QUEUEABLE_PRIMARY = new Set(['MOVE', 'REGROUP']);
+export const QUEUE_MAX = 1;
+
+export function queueOrder(S, id, type, args = {}, blockers = []) {
+  const u = S.units[id];
+  if (!u) return { ok: false, reason: 'unknown-unit' };
+  if (!QUEUEABLE_PRIMARY.has(u.order.type) || u.status === 'idle' && u.order.type !== 'MOVE') return { ok: false, reason: 'primary-never-resolves', primary: u.order.type };
+  if (u.queue.length >= QUEUE_MAX) return { ok: false, reason: 'queue-full' };
+  const check = preview(S, id, type, args, blockers);
+  if (!check.ok) return check;
+  u.queue.push({ type, args: { ...args } });
+  return { ok: true, queued: type, depth: u.queue.length };
+}
+
+function promote(u, events, id) {
+  if (!u.queue.length) return;
+  const next = u.queue.shift();
+  const r = giveOrder({ units: { [id]: u } }, id, next.type, next.args, []);
+  events.push({ type: 'queue-started', id, order: next.type, ok: r.ok, reason: r.reason || null });
+}
+
+// #11: describe an order without committing it. Never changes state.
+export function preview(S, id, type, args = {}, blockers = []) {
+  const u = S.units[id];
+  if (!u) return { ok: false, reason: 'unknown-unit' };
+  if (!ORDERS.includes(type)) return { ok: false, reason: 'unknown-order' };
+  if (!IMPLEMENTED_ORDERS.includes(type)) return { ok: false, reason: 'not-implemented', order: type };
+  let dest = null;
+  if (type === 'MOVE' || type === 'HOLD' || type === 'DEFEND') {
+    dest = at(args.at);
+    if (!dest) return { ok: false, reason: 'missing-position' };
+    if (blockers.some(b => dist(dest, b) < b.r)) return { ok: false, reason: 'target-blocked' };
+  } else if (type === 'FOLLOW') {
+    dest = S.units[args.target || 'GENERAL'] ? { x: S.units[args.target || 'GENERAL'].x, z: S.units[args.target || 'GENERAL'].z } : null;
+    if (!dest) return { ok: false, reason: 'missing-target' };
+  } else if (type === 'REGROUP') {
+    dest = { x: S.units.GENERAL.x, z: S.units.GENERAL.z };
+  }
+  const len = dist(u, dest);
+  const speed = CMD.SPEED[id];
+  const crossesBlocker = blockers.some(b => segmentHits(u, dest, b));
+  return {
+    ok: true, unit: id, order: type, target: dest,
+    path: [{ x: u.x, z: u.z }, dest],
+    etaSec: +(len / speed).toFixed(2),
+    willBlock: crossesBlocker,
+    refusal: null,
+  };
+}
+
+function segmentHits(a, b, c) {
+  const dx = b.x - a.x, dz = b.z - a.z;
+  const t = Math.max(0, Math.min(1, ((c.x - a.x) * dx + (c.z - a.z) * dz) / (dx * dx + dz * dz || 1)));
+  return Math.hypot(a.x + dx * t - c.x, a.z + dz * t - c.z) < c.r;
 }
