@@ -93,8 +93,9 @@ function moveToward(u, to, speed, blockers, events, id, player = false) {
   const nx = u.x + (to.x - u.x) * k, nz = u.z + (to.z - u.z) * k;
   const hit = blockers.find(b => Math.hypot(nx - b.x, nz - b.z) < b.r);
   if (hit) {
+    // report once when the block starts, not every frame it persists
+    if (u.status !== 'blocked') events.push({ type: 'blocked', id, by: { x: hit.x, z: hit.z } });
     u.status = 'blocked';
-    events.push({ type: 'blocked', id, by: { x: hit.x, z: hit.z } });
     if (u.queue.length) { events.push({ type: 'queue-dropped', id, count: u.queue.length, reason: 'primary-blocked' }); u.queue = []; }
     return;
   }

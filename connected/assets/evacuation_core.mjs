@@ -4,7 +4,7 @@
 export const EVAC = Object.freeze({ ESCORT_R: 3, WALK_SPEED: 1.6, CARRY_SPEED: 1.1 });
 
 export function createEvacuee(id, x, z) {
-  return { id, x, z, state: 'waiting', hp: 100 };
+  return { id, x, z, state: 'waiting', hp: 100, requested: false };
 }
 
 // Ask an evacuee to follow. This never completes anything.
@@ -13,6 +13,7 @@ export function requestRescue(E, id) {
   if (!e) return { ok: false, reason: 'unknown-evacuee' };
   if (e.state === 'safe') return { ok: false, reason: 'already-safe' };
   if (e.state === 'lost') return { ok: false, reason: 'lost' };
+  e.requested = true; // a standing request; the state can drop to waiting when no escort is near
   e.state = 'walking';
   return { ok: true, id, state: 'walking' };
 }
@@ -21,8 +22,7 @@ export function requestRescue(E, id) {
 export function step(E, dt, { escorts = [], zone, blockers = [] } = {}) {
   const events = [];
   for (const e of E) {
-    if (e.state === 'safe' || e.state === 'lost') continue;
-    if (e.state !== 'walking' && e.state !== 'carried' && e.state !== 'blocked') continue;
+    if (e.state === 'safe' || e.state === 'lost' || !e.requested) continue; // only requested evacuees move
     const near = escorts.filter(s => Math.hypot(s.x - e.x, s.z - e.z) <= EVAC.ESCORT_R);
     if (near.length === 0) {
       if (e.state !== 'waiting') { e.state = 'waiting'; events.push({ type: 'left-behind', id: e.id }); }
