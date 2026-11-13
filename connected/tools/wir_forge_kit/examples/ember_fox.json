@@ -1,0 +1,425 @@
+{
+ "name": "Ember Fox",
+ "detail": 1,
+ "seed": 31,
+ "skeleton": {
+  "preset": "quadruped",
+  "height": 0.75,
+  "length": 1.0,
+  "proportions": {
+   "legs": 0.72,
+   "tail": 1.1
+  }
+ },
+ "materials": {
+  "fur": {
+   "color": "#d4561c",
+   "color2": "#ffb070",
+   "pattern": "fibers",
+   "scale": [
+    5,
+    3
+   ],
+   "rough": 0.7,
+   "sheen": 0.8
+  },
+  "cream": {
+   "color": "#f6e6cf",
+   "color2": "#ffffff",
+   "pattern": "fibers",
+   "rough": 0.8,
+   "sheen": 0.6
+  },
+  "dark": {
+   "color": "#1a1210",
+   "rough": 0.3,
+   "clearcoat": 0.8
+  },
+  "ember": {
+   "color": "#ff7a20",
+   "glow": 2.2,
+   "color2": "#ffd060"
+  },
+  "eyes": {
+   "color": "#ffd46a",
+   "unlit": true
+  }
+ },
+ "parts": [
+  {
+   "type": "loft",
+   "name": "body",
+   "material": "fur",
+   "path": [
+    {
+     "bone": "Hips",
+     "offset": [
+      0,
+      0,
+      -0.1
+     ]
+    },
+    {
+     "bone": "Spine"
+    },
+    {
+     "bone": "Spine1"
+    },
+    {
+     "bone": "Spine2"
+    },
+    {
+     "bone": "Neck",
+     "offset": [
+      0,
+      -0.03,
+      -0.03
+     ]
+    }
+   ],
+   "radius": [
+    [
+     0.13,
+     0.14
+    ],
+    [
+     0.15,
+     0.165
+    ],
+    [
+     0.155,
+     0.17
+    ],
+    [
+     0.145,
+     0.165
+    ],
+    [
+     0.09,
+     0.1
+    ]
+   ],
+   "bones": [
+    "Hips",
+    "Spine",
+    "Spine1",
+    "Spine2",
+    "Neck",
+    "BackLeftUpLeg",
+    "BackRightUpLeg",
+    "FrontLeftUpLeg",
+    "FrontRightUpLeg"
+   ],
+   "squareness": 2.2
+  },
+  {
+   "type": "limb",
+   "name": "neck",
+   "material": "fur",
+   "chain": [
+    "Spine2",
+    "Neck",
+    "Head"
+   ],
+   "radius": [
+    [
+     0.11,
+     0.12
+    ],
+    [
+     0.075,
+     0.085
+    ],
+    [
+     0.065,
+     0.07
+    ]
+   ]
+  },
+  {
+   "type": "blob",
+   "name": "head",
+   "material": "fur",
+   "at": {
+    "bone": "Head",
+    "offset": [
+     0,
+     0.02,
+     0.04
+    ]
+   },
+   "size": [
+    0.085,
+    0.075,
+    0.095
+   ],
+   "bone": "Head",
+   "detail": 1.2
+  },
+  {
+   "type": "tube",
+   "name": "snout",
+   "material": "fur",
+   "from": {
+    "bone": "Head",
+    "offset": [
+     0,
+     0.0,
+     0.09
+    ]
+   },
+   "to": {
+    "bone": "Head",
+    "offset": [
+     0,
+     -0.02,
+     0.22
+    ]
+   },
+   "radius": [
+    [
+     0.05,
+     0.045
+    ],
+    [
+     0.016,
+     0.014
+    ]
+   ],
+   "bone": "Head"
+  },
+  {
+   "type": "blob",
+   "name": "nose",
+   "material": "dark",
+   "at": {
+    "bone": "Head",
+    "offset": [
+     0,
+     -0.018,
+     0.222
+    ]
+   },
+   "size": [
+    0.014,
+    0.011,
+    0.01
+   ],
+   "bone": "Head"
+  },
+  {
+   "type": "blob",
+   "name": "eye",
+   "material": "eyes",
+   "at": {
+    "bone": "Head",
+    "offset": [
+     0.043,
+     0.035,
+     0.11
+    ]
+   },
+   "size": [
+    0.014,
+    0.01,
+    0.008
+   ],
+   "bone": "Head",
+   "mirror": true
+  },
+  {
+   "type": "tube",
+   "name": "ear",
+   "material": "fur",
+   "from": {
+    "bone": "Head",
+    "offset": [
+     0.045,
+     0.07,
+     0.02
+    ]
+   },
+   "to": {
+    "bone": "Head",
+    "offset": [
+     0.07,
+     0.17,
+     0.0
+    ]
+   },
+   "radius": [
+    [
+     0.032,
+     0.012
+    ],
+    [
+     0.003,
+     0.002
+    ]
+   ],
+   "bone": "Head",
+   "mirror": true
+  },
+  {
+   "type": "blob",
+   "name": "chest ruff",
+   "material": "cream",
+   "at": {
+    "bone": "Neck",
+    "offset": [
+     0,
+     -0.06,
+     0.02
+    ]
+   },
+   "size": [
+    0.08,
+    0.09,
+    0.07
+   ],
+   "bones": [
+    "Neck",
+    "Spine2"
+   ],
+   "lumps": 0.12
+  },
+  {
+   "type": "limb",
+   "name": "front leg",
+   "material": "fur",
+   "chain": [
+    "FrontLeftUpLeg",
+    "FrontLeftLeg",
+    "FrontLeftFoot",
+    "FrontLeftToe"
+   ],
+   "radius": [
+    [
+     0.07,
+     0.075
+    ],
+    [
+     0.04,
+     0.042
+    ],
+    [
+     0.03,
+     0.032
+    ],
+    [
+     0.03,
+     0.022
+    ]
+   ],
+   "startExtend": 0,
+   "mirror": true
+  },
+  {
+   "type": "limb",
+   "name": "back leg",
+   "material": "fur",
+   "chain": [
+    "BackLeftUpLeg",
+    "BackLeftLeg",
+    "BackLeftFoot",
+    "BackLeftToe"
+   ],
+   "radius": [
+    [
+     0.095,
+     0.11
+    ],
+    [
+     0.046,
+     0.05
+    ],
+    [
+     0.032,
+     0.032
+    ],
+    [
+     0.03,
+     0.022
+    ]
+   ],
+   "startExtend": 0,
+   "muscle": 0.4,
+   "mirror": true
+  },
+  {
+   "type": "limb",
+   "name": "tail",
+   "material": "fur",
+   "chain": [
+    "Hips",
+    "Tail1",
+    "Tail2",
+    "Tail3",
+    "Tail4",
+    "Tail5"
+   ],
+   "radius": [
+    0.04,
+    0.06,
+    0.085,
+    0.09,
+    0.075,
+    0.03
+   ],
+   "segments": 40
+  },
+  {
+   "type": "blob",
+   "name": "tail tip",
+   "material": "cream",
+   "at": {
+    "bone": "Tail5"
+   },
+   "size": [
+    0.045,
+    0.045,
+    0.07
+   ],
+   "bones": [
+    "Tail4",
+    "Tail5"
+   ],
+   "lumps": 0.1
+  },
+  {
+   "type": "scatter",
+   "name": "embers",
+   "material": "ember",
+   "at": {
+    "bone": "Spine1",
+    "offset": [
+     0,
+     0.12,
+     0
+    ]
+   },
+   "radius": [
+    0.14,
+    0.05,
+    0.35
+   ],
+   "count": 14,
+   "elevation": [
+    0.6,
+    1.5
+   ],
+   "shape": "spike",
+   "size": [
+    0.008,
+    0.012
+   ],
+   "length": 0.06,
+   "bones": [
+    "Spine",
+    "Spine1",
+    "Spine2"
+   ],
+   "seed": 9
+  }
+ ]
+}

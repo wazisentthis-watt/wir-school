@@ -45,11 +45,12 @@ export function galaxyCrystalMat(o={}){
  const m=new THREE.MeshPhysicalMaterial(Object.assign({color:0x07060c,metalness:.6,roughness:.07,clearcoat:1,clearcoatRoughness:.03,
   iridescence:.55,iridescenceIOR:1.5,envMapIntensity:1.9,transparent:true,opacity:1},keep));
  if(keep.emissive!==undefined)m.emissiveIntensity=Math.min(m.emissiveIntensity,.12); // violet only when the seam is active
- m.onBeforeCompile=sh=>{sh.uniforms.uT=GU;
+ m.userData.uCool={value:o.cool??1}; // 1 = set black galaxy crystal · 0 = hot liquid metal being shaped
+ m.onBeforeCompile=sh=>{sh.uniforms.uT=GU;sh.uniforms.uCool=m.userData.uCool;
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vWP;').replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvWP=(modelMatrix*vec4(transformed,1.0)).xyz;');
-  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uT;varying vec3 vWP;float h3(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}\nfloat vn(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}')
+  sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform float uT;uniform float uCool;varying vec3 vWP;float h3(vec3 p){return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453);}\nfloat vn(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}')
   // crystallized: facet normals from screen-space derivatives (the smooth liquid motion still moves underneath)
-  .replace('#include <normal_fragment_begin>','#include <normal_fragment_begin>\n {vec3 fn=normalize(cross(dFdx(vViewPosition),dFdy(vViewPosition)));normal=normalize(mix(normal,fn,0.82));}')
+  .replace('#include <normal_fragment_begin>','#include <normal_fragment_begin>\n {vec3 fn=normalize(cross(dFdx(vViewPosition),dFdy(vViewPosition)));normal=normalize(mix(normal,fn,0.82*uCool));\n  normal=normalize(normal+(1.0-uCool)*0.45*vec3(vn(vWP*2.6+vec3(0.0,uT*0.9,0.0))-0.5,vn(vWP*2.6+vec3(7.0,-uT*0.7,3.0))-0.5,vn(vWP*2.6+vec3(3.0,1.0,uT*0.8))-0.5));}')
   .replace('#include <emissivemap_fragment>',`#include <emissivemap_fragment>
    {float fr=pow(1.0-abs(dot(normalize(vViewPosition),normal)),2.6);
     vec3 vd=normalize(vWP-cameraPosition);vec3 gal=vec3(0.0);

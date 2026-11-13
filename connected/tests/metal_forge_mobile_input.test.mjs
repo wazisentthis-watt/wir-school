@@ -32,7 +32,8 @@ test('Forge accessible display progresses and disappears after skating',()=>{
 });
 test('real source keeps original forge, flight and dodge, but maps SkyLab B to board when grounded',()=>{
  const s=readFileSync(new URL('../assets/main.js',import.meta.url),'utf8');
- assert.match(s,/if\(GAL_FORGE_ENABLED&&!FG\.inFight&&onGround&&!st\.flying&&!st\.swing\)pressed\.KeyB=true/);
+ assert.match(s,/if\(GAL_FORGE_ENABLED&&!FG\.inFight&&onGround&&!st\.flying&&!st\.swing\)\{if\(!KITV\.on\)pressed\.KeyB=true;\}/); // Gallium kit v1 owns grounded B: tap = recall/forge, hold = melt
+ assert.match(s,/case 'forge':KITV\.forgeReq=true/);
  assert.match(s,/else pressed\.Semicolon=true/);
  assert.match(s,/if\(FG\.inFight&&!st\.board&&pressed\.KeyB\)/);
  assert.match(s,/if\(!st\.board\)board\.visible=false/);

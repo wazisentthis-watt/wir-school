@@ -22,7 +22,11 @@ import {WorldBody} from './world_body.js';
 import {chooseGripTarget,stepStructureOffset,gripHeldPosition} from './gallium_grip_core.js';
 import {PhysicsTelemetry} from './physics_telemetry.js';
 import {createTestYardSkateAdapter,trickDirection,fightClipHint} from './testyard_skate_adapter.mjs';
-import {createRealSkate,padToInput,goAirborne} from './real_skate_core.mjs'; // PROPOSAL / PUBLISH HOLD (?real_skate=1)
+import {RS,createRealSkate,padToInput,goAirborne} from './real_skate_core.mjs'; // PROPOSAL / PUBLISH HOLD (?real_skate=1)
+import {GALLOP,createGallop,press as gallopPress,step as gallopStep,landed as gallopLanded,breakChain as gallopBreak,strideSpeed} from './gallium_gallop_core.mjs'; // PROPOSAL / HOLD
+import {SNAP,createSnap,mark as snapMark,commit as snapCommit,step as snapStep} from './snapline_core.mjs'; // PROPOSAL / HOLD
+import {PRO,createPro,feed as proPFeed,step as proPStep,serialize as proSerialize,deserialize as proDeserialize} from './prologue_core.mjs'; // Prologue PROPOSAL / HOLD
+import {SC,ROLES,createCrew,alert as scAlert,step as scStep,markOut as scMarkOut,bind as scBind,take as scTake,boundCount as scBoundCount,resetCrew as scReset} from './scrap_crew_core.mjs'; // PROPOSAL / HOLD
 import {createRide,stepRide,boardPose,bodyHeading,bankLine,stepLooseBoard} from './real_skate_ride.mjs';
 import {createSkateYard,buildSkateYardMeshes} from './skate_yard_world.mjs';
 import {createTestYardSession} from './testyard_session_score.mjs';
@@ -32,7 +36,15 @@ import {GLOB,createGlob,formGlob,launchGlob,stepGlob,globRadius,carImpulse,foeIm
 import {VILLAINS,createVillainState,stepVillain,damageMul,echoWarnings,pullSpike,douseZone} from './villain_core.mjs';
 import {DRAW,createDraw,stepDraw} from './metal_draw_core.mjs'; // PROPOSAL / HOLD
 import {COMBOS,createCombos,feed} from './power_combo_core.mjs';
-import {RF,createReframers,wake,hit,rescue,step,loseReframerTarget} from './reframer_core.mjs';
+import {RF,createReframers,wake,hit,rescue,step,hitArm,hitWheel,react,repairPart,coolNests,loseReframerTarget} from './reframer_core.mjs';
+import {vehicle,step as driveStepPhys,deadzone} from './drive_physics.mjs';
+import {KIT,createKit,bAction as kitBAction,addPuddle as kitAddPuddle,pullStep as kitPullStep,form as kitForm,meltHand as kitMeltHand,blast as kitBlast,shieldHit as kitShieldHit,strikeMods as kitStrikeMods,serializePuddles as kitSerializePuddles,loadPuddles as kitLoadPuddles} from './gallium_kit_core.mjs'; // PROPOSAL / HOLD
+import {FB,createSquad as fbCreateSquad,hitUnit as fbHitUnit,hitDrone as fbHitDrone,step as fbStep,allDown as fbAllDown,platesOn as fbPlatesOn} from './framebreaker_core.mjs'; // PROPOSAL / HOLD
+import {createLoose} from './board_body.mjs';
+import {SB,createStreet,witness as streetWitness,hitStreet,stepStreet,incomingMul,outgoingMul} from './street_brawl_core.mjs'; // STREET BRAWL PROPOSAL / HOLD
+import {WT,createWT,step as wtStep,hitLimb,hitKeeper,observe as wtObserve,serialize as wtSave,restore as wtRestore} from './wrong_target_core.mjs'; // Wrong Target PROPOSAL / HOLD
+import {EP1,createEp1,step as ep1Step,feed as ep1Feed,fightAbandoned as ep1Abandon,replay as ep1Replay,serialize as ep1Save,deserialize as ep1Load} from './ep1_mission_core.mjs'; // Ep.1 PROPOSAL / HOLD // ReFramer Rush drive model (owner source)
+import {MAT,build,constructHeight,constructRails,reclaim,damageConstruct,railFrom,railSegments,bendRail,straightenRail,createWall,hitWall,wallState,repairWall,createWorldState,currentJob,checkJobs,serialize,deserialize} from './malleable_world_core.mjs'; // PROPOSAL / HOLD
 import {HUNT,createReframerHunt,stepReframerHunt,hitReframerArm,reframerHuntSnapshot} from './reframer_hunt_core.mjs';
 import {MetalForgeController,FORGE_COST,FORGE_REFUND} from './metal_forge_controller.js';
 import {selectForgePose} from './metal_forge_choreography.mjs';
@@ -131,6 +143,8 @@ const SPOTS={ // special lots (PROPOSAL placements)
  forge:{bx:-1,by:1,name:'The Forge',src:'[S2] Game Forge recipes'},
  pluto:{bx:1,by:-1,name:'Pluto Hub',src:'[S5] travel point → map'},
  home:{bx:0,by:0,name:'Forsyth Commons (home block)',src:'[S3] Valence Life'},
+ foundry:{bx:1,by:1,name:'Foundry Steps · civic shuttle stop',src:'Wrong Target (PROPOSAL placement)'},
+ morrow:{bx:-1,by:-1,name:'Morrow Block · Field Studio · Depot · Market',src:'Ep.1 Concrete Has a Tempo (PROPOSAL placement)'},
 };
 const lotCenter=(bx,by)=>new THREE.Vector3(bx*(BLOCK+ROAD),0,by*(BLOCK+ROAD));
 
@@ -170,7 +184,7 @@ async function buildWorld(setMsg){
  for(const [x,z] of lampXZ){
   const pole=new THREE.Mesh(new THREE.CylinderGeometry(.12,.15,7),new THREE.MeshStandardMaterial({color:0x333,metalness:.8,roughness:.4}));pole.position.set(x,3.5,z);pole.castShadow=true;scene.add(pole);
   const bulb=new THREE.Mesh(new THREE.SphereGeometry(.35),new THREE.MeshStandardMaterial({color:0x222,emissive:0xffd28a,emissiveIntensity:0}));bulb.position.set(x,7.1,z);scene.add(bulb);lamps.push(bulb);anchors.push(new THREE.Vector3(x,7.1,z));}
- buildSkatepark(SPOTS.skate.c);buildField(SPOTS.field.c);buildFight(SPOTS.fight.c);buildDojo(SPOTS.dojo.c);buildForge(SPOTS.forge.c);buildPluto(SPOTS.pluto.c);buildHome(SPOTS.home.c);
+ buildSkatepark(SPOTS.skate.c);buildField(SPOTS.field.c);buildFight(SPOTS.fight.c);buildDojo(SPOTS.dojo.c);buildForge(SPOTS.forge.c);buildPluto(SPOTS.pluto.c);buildHome(SPOTS.home.c);setMsg('Morrow block (Quaternius CC0 kits)…');await buildMorrowBlock(SPOTS.morrow.c);setMsg('Foundry Steps…');await buildFoundry(SPOTS.foundry.c);
  // trees
  const trunkM=new THREE.MeshStandardMaterial({color:0x5a3d22}),leafM=new THREE.MeshStandardMaterial({color:0x3c6b2c,roughness:1});
  for(let k=0;k<(LITE?16:40);k++){const x=(rnd()-.5)*360,z=(rnd()-.5)*360; if(Math.abs(((x%56)+56)%56-28)<8)continue;
@@ -293,7 +307,7 @@ let board;function makeBoard(){const g=new THREE.Group();const deck=new THREE.Me
  g.traverse(o=>o.castShadow=true);return g;}
 // PROPOSAL: thin violet line replaced by Galaxy Gallium LIMB (see gallium_limb.js); tether kept as an invisible stub so physics/control code is unchanged
 const _bu=new THREE.Vector3(),_bf=new THREE.Vector3();const tether=new THREE.Group();tether.visible=false;let galLimb=null;const _hand=new THREE.Vector3();
-const merkaba=new THREE.Mesh(new THREE.OctahedronGeometry(.9,0),new THREE.MeshStandardMaterial({color:0x000,emissive:VIOLET,emissiveIntensity:2,wireframe:true}));merkaba.visible=false;
+const merkaba=starTetra(.9,new THREE.MeshStandardMaterial({color:0x000,emissive:VIOLET,emissiveIntensity:2,wireframe:true})); // Star Merkaba: two interlocked tetrahedramerkaba.visible=false;
 
 // NPCs with routines [S3 living city]; traffic (Kenney cars)
 const npcs=[];const cars=[];let rival,rivalSt;
@@ -371,6 +385,7 @@ function pollPad(dt=1/60){
  if(metalPowerWheel?.pollGamepad(gp,dt)){RSK.gp=gp||null;return {x:0,y:0};}
  const v3=metalPadV3.poll(gp,dt);
  RSK.gp=gp||null;
+ if(typeof DRV!=='undefined'&&DRV.active){for(const [i,k] of Object.entries(padMap)){if(padPrev[i])keys[k]=false;padPrev[i]=false;}return {x:0,y:0};}
  if(RSK.active&&gp){ // REAL SKATE owns A, L2, R2 and both sticks while riding; B still dissolves / bails, Menu still pauses
   for(const [i,k] of Object.entries(padMap)){if(padPrev[i])keys[k]=false;padPrev[i]=false;}
   if(v3.paused)return {x:0,y:0};
@@ -382,17 +397,17 @@ function pollPad(dt=1/60){
   // Switching modes releases only keys previously synthesized by Classic.
   for(const [i,k] of Object.entries(padMap)){if(padPrev[i])keys[k]=false;padPrev[i]=false;}
   if(!v3.connected){if(v3PrevFlight&&st.flying)pressed.KeyF=true;v3PrevFlight=false;v3GrabHeld=false;return null;}
-  const held=new Set(v3.held||[]),edges=new Set(v3.edges||[]),combo=v3.combo||{};
+  const held=new Set(v3.held||[]),edges=new Set(v3.edges||[]),combo={...(v3.combo||{})};if(KITV.K.pulling){for(const k in combo)combo[k]=false;edges.delete('roar');edges.delete('slam');edges.delete('dash');} // the pull owns X / Y / B
   if(v3.paused)return {x:0,y:0};
   if(edges.has('jump'))pressed.Space=true;
   if(edges.has('dash')){
    // SkyLab B forges/dissolves on grounded non-combat streets; B remains dodge in combat/air.
    // One controller edge = one request, never repeat while B stays held.
    if(GAL_FORGE_ENABLED&&forgeController?.busy){/* ignore B while the forge is forming */}
-   else if(GAL_FORGE_ENABLED&&!FG.inFight&&onGround&&!st.flying&&!st.swing)pressed.KeyB=true;
+   else if(GAL_FORGE_ENABLED&&!FG.inFight&&onGround&&!st.flying&&!st.swing){if(!KITV.on)pressed.KeyB=true;} // Gallium kit owns B tap/hold
    else pressed.Semicolon=true;
   }
-  if(edges.has('roar'))pressed.Numpad4=true;
+  if(edges.has('roar')){if(KITV.K.pulling)KITV.formReq='sword';else pressed.Numpad4=true;}
   if(edges.has('slam')){if(!onGround)v3SpinTime=.75;} // Y on the ground = hold for a Gallium glob
   if(edges.has('grapple'))pressed.KeyQ=true;
   // L1 (tentacle): tap = pulse/blast on release, hold = draw metal (see drawTick)
@@ -461,7 +476,7 @@ function tickRamps(dt){for(let i=ramps3.length-1;i>=0;i--){const r=ramps3[i];r.t
  if(st.wall){const w=st.wall;shimmer.position.copy(P.o.position).addScaledVector(w.n,-.38);shimmer.lookAt(shimmer.position.clone().add(w.n));shimmer.material.opacity=.25+Math.sin(performance.now()*.02)*.12;shimmer.scale.setScalar(1+Math.sin(performance.now()*.013)*.15);
   if(el){el.style.display='block';el.textContent='WALL · '+w.mat.toUpperCase()+' · stick '+WALLMAT[w.mat].stick.toFixed(2)+' (PROPOSAL)';}}
  else{shimmer.material.opacity=0;if(el)el.style.display='none';}}
-function floorAt(p){let y=groundY;for(const b of colliders){if(p.x>b.min.x-.3&&p.x<b.max.x+.3&&p.z>b.min.z-.3&&p.z<b.max.z+.3&&p.y>=b.max.y-.35&&b.max.y>y)y=b.max.y;}if(skYard){const f=skYard.walkFloor(p.x,p.z,p.y,.45);if(f!=null&&f>y)y=f;}return y;} // rooftops are real floors
+function floorAt(p){let y=groundY;for(const b of colliders){if(p.x>b.min.x-.3&&p.x<b.max.x+.3&&p.z>b.min.z-.3&&p.z<b.max.z+.3&&p.y>=b.max.y-.35&&b.max.y>y)y=b.max.y;}if(skYard){const f=skYard.walkFloor(p.x,p.z,p.y,.45);if(f!=null&&f>y)y=f;}if(typeof MWB!=='undefined'&&MWB.S){const c=mwFloor(p.x,p.z);if(c>y&&c<=p.y+.45)y=c;}return y;} // rooftops are real floors
 function startWall(h){const n=h.n,t=new THREE.Vector3(-n.z,0,n.x);const s=Math.min(WR.maxSpeed,h.hv.length());const along=h.hv.dot(t);
  const mat=matOf(h.b);st.wall={b:h.b,n:n.clone(),t,mat,up:Math.max(4,s*WR.climbShare)*(h.ramp?1.15:1),side:along*.9,time:0};if(h.ramp){st.gal=Math.max(0,st.gal-WR.rampCost);galliumRamp(P.o.position,n);setViolet(.8);}vel.set(0,0,0);onGround=false;st.comboPend++;
  plog('discoveries','Wall ride — gravity point locked to the wall');toast((h.ramp?'Gallium ramp → ':'')+'WALL RIDE — '+mat+' grip');beep(520,.12,'triangle');}
@@ -497,7 +512,7 @@ function fightInput(){let k=null;for(const c of ['Numpad1','Numpad2','Numpad3','
 const MOVES={Numpad4:{n:'Left hand',a:'Punch',dmg:.07,r:1.8},Numpad6:{n:'Right hand',a:'Cross',dmg:.08,r:1.8},Numpad1:{n:'Left leg',a:'Kick',dmg:.1,r:2.1},Numpad3:{n:'Right leg',a:'Kick',dmg:.11,r:2.1},
  Numpad7:{n:'Blast (1 e⁻)',a:'Blast',dmg:.12,r:7,cost:.2},Numpad9:{n:'Special',a:'Jump',dmg:0,r:3,special:true},Numpad8:{n:'Transform',a:'ThumbsUp'},Numpad2:{n:'Block',a:'Block'},Numpad5:{n:'Charge',a:'Idle'}};
 let blocking=false,actT=0;
-function endSpar(win){const R=rivalSt;R.active=false;$('foe').style.display='none';R.act=null;R.queue=[];R.guard=false;if(R.kb)R.kb.set(0,0,0);R.sm=null;if(rivalMat)rivalMat.emissiveIntensity=0;play(rival,win?'No':'Dance');toast(win?'Stance broken — you win (nonlethal spar)':'Your stance broke — rematch anytime');if(win){plog('achievements','Won a Fight Lot spar');R.level=Math.min(5,(R.level||1)+1);}R.stance=1;FG.act=null;FG.stun=0;st.hp=1;}
+function endSpar(win){bell();const R=rivalSt;R.active=false;$('foe').style.display='none';R.act=null;R.queue=[];R.guard=false;if(R.kb)R.kb.set(0,0,0);R.sm=null;if(rivalMat)rivalMat.emissiveIntensity=0;play(rival,win?'No':'Dance');toast(win?'Stance broken — you win (nonlethal spar)':'Your stance broke — rematch anytime');if(win){plog('achievements','Won a Fight Lot spar');R.level=Math.min(5,(R.level||1)+1);}R.stance=1;FG.act=null;FG.stun=0;st.hp=1;}
 function setViolet(v){for(const mt of seamMats)mt.emissiveIntensity=Math.max(mt.emissiveIntensity,v*2.2);} // seams only, active moves only
 
 // Attunement strings (canon packet LOCKED: shape existing matter only; Recovery Rule). Key mapping = PROPOSAL.
@@ -703,9 +718,9 @@ const RSK={active:false,R:null,gp:null,prevI:{},prevB:false,prevRB:false,yaw:0,t
 function goAirborneRide(R){goAirborne(R.core,'Air',0);}
 function realRideOk(){return !!(REAL_SKATE&&P&&st.board&&!st.wall&&!st.swing&&!st.flying&&!aerialDuel?.active&&!forgeController?.busy&&bodyMachine.mode!=='fallen'&&bodyMachine.mode!=='recovering');}
 const _rskW={ // world adapter for the ride: Skatepark heightfield + rooftops, flat elsewhere
- floorY:(x,z)=>{const y=RSK.R?RSK.R.p.y:groundY;let f=floorAt({x,y:y+.3,z});if(skYard&&skYard.inside(x,z))f=Math.max(f,skYard.floorY(x,z));return f;},
- grad:(x,z)=>skYard&&skYard.inside(x,z)?skYard.grad(x,z):[0,0],
- normal:(x,z)=>skYard&&skYard.inside(x,z)?skYard.normal(x,z):{x:0,y:1,z:0},
+ floorY:(x,z)=>{const y=RSK.R?RSK.R.p.y:groundY;let f=floorAt({x,y:y+.3,z});if(skYard&&skYard.inside(x,z))f=Math.max(f,skYard.floorY(x,z));const c=mwFloor(x,z);if(c>f)f=c;return f;},
+ grad:(x,z)=>{if(mwFloor(x,z)>=0||mwFloor(x+.05,z)>=0||mwFloor(x,z+.05)>=0||mwFloor(x-.05,z)>=0||mwFloor(x,z-.05)>=0){const e=.03,h0=_rskW.floorY(x,z),pk=(a,b)=>{const wa=Math.abs(a)>.25,wb=Math.abs(b)>.25;return wa&&!wb?b/e:wb&&!wa?a/e:wa&&wb?0:(a+b)/(2*e);};return [pk(_rskW.floorY(x+e,z)-h0,h0-_rskW.floorY(x-e,z)),pk(_rskW.floorY(x,z+e)-h0,h0-_rskW.floorY(x,z-e))];}return skYard&&skYard.inside(x,z)?skYard.grad(x,z):[0,0];},
+ normal:(x,z)=>{const [gx,gz]=_rskW.grad(x,z);const n=Math.hypot(gx,1,gz);return {x:-gx/n,y:1/n,z:-gz/n};},
  nearestRail:p=>skYard?skYard.nearestRail(p):null,
  railPoint:(r,t)=>skYard.railPoint(r,t),
 };
@@ -736,6 +751,66 @@ function realSkateHud(){
  else h=pad?'Tap A = push · left stick = lean, not steer · squeeze L2+R2 = knees':'Tap W = push · A/D lean · S manual · hold Space = knees';
  $('rskHint').textContent=RSK.shown>12?'':h;$('rskTrick').textContent=RSK.lastName;
 }
+// ---------- GALLIUM GALLOP + CROWN POINTS / MAGNETIC SNAPLINE (PROPOSAL / HOLD, 2026-11-07) ----------
+// Gallop (S1E9): X on the ground while riding (C on keys) = THOOM-tik stride off the foothold; tap again on the beat after
+// each landing to chain. The Gallium a stride spends stays behind as the anchor — a puddle you can pull back.
+// Crown points (S1E11): D-pad ◀ (1 on keys) marks the next anchor ahead (up to 3); D-pad ▶ (2) commits the Snapline —
+// a visible arc that clears every roof, can't be cancelled, and never teleports. Anchors drip down as puddles after.
+const GLP=createGallop();
+const SNP={S:createSnap(),dlPrev:false,drPrev:false,marks:[],line:null,arcLine:null};
+const snapHeight=(x,z)=>Math.max(floorAt({x,y:1e4,z}),mwFloor(x,z));
+function gallopTick(dt,R,S,I,prevGrab){
+ if(I.grab&&!prevGrab&&S.mode!=='air'&&R.bailT<=0){const r=gallopPress(GLP,{mode:S.mode,gal:st.gal,lean:I.lx});
+  if(!r.ok&&r.why==='material')toast('Galaxy Gallium low — pull some back (L2+R2 on foot)');}
+ if(GLP.phase!=='idle')I.grab=false; // a stride is not a grab
+ const r=gallopStep(GLP,dt,S.mode);if(!r)return;
+ if(r.type==='compress'){setViolet(.4+.4*r.k);return;}
+ if(r.type!=='release')return;
+ if(st.gal+1e-9<r.cost){gallopBreak(GLP);return;}
+ st.gal=Math.max(0,st.gal-r.cost);kitPuddleAdd(R.p.x,R.p.y,R.p.z,r.cost); // THOOM: the anchor stays on the foothold
+ const h=S.heading+r.steer;S.heading=h;S.speed=strideSpeed(S.speed,r.dv,RS.TOP);
+ if(S.mode==='grind'){S.grind=null;R.rail=null;}
+ R.v={x:Math.sin(h)*S.speed,y:r.vy,z:Math.cos(h)*S.speed};R.airMax=R.p.y;goAirborne(S,'Gallop');
+ setViolet(1);beep(r.onBeat?95:78,.09,'square',.05);burst(_fv2.set(R.p.x,R.p.y+.15,R.p.z),r.onBeat?18:10,3);RSK.quiet=0;
+ if(r.turnBreak)whisper('Hard turn','it broke the rhythm');}
+function snapClearMarks(){for(const m of SNP.marks)scene.remove(m);SNP.marks=[];}
+function snapDrop(drop){for(const p of drop||[])kitPuddleAdd(p.x,snapHeight(p.x,p.z),p.z,p.amount);snapClearMarks();} // the anchors drip down — nothing is lost
+function snapInput(R,S){
+ const gp=RSK.gp,dl=!!(gp&&gp.buttons[14]&&gp.buttons[14].pressed),dr=!!(gp&&gp.buttons[15]&&gp.buttons[15].pressed);
+ const markE=(dl&&!SNP.dlPrev)||tap('Digit1'),goE=(dr&&!SNP.drPrev)||tap('Digit2');SNP.dlPrev=dl;SNP.drPrev=dr;
+ if(SNP.S.state==='arc')return; // no cancel mid-arc
+ if(markE){if(!swingAnchors)buildSwingAnchors();const h=S.speed<-.3?S.heading+Math.PI:S.heading;
+  const r=snapMark(SNP.S,R.p,h,swingAnchors,st.gal);
+  if(r.ok){st.gal=Math.max(0,st.gal-r.cost);const m=new THREE.Mesh(new THREE.TorusGeometry(.55,.07,8,20),new THREE.MeshBasicMaterial({color:0xb983ff}));m.position.set(r.point.x,r.point.y+.35,r.point.z);m.rotation.x=Math.PI/2;scene.add(m);SNP.marks.push(m);
+   beep(520+r.n*120,.06,'triangle',.04);whisper('Crown point '+r.n+'/'+SNAP.MAX,r.n<SNAP.MAX?'mark another or commit the Snapline':'commit the Snapline');}
+  else toast(r.why==='material'?'Galaxy Gallium low':r.why==='max'?'Three Crown points — commit the Snapline':'No anchor ahead');}
+ if(goE){const r=snapCommit(SNP.S,{x:R.p.x,y:R.p.y+.1,z:R.p.z},snapHeight);
+  if(r.ok){gallopBreak(GLP);beep(220,.12,'sawtooth',.04);whisper('SNAPLINE','committed — no way off the arc');}
+  else toast(r.why==='points'?'Mark a Crown point first':r.why==='landing'?'No floor to land on past that point':'No clear arc over that');}
+}
+function snapVis(){
+ const S=SNP.S,show=S.state==='arc'||S.points.length>0;
+ if(!SNP.line){SNP.line=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xb983ff,transparent:true,opacity:.85}));SNP.line.frustumCulled=false;scene.add(SNP.line);}
+ SNP.line.visible=show;if(!show)return;
+ let pts;
+ if(S.state==='arc'){pts=[];for(let i=0;i<S.path.length;i+=2)pts.push(S.path[i]);pts.push(S.path[S.path.length-1]);}
+ else{const p=P.o.position;pts=[{x:p.x,y:p.y+.4,z:p.z},...S.points.map(q=>({x:q.x,y:q.y+.35,z:q.z}))];}
+ const a=new Float32Array(pts.length*3);pts.forEach((q,i)=>{a[i*3]=q.x;a[i*3+1]=q.y;a[i*3+2]=q.z;});
+ SNP.line.geometry.setAttribute('position',new THREE.BufferAttribute(a,3));SNP.line.geometry.computeBoundingSphere();
+ for(const m of SNP.marks)m.rotation.z+=.03;}
+function snapIdleTick(dt){ // Crown points left too long drip down; a ride knocked off mid-arc drops the arc where it is
+ const S=SNP.S;
+ if(S.state==='arc'&&!RSK.active){const drop=S.points;S.points=[];S.state='idle';S.path=null;S.cum=null;snapDrop(drop);}
+ if(S.state!=='arc'){const r=snapStep(S,dt);if(r&&r.type==='expire'){snapDrop(r.drop);whisper('Crown points dripped down','the Gallium is on the floor — pull it back');}}
+ snapVis();}
+function snapArcStep(dt,R,S,pp){ // the ride is carried along the committed arc
+ const r=snapStep(SNP.S,dt);if(!r)return;
+ R.p={x:r.pos.x,y:r.pos.y,z:r.pos.z};pp.set(r.pos.x,r.pos.y,r.pos.z);
+ if(r.type==='land'){const h=Math.atan2(r.tan.x,r.tan.z);S.mode='ground';S.air=null;S.grind=null;S.manual=null;R.rail=null;S.heading=h;S.speed=Math.min(RS.TOP,SNAP.SPEED*.6);
+  R.v={x:Math.sin(h)*S.speed,y:0,z:Math.cos(h)*S.speed};vel.set(R.v.x,0,R.v.z);onGround=true;RSK.yaw=h;sk.h=h;sk.s=S.speed;
+  snapDrop(r.drop);proFeed('snap');proHook('power','snapline');RSK.lastName='SNAPLINE';st.comboPend+=2;beep(1250,.04,'triangle',.04);whisper('Snapline','four wheels down');return;}
+ const sp=SNAP.SPEED;R.v={x:r.tan.x*sp,y:r.tan.y*sp,z:r.tan.z*sp};vel.set(R.v.x,R.v.y,R.v.z);onGround=false;
+ RSK.yaw=Math.atan2(r.tan.x,r.tan.z);S.heading=RSK.yaw;RSK.tilt=null;setViolet(1);}
 function realSkateStep(dt,pp){
  if(!RSK.R){ // board just went down: start the ride from Metal's current motion
   if(bodyMachine.mode==='grounded')sk.bailT=0; // a finished bail never carries into a fresh ride
@@ -746,8 +821,13 @@ function realSkateStep(dt,pp){
  }
  const R=RSK.R,S=R.core;
  R.bailT=Math.max(R.bailT,sk.bailT); // fight/traffic bails from the main game stop the ride too
+ snapInput(R,S);
+ if(SNP.S.state==='arc'){snapArcStep(dt,R,S,pp);realSkateHud();return;} // committed: the arc carries him, input can't cancel it
+ const prevGrab=!!(RSK.prevI&&RSK.prevI.grab);
  const I=RSK.gp?padToInput(RSK.gp,RSK.prevI):realKeyboardInput(dt);RSK.prevI=I;
+ gallopTick(dt,R,S,I,prevGrab);
  const ev=stepRide(R,I,dt);
+ if(mwFloor(R.p.x,R.p.z)>=0&&S.mode==='ground')MWB.lastRampT=performance.now()/1000;
  pp.set(R.p.x,R.p.y,R.p.z);
  const preHit=collide(pp); // buildings, parked structures
  if(preHit&&lastHit){R.p.x=pp.x;R.p.z=pp.z;if(S.mode==='ground'&&Math.abs(S.speed)>MSK.WALL_BAIL){ev.push({type:'bail',why:'SLAMMED A WALL'});R.bailT=.9;S.speed*=.2;}else S.speed*=-.2;}
@@ -762,17 +842,17 @@ function realSkateStep(dt,pp){
  else RSK.tilt=null;
  RSK.quiet+=dt;
  for(const e of ev){
-  if(e.type==='pop'){play(P,P.acts.Ollie?'Ollie':'Jump',true);st.comboPend++;sk.airT=0;RSK.quiet=0;beep(180,.05,'triangle',.03);}
+  if(e.type==='pop'){proFeed('pop');play(P,P.acts.Ollie?'Ollie':'Jump',true);st.comboPend++;sk.airT=0;RSK.quiet=0;beep(180,.05,'triangle',.03);}
   else if(e.type==='perfectPop'){RSK.lastName='PERFECT POP';beep(660,.05,'triangle',.03);}
   else if(e.type==='kick'){beep(e.role==='front'?520:380,.04,'square',.025);}
   else if(e.type==='catch'||e.type==='realign'){beep(300,.03,'triangle',.03);}
-  else if(e.type==='land'){RSK.quiet=0;if(e.pts>0&&/flip|Shove|Impossible|Varial|Tre|Laser|Heel|Kick/i.test(e.name))comboFeed('trick');if(e.pts>0){RSK.shown++;RSK.lastName=e.name+(e.quality==='perfect'?' · PERFECT':e.quality==='sketchy'?' · sketchy':'');if(e.quality==='perfect')RSK.perfects++;st.comboPend+=Math.max(1,Math.round(e.pts/150));yardSession?.addTricks([e.name],e.pts);toast(RSK.lastName);}
+  else if(e.type==='land'){if(GLP.phase==='stride'){const g=gallopLanded(GLP,e.ok);if(g&&e.ok){proFeed('gallop',g.chain);proHook('power','gallop');RSK.lastName='GALLOP ×'+g.chain;beep(1500,.025,'triangle',.03);}}mariOnLand(e);RSK.quiet=0;if(e.ok&&e.airT>=.5&&MWB.S&&performance.now()/1000-MWB.lastRampT<e.airT+.4){MWB.S.stats.rampAirs++;mwSave();}if(e.pts>0&&/flip|Shove|Impossible|Varial|Tre|Laser|Heel|Kick/i.test(e.name))comboFeed('trick');if(e.pts>0){RSK.shown++;RSK.lastName=e.name+(e.quality==='perfect'?' · PERFECT':e.quality==='sketchy'?' · sketchy':'');if(e.quality==='perfect')RSK.perfects++;st.comboPend+=Math.max(1,Math.round(e.pts/150));yardSession?.addTricks([e.name],e.pts);toast(RSK.lastName);}
    sk.landT=0;sk.flash=e.quality==='perfect'?1:.5;if(P.acts.Land){play(P,'Land',true);actT=.16;}if(e.impact>9)bodyMachine.impact=e.impact;}
-  else if(e.type==='grindStart'){RSK.quiet=0;RSK.lastName=e.name;setViolet(.7);toast(e.name);beep(240,.06,'sawtooth',.02);}
+  else if(e.type==='grindStart'){if(/^Bent /.test(e.rail||'')&&MWB.S){MWB.S.stats.bentGrinds++;mwSave();}RSK.quiet=0;RSK.lastName=e.name;setViolet(.7);toast(e.name);beep(240,.06,'sawtooth',.02);}
   else if(e.type==='grindEnd'){RSK.quiet=0;if(e.pts){st.comboPend+=Math.max(1,Math.round(e.pts/150));yardSession?.addTricks([e.name],e.pts);}}
   else if(e.type==='powerslide'){RSK.lastName='Powerslide';}
   else if(e.type==='manualStart'){RSK.lastName=e.nose?'Nose Manual':'Manual';}
-  else if(e.type==='bail'){RSK.lastName=e.why;RSK.loose=e.loose;RSK.looseR=R;RSK.looseT=0;
+  else if(e.type==='bail'){gallopBreak(GLP);mariOnLand({ok:false,name:'',pts:0});RSK.lastName=e.why;RSK.loose=e.loose;RSK.looseR=R;RSK.looseT=0;
    if(e.fall){sk.bailT=0;skBail(e.why);bodyMachine.fall(vel.x,vel.z);}else toast(e.why);
    vel.set(e.metalV.x,vel.y,e.metalV.z);st.board=false;board.visible=true;toast('Board got away — go get it');}
  }
@@ -877,16 +957,16 @@ function initFoes(){if(FOES.length||!rival)return;rivalSt.kind='rival';rivalSt.l
  });}
 function activeFoes(){return FOES.filter(f=>f.R.active&&!f.R.out);}
 function crewPrompt(pp){if(FG.inFight)return null;for(const c of [...STORY_FIGHTS,...CREWS]){if(!c.home||c.state!=='idle')continue;if(pp.distanceTo(c.home)<6.5)return {text:'E — '+c.name+(c.story?(c.entry&&c.entry.ep?' · Ep.'+c.entry.ep+' '+c.entry.title+' — '+c.entry.weakness:' · story encounter (PROPOSAL)'):' wants a street spar (nonlethal)'),go:()=>startCrew(c)};}return null;}
-function startCrew(c){c.state='fight';for(const f of c.members){Object.assign(f.R,{active:true,stance:.55,max:.55,out:false,sm:null,act:null,queue:[],guard:false});}$('foe').style.display='block';
+function startCrew(c){bell();c.state='fight';for(const f of c.members){Object.assign(f.R,{active:true,stance:.55,max:.55,out:false,sm:null,act:null,queue:[],guard:false});}$('foe').style.display='block';
  toast(c.name+' — street spar! Break every stance');plog('decisions','Accepted a street spar ('+c.name+')');}
-function endCrew(c,win){c.state='cool';c.cool=win?30:8;for(const f of c.members){const R=f.R;R.active=false;R.act=null;R.queue=[];R.guard=false;R.sm=null;if(f.ch.body)f.ch.body.emissiveIntensity=0;if(R.out){R.getup=1.3;playT(f.ch,'GetUp',1.3);}else play(f.ch,win?'No':'Dance');}
+function endCrew(c,win){if(c.ep1Ctl){ep1FightOver(c,win);return;}if(c.fbCtl){fbFightOver(c,win);return;}if(c.prCtl){proFightOver(c,win);return;}bell();c.state='cool';c.cool=win?30:8;for(const f of c.members){const R=f.R;R.active=false;R.act=null;R.queue=[];R.guard=false;R.sm=null;if(f.ch.body)f.ch.body.emissiveIntensity=0;if(R.out&&!R.bound){R.getup=1.3;playT(f.ch,'GetUp',1.3);}else play(f.ch,win?'No':'Dance');}
  if(!activeFoes().length)$('foe').style.display='none';FG.act=null;FG.stun=0;st.hp=1;
  for(const f of c.members)if(f.R.vil){const id=f.R.vil.id;f.R.vil=createVillainState(id);}
  if(win&&c.entry&&c.entry.ep){FG.crewWins++;st.gal=Math.min(1,st.gal+.3);toast('Ep.'+c.entry.ep+' '+c.entry.title+' — '+c.name+' down · recording stem earned');plog('achievements','Beat '+c.name+' (Ep.'+c.entry.ep+')');}
  else if(win){FG.crewWins++;st.gal=Math.min(1,st.gal+.2);toast(c.name+' tapped out — street respect · Gallium +');plog('achievements','Won a street spar ('+c.name+')');c.level=Math.min(5,c.level+1);}
  else toast(c.name+' got you — run it back later');}
-function crewTick(dt){for(const c of [...CREWS,...STORY_FIGHTS]){if(!c.home)continue;
- if(c.state==='cool'){c.cool-=dt;if(c.cool<=0){c.state='idle';for(const f of c.members){f.R.out=false;f.R.stance=1;}}}
+function crewTick(dt){for(const c of [...CREWS,...STORY_FIGHTS]){if(!c.home)continue;if((c.ep1Ctl||c.fbCtl)&&c.state!=='fight')continue;
+ if(c.state==='cool'){c.cool-=dt;if(c.cool<=0&&!c.members.some(f=>f.R.bound&&!f.R.taken)){c.state='idle';for(const f of c.members){f.R.out=false;f.R.stance=1;f.R.bound=false;f.R.taken=false;f.R.bindSaid=false;f.ch.o.visible=true;}}}
  if(c.state==='fight'){if(c.members.every(f=>f.R.out)){endCrew(c,true);continue;}if(P.o.position.distanceTo(c.home)>28){toast('You left — '+c.name+' calls it');endCrew(c,false);continue;}}
  if(c.state!=='fight')for(const f of c.members){if(f.R.getup>0){f.R.getup-=dt;continue;}const o=f.ch.o,want=_fv2.copy(c.home).add(new THREE.Vector3(Math.cos(f.R.slot)*1.6,0,Math.sin(f.R.slot)*1.6));const v=want.sub(o.position).setY(0);const d=v.length();
   if(d>.25){o.position.addScaledVector(v.normalize(),Math.min(d,dt*1.6));o.rotation.y+=angDiff(o.rotation.y,Math.atan2(v.x,v.z))*Math.min(1,dt*6);play(f.ch,'Walking');}
@@ -904,12 +984,21 @@ function globMesh(){const geo=new THREE.IcosahedronGeometry(1,3);const m=new THR
 function wobble(m,size,t){const a=m.geometry.attributes.position,b=m.userData.base;for(let i=0;i<a.count;i++){const x=b[i*3],y=b[i*3+1],z=b[i*3+2];
   const n=1+.16*Math.sin(x*4.1+t*6.3)*Math.cos(y*3.7-t*5.1)+.1*Math.sin(z*5.3+t*8.2)+(size>.6?.08*Math.sin((x+y)*9+t*12):0);a.setXYZ(i,x*n,y*n,z*n);}
  a.needsUpdate=true;m.geometry.computeVertexNormals();}
-function globAim(){if(FG.target&&FG.target.ch){const v=FG.target.ch.o.position.clone().setY(FG.target.ch.o.position.y+1.1).sub(_globHand());return v.normalize();}
+function globAimAssist(){ // soft-lock the nearest bendable / breakable / mechanical target in front of Metal
+ const h=_globHand(),f=new THREE.Vector3(Math.sin(RSK.active?RSK.yaw:yaw),0,Math.cos(RSK.active?RSK.yaw:yaw));const cands=[];
+ if(MWB.S){const bp=MWB.rails.bar.pts;for(let k=0;k<bp.length-1;k++){const a=bp[k],b=bp[k+1];for(let t=.15;t<.9;t+=.15)cands.push(new THREE.Vector3(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,a.z+(b.z-a.z)*t));}
+  for(const w of MWB.wallMeshes)if(w.p.hp>0)cands.push(w.mesh.position.clone());}
+ if(EP.latchM&&EP.M&&EP.M.stage==='platform'&&EP.M.plat.state==='up')cands.push(EP.latchM.position.clone());
+ if(WTV.S&&WTV.S.mission==='DEFEND'){WTV.limbs.forEach((l,i)=>{if(WTV.S.boss.limbs[i].hp>0)cands.push(l.knee.clone().lerp(l.foot,.4));});if(WTV.S.keeper.hp>0)cands.push(WTV.kp.clone());}
+ const E=RFR.W&&RFR.W.enc;if(E){if(E.stage==='chase')RFR.wheels.forEach((w,i)=>{if(E.wheels[i]>0)cands.push(w.position.clone());});else RFR.arms.forEach((a,i)=>{if(E.arms[i]>0&&a.g.visible)cands.push(a.cl.position.clone());});}
+ let best=null,bs=1e9;for(const c of cands){const v=c.clone().sub(h),d=v.length();if(d>11||d<.5)continue;const ang=Math.acos(Math.max(-1,Math.min(1,v.clone().setY(0).normalize().dot(f))));if(ang>.6)continue;const sc=d+ang*6;if(sc<bs){bs=sc;best=v.normalize();}}
+ return best;}
+function globAim(){const la=ep1LatchAim();if(la)return la;if(!(FG.target&&FG.target.ch)){const a=globAimAssist();if(a)return a;}if(FG.target&&FG.target.ch){const v=FG.target.ch.o.position.clone().setY(FG.target.ch.o.position.y+1.1).sub(_globHand());return v.normalize();}
  if(RSK.active&&RSK.R)return new THREE.Vector3(Math.sin(RSK.yaw),.02,Math.cos(RSK.yaw));
  return new THREE.Vector3(-Math.sin(camYaw),-.02,-Math.cos(camYaw));}
 const _gh=new THREE.Vector3();
 function _globHand(){const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));return _gh.copy(P.o.position).add(new THREE.Vector3(0,1.3,0)).addScaledVector(f,.75);}
-function globHolding(){if(!P||st.swing||st.flying||st.wall||forgeController?.busy)return false;const padY=!!(RSK.gp&&(RSK.gp.buttons[3]?.pressed)&&(onGround||RSK.active));return !!keys.KeyG||padY;}
+function globHolding(){if(KITV.K.pulling)return false;if(!P||st.swing||st.flying||st.wall||forgeController?.busy)return false;const padY=!!(RSK.gp&&(RSK.gp.buttons[3]?.pressed)&&(onGround||RSK.active));return !!keys.KeyG||padY;}
 function globTick(dt){
  const holding=globHolding(),g=GLB.g;
  const used=formGlob(g,holding,st.gal,dt);st.gal=Math.max(0,st.gal-used);
@@ -919,24 +1008,30 @@ function globTick(dt){
   if(Math.random()<.9){const side=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));for(const s of [-1,1]){const a=P.o.position.clone().add(new THREE.Vector3(0,1.15,0)).addScaledVector(side,s*.32);burst(a.lerp(m.position,Math.random()*.7),1,.6);}}
   if(used>0&&!actT){playT(P,P.acts.Blast?'Blast':'Idle',.9);actT=.12;}setViolet(.35+.4*g.size);
   if(st.gal<=0.001&&g.size<GLOB.MIN&&!GLB.warn){GLB.warn=true;toast('No Gallium left to bend — pick up puddles or win a spar');}}
- if(!holding&&GLB.prevHold){const pr=launchGlob(g,_globHand().clone(),globAim());if(GLB.mesh)GLB.mesh.visible=false;GLB.warn=false;
+ if(GLB.suppress>0){GLB.suppress-=dt;GLB.prevHold=false;}
+ if(!holding&&GLB.prevHold){const pr=launchGlob(g,_globHand().clone(),globAim());proHook('power','glob');if(GLB.mesh)GLB.mesh.visible=false;GLB.warn=false;
   if(pr.refund){st.gal=Math.min(1,st.gal+pr.refund);}
   else{if(!onGround&&!RSK.active||RSK.R&&RSK.R.core.mode==='air')comboFeed('airborne');if(RSK.R&&RSK.R.core.mode==='grind')comboFeed('grind');
    const cb=comboFeed('globThrow');pr.mul=1;
    if(cb){if(cb.id==='galliumFist')pr.mul=1.6;if(cb.id==='meteor'){pr.v.y=-16;pr.v.x*=.4;pr.v.z*=.4;pr.meteor=true;pr.mul=1.4;}if(cb.id==='railRifle'){pr.v.x*=1.5;pr.v.z*=1.5;pr.pierce=true;pr.mul=1.3;}if(cb.id==='styleCannon'){pr.v.x*=1.25;pr.v.z*=1.25;pr.mul=1.25;}}
-   const m=globMesh();m.scale.setScalar(pr.r);m.position.set(pr.p.x,pr.p.y,pr.p.z);GLB.projs.push({pr,m,hit:new Set()});beep(90,.12,'sawtooth',.05);FG.shake=Math.max(FG.shake,.08+.15*pr.size);if(P.acts.Blast){playT(P,'Blast',.5);actT=.35;}}}
+   const m=globMesh();m.scale.setScalar(pr.r);m.position.set(pr.p.x,pr.p.y,pr.p.z);GLB.projs.push({pr,m,hit:new Set()});beep(90,.12,'sawtooth',.05);FG.shake=Math.max(FG.shake,.08+.15*pr.size);if(P.acts.GlobThrow&&!RSK.active&&!st.board){playT(P,'GlobThrow',.75);actT=.55;}else if(P.acts.Blast){playT(P,'Blast',.5);actT=.35;}}}
  GLB.prevHold=holding;
  for(let i=GLB.projs.length-1;i>=0;i--){const it=GLB.projs[i],pr=it.pr;const alive=stepGlob(pr,dt);it.m.position.set(pr.p.x,pr.p.y,pr.p.z);it.m.rotation.x+=dt*6;wobble(it.m,pr.size,performance.now()/1000);
   const pos=it.m.position;let hit=null;
   for(const foe of activeFoes()){if(it.hit&&it.hit.has(foe))continue;const c=_fv2.copy(foe.ch.o.position);c.y+=1.1;if(pos.distanceTo(c)<pr.r+.7){const im=foeImpact(pr);const dir=new THREE.Vector3(pr.v.x,0,pr.v.z).normalize();
     hitFoe(foe,{...STRK.blast,dmg:im.dmg*(pr.mul||1),kb:im.kb*(pr.mul||1),stun:im.stun,down:im.down,react:im.down?'Knock':'HitChest',src:'glob'},0,dir);if(pr.pierce){it.hit&&it.hit.add(foe);continue;}hit='foe';break;}}
   if(!hit&&reframerHit('glob',Math.min(1,pr.size*(pr.mul||1)),pos))hit='reframer';
+  if(!hit&&ep1LatchHit(pos,pr.r,Math.min(1,pr.size*(pr.mul||1)*1.4)))hit='latch';
+  if(!hit&&MWB.S&&mwHitWall(pos,Math.min(1,pr.size*(pr.mul||1))*1.2,'glob'))hit='panel';
+  if(!hit&&MWB.S){const bp=MWB.rails.bar.pts;for(let k=0;k<bp.length-1&&!hit;k++){const a=bp[k],bb=bp[k+1],dx=bb.x-a.x,dy=bb.y-a.y,dz=bb.z-a.z,L2=dx*dx+dy*dy+dz*dz||1,t=Math.max(0,Math.min(1,((pos.x-a.x)*dx+(pos.y-a.y)*dy+(pos.z-a.z)*dz)/L2));if(Math.hypot(pos.x-a.x-dx*t,pos.y-a.y-dy*t,pos.z-a.z-dz*t)<pr.r+.15)hit='bar';}}
   if(!hit)for(const c of cars){if(c===heldCar)continue;const cp=_fv2.copy(c.position);cp.y+=.9;if(pos.distanceTo(cp)<pr.r+2.1){hit='car';globHitCar(c,pr);break;}}
   if(!hit){const f=floorAt(pos);if(pos.y<=f+pr.r*.5)hit='ground';else for(const b of colliders)if(b.containsPoint(pos)){hit='wall';break;}}
   if(hit||!alive){burst(pos,20+Math.round(30*pr.size),5+4*pr.size);
    for(const sc of STORY_FIGHTS)for(const f of sc.members)if(f.R.vil&&f.R.vil.id==='kiln'&&douseZone(f.R.vil,pos.x,pos.z))whisper('Hot zone out','');
+   const gpow=Math.min(1,pr.size*(pr.mul||1));if(hit!=='panel')mwHitWall(pos,gpow*1.2,'glob');
+   if(MWB.S&&bendRail(MWB.rails.bar,{x:pos.x,z:pos.z},{x:pr.v.x,y:pr.v.y/(Math.hypot(pr.v.x,pr.v.y,pr.v.z)||1),z:pr.v.z},gpow)){mwRailsSync();mwBarMesh();mwSave();whisper('Bar bent','grind its new shape');FG.shake=.3;beep(50,.15,'square',.05);}
    if(pr.meteor){vRing(pos.x,pos.z,3.5,.5,0xb48cff);FG.shake=.4;for(const foe of activeFoes())if(foe.ch.o.position.distanceTo(pos)<3.5)hitFoe(foe,{...STRK.blast,dmg:.18,kb:7,down:true,react:'Knock',src:'glob'},0,foe.ch.o.position.clone().sub(pos).setY(0).normalize());reframerHit('glob',.9,pos);}FG.shake=Math.max(FG.shake,.1+.25*pr.size);beep(55,.12,'square',.05);
-   const sp=splat(pr),pm=new THREE.Mesh(new THREE.CircleGeometry(.35+.6*pr.size,7),galaxyCrystalMat({}));pm.rotation.x=-Math.PI/2;pm.position.set(pos.x,floorAt(pos)+.03,pos.z);scene.add(pm);GLB.puddles.push({m:pm,amount:sp.amount,t:0});
+   const sp=splat(pr);kitPuddleAdd(pos.x,floorAt(pos),pos.z,sp.amount); // puddles stay until pulled back
    scene.remove(it.m);it.m.geometry.dispose();GLB.projs.splice(i,1);}}
  for(let i=GLB.puddles.length-1;i>=0;i--){const pd=GLB.puddles[i];pd.t+=dt;
   if(P.o.position.distanceTo(pd.m.position)<1.4&&P.o.position.y-pd.m.position.y<1.2){st.gal=Math.min(1,st.gal+pd.amount);toast('Gallium recovered +'+Math.round(pd.amount*100)+'%');scene.remove(pd.m);GLB.puddles.splice(i,1);continue;}
@@ -945,6 +1040,7 @@ function globTick(dt){
  for(const c of thrownCars){const u=c.userData;if(!u.tumble)continue;const b=u.worldBody;stepTumble(u.tumble,dt,b.position.y<=.08);
   c.quaternion.copy(u.baseQ).premultiply(_gq.setFromAxisAngle(_ga.set(u.tAxis.x,0,u.tAxis.z),u.tumble.roll));c.position.y=b.position.y+Math.abs(Math.sin(u.tumble.roll))*.9+(Math.abs(Math.cos(u.tumble.roll))>.5&&Math.cos(u.tumble.roll)<0?1.6:0);
   const sp=Math.hypot(b.velocity.x,b.velocity.z);if(sp>3.5)for(const foe of activeFoes()){if(foe.ch.o.position.distanceTo(c.position)<2.6&&!(foe.R.inv>0)){hitFoe(foe,{...STRK.hook,dmg:.22,kb:9,down:true,react:'Knock',src:'car'},0,new THREE.Vector3(b.velocity.x,0,b.velocity.z).normalize());foe.R.inv=.6;}}
+  if(sp>5&&!u.wallHit&&mwHitWall(_fv2.copy(c.position).setY(c.position.y+.8),1,'car'))u.wallHit=true;
   if(u.byVillain&&sp>3&&c.position.distanceTo(P.o.position)<2.6){metalHurt(.15,c.position,null);u.byVillain=0;}
   if(u.tumble.settled&&!u.tSaid){u.tSaid=true;const r=tumbleResult(u.tumble);if(r!=='wheels')toast('Car on its '+r);}}
 }
@@ -980,7 +1076,8 @@ function globHitCar(c,pr){const u=c.userData;
 // ---- villain abilities (Season One blueprint) ----
 const VFX={rings:[],spikes:[],slick:[],heat:null};
 function vRing(x,z,r,life,color){const m=new THREE.Mesh(new THREE.RingGeometry(r*.92,r,48),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.8,side:THREE.DoubleSide,depthWrite:false}));m.rotation.x=-Math.PI/2;m.position.set(x,groundY+.06,z);scene.add(m);VFX.rings.push({m,t:0,life});return m;}
-function metalHurt(dmg,from,why){if(FG.iframe>0||dmg<=0)return;st.hp=Math.max(0,st.hp-armorDamage(dmg));if(from){const d=P.o.position.clone().sub(from).setY(0).normalize();FG.kb.addScaledVector(d,6);}FG.shake=Math.max(FG.shake,.2);if(why)toast(why);
+function metalHurt(dmg,from,why){if(FG.iframe>0||dmg<=0)return;dmg=kitShieldBlock(dmg,from);st.hp=Math.max(0,st.hp-armorDamage(dmg));if(from){const d=P.o.position.clone().sub(from).setY(0).normalize();FG.kb.addScaledVector(d,6);}FG.shake=Math.max(FG.shake,.2);if(why)toast(why);
+
  if(st.hp<=0){st.hp=1;for(const c of STORY_FIGHTS)if(c.state==='fight')endCrew(c,false);}}
 function villainAbility(foe,dt){const R=foe.R,V=R.vil,rp=foe.ch.o.position,mp=P.o.position;
  const o=stepVillain(V,{dist:R.d,active:R.active&&!R.out,self:{x:rp.x,z:rp.z},metal:{x:mp.x,z:mp.z}},dt);
@@ -1029,14 +1126,14 @@ function whisper(title,sub){if(!HELP.on)return;const w=$('wirWhisper');if(!w)ret
 const PAD_NAMES=['A','B','X','Y','L1','R1','L2','R2','View','Menu','L3','R3','D-up','D-down','D-left','D-right'];
 function helpContext(){if(RSK.active)return RSK.R&&RSK.R.core.mode==='air'?'air':RSK.R&&RSK.R.core.mode==='grind'?'grind':'ride';if(st.swing)return 'swing';if(!onGround)return 'jump';if(FG.inFight)return 'fight';return 'walk';}
 const HELP_PAD={
- ride:{A:['Push','one stroke per tap'],B:['Foot brake','hold ½ s = step off'],Y:['Gallium glob','hold to bend it, let go to throw'],L1:['Draw metal','hold near cars, lamps, rails'],R1:['Gallium line','swing'],L2:['Left foot / knee','squeeze both to load · snap the back one to pop'],R2:['Right foot / knee','back foot for Metal (regular)'],X:['Grab','in the air with stick direction']},
+ ride:{A:['Push','one stroke per tap'],B:['Foot brake','hold ½ s = step off'],Y:['Gallium glob','hold to bend it, let go to throw'],L1:['Draw metal','hold near cars, lamps, rails'],R1:['Gallium line','swing'],L2:['Left foot / knee','squeeze both to load · snap the back one to pop'],R2:['Right foot / knee','back foot for Metal (regular)'],X:['Gallium Gallop','THOOM-tik stride · tap again on the beat after each landing · in the air X = grab'],'D-left':['Crown point','marks the next anchor ahead (up to 3)'],'D-right':['Magnetic Snapline','commit the arc · no cancel']},
  air:{L2:['Catch / front foot','squeeze a beat before the deck comes around'],R2:['Catch / back foot','both down = feet on the bolts'],X:['Grab','stick: Indy · Melon · Nose · Tail'],Y:['Glob from the air','= METEOR combo'],A:['—','no push in the air']},
  grind:{L2:['Knees','load both, snap to pop out'],R2:['Knees','load both, snap to pop out'],Y:['Glob off the rail','= RAIL RIFLE combo']},
- walk:{A:['Jump'],B:['Dash / forge the board'],X:['Strike (roar)'],Y:['Gallium glob','hold to bend, release to throw'],L1:['Pulse · hold = draw metal','hold near metal to charge'],R1:['Gallium line'],L2:['Sprint'],R2:['Glide'],View:['Mode'],Menu:['Help on/off','hold = pause'],'D-up':['Interact (E)']},
+ walk:{A:['Jump'],B:['Tap: call the board back / forge one','hold: melt board · sword · shield → puddle'],X:['Strike (roar)'],Y:['Gallium glob','hold to bend, release to throw'],L1:['Pulse · hold = draw metal','hold near metal to charge'],R1:['Gallium line'],L2:['Sprint · L2+R2 = PULL metal','+X galaxy sword · +B shield · +Y plasma blast'],R2:['Glide · L2+R2 = PULL'],View:['Mode'],Menu:['Help on/off','hold = pause'],'D-up':['Interact (E)']},
  fight:{X:['Strike'],Y:['Gallium glob','two hits then throw = GALLIUM FIST'],L1:['Pulse · hold = draw','draw 1 s then pulse = MAGNET STORM'],B:['Dodge'],A:['Jump']},
  jump:{X:['Strike'],Y:['Aerial spin / glob','glob from the air = METEOR'],R2:['Glide'],A:['Jump']},
  swing:{R1:['Let go','strike right after = SWING BREAKER'],A:['Jump off']}};
-const HELP_KEYS={KeyW:['Move / push'],KeyA:['Move / lean'],KeyD:['Move / lean'],KeyS:['Back / manual'],Space:['Jump · on the board: knees + pop'],KeyG:['Gallium glob','hold to bend, release to throw'],Numpad5:['Charge · draw metal','hold near cars, lamps, rails'],KeyK:['Charge · draw metal'],KeyC:['Grab (air, on the board)'],KeyQ:['Gallium line'],KeyF:['Flight'],KeyB:['Board: forge / dissolve'],KeyE:['Interact'],
+const HELP_KEYS={KeyW:['Move / push'],KeyA:['Move / lean'],KeyD:['Move / lean'],KeyS:['Back / manual'],Space:['Jump · on the board: knees + pop'],KeyG:['Gallium glob','hold to bend, release to throw'],Numpad5:['Charge · draw metal','hold near cars, lamps, rails'],KeyK:['Charge · draw metal'],KeyC:['Grab (air, on the board)'],KeyQ:['Gallium line'],KeyF:['Flight'],KeyB:['Board: tap = call back / forge · hold = melt'],KeyY:['Pull metal (L2+R2)','+Num4 sword · +B shield · +G plasma blast'],KeyE:['Interact'],
  Numpad4:['Jab / hook'],Numpad6:['Cross'],Numpad1:['Left kick'],Numpad3:['Right kick'],Numpad2:['Block','tap right before a hit = parry'],Numpad7:['Blast · Shift = pulse'],Numpad8:['Transform'],Numpad9:['Dash strike'],KeyH:['Help on/off'],KeyM:['Map'],ArrowLeft:['Kickflip flick (after the pop)'],ArrowRight:['Heelflip flick'],ArrowUp:['Back-foot scoop'],ArrowDown:['Back-foot scoop']};
 addEventListener('keydown',e=>{if(e.repeat)return;if(e.code==='KeyH'){toggleHelp();return;}const h=HELP_KEYS[e.code];if(h)whisper(e.code.replace('Key','').replace('Numpad','Num ')+' · '+h[0],h[1]);});
 function helpTick(dt,gp){
@@ -1054,7 +1151,7 @@ function drawSources(){const p=P.o.position,R2=DRAW.RANGE+4,out=[];
  for(const c of cars){if(c===heldCar)continue;if(c.position.distanceTo(p)<R2){c.userData.drawSrc=c.userData.drawSrc||{kind:'car',id:c.uuid};const s=c.userData.drawSrc;s.x=c.position.x;s.y=c.position.y+.8;s.z=c.position.z;s.obj=c;out.push(s);}}
  for(const l of lamps){if(Math.abs(l.position.x-p.x)>R2||Math.abs(l.position.z-p.z)>R2)continue;l.userData.drawSrc=l.userData.drawSrc||{kind:'lamp',x:l.position.x,y:3.4,z:l.position.z,obj:l};out.push(l.userData.drawSrc);}
  if(skYard)for(const r of skYard.rails){const t=.5,q=skYard.railPoint(r,t);if(Math.hypot(q.x-p.x,q.z-p.z)<R2+r.len/2){r.drawSrc=r.drawSrc||{kind:r.kind==='coping'?'coping':'rail',x:q.x,y:q.y,z:q.z};out.push(r.drawSrc);}}
- for(const pd of GLB.puddles){pd.drawSrc=pd.drawSrc||{kind:'puddle',x:pd.m.position.x,y:pd.m.position.y,z:pd.m.position.z,reserve:pd.amount,pud:pd};out.push(pd.drawSrc);}
+ for(const kp of KITV.K.puddles)out.push({kind:'puddle',x:kp.x,y:kp.y+.1,z:kp.z,reserve:kp.amount,kp});
  for(const s of DRW.scrap)out.push(s);
  return out;}
 function drawStreamsInit(){const g=new THREE.BufferGeometry();DRW.pos=new Float32Array(DRW.N*3);DRW.life=new Float32Array(DRW.N);DRW.from=new Float32Array(DRW.N*3);g.setAttribute('position',new THREE.BufferAttribute(DRW.pos,3));
@@ -1064,10 +1161,10 @@ function drawTick(dt){
  const sky=metalPadV3.mode==='skylab'||RSK.active;
  if(l1&&sky)DRW.l1T+=dt;else{if(DRW.l1Prev&&DRW.l1T<.25&&sky){if(onGround||RSK.active)pressed.Numpad7=true;}DRW.l1T=0;} // tap L1 = pulse, hold = draw
  DRW.l1Prev=l1;
- const holding=!st.swing&&!st.flying&&(keys.Numpad5||keys.KeyK||DRW.l1T>.25);
+ const holding=!st.swing&&!st.flying&&(keys.Numpad5||keys.KeyK||DRW.l1T>.25||KITV.K.pulling);
  DRW.srcT-=dt;if(DRW.srcT<=0){DRW.srcT=.25;DRW.srcs=drawSources();}
  const r=stepDraw(DRW.D,holding,{x:P.o.position.x,y:P.o.position.y+1.1,z:P.o.position.z},DRW.srcs,st.gal,dt);
- st.gal=Math.min(1,st.gal+r.gal);st.charge=Math.min(1,st.charge+r.charge);
+ st.gal=Math.min(1,st.gal+r.gal);st.charge=Math.min(1,st.charge+r.charge);DRW.lastGot=r.streams.filter(x=>!x.src.con).reduce((a,x)=>a+x.amount,0);
  if(holding&&!DRW.drawing){DRW.drawing=true;DRW.longFed=false;}
  if(!holding&&DRW.drawing){DRW.drawing=false;}
  if(holding&&DRW.D.held>1&&!DRW.longFed&&DRW.D.total>.02){DRW.longFed=true;comboFeed('drawLong');}
@@ -1076,7 +1173,7 @@ function drawTick(dt){
  for(const s of r.streams){ // spawn matter flecks along each stream, more for closer/heavier sources
   const n=Math.min(4,1+Math.floor(s.amount*900));for(let k=0;k<n;k++){const i=DRW.i++%DRW.N;DRW.from[i*3]=s.src.x+(Math.random()-.5)*.6;DRW.from[i*3+1]=s.src.y+(Math.random()-.5)*.6;DRW.from[i*3+2]=s.src.z+(Math.random()-.5)*.6;DRW.life[i]=1;}
   if(s.src.mesh&&s.src.reserve<=0.001){scene.remove(s.src.mesh);const k=DRW.scrap.indexOf(s.src);if(k>=0)DRW.scrap.splice(k,1);}
-  if(s.src.pud&&s.src.reserve<=0.001){scene.remove(s.src.pud.m);const k=GLB.puddles.indexOf(s.src.pud);if(k>=0)GLB.puddles.splice(k,1);}
+  if(s.src.kp){s.src.kp.amount=s.src.reserve;if(s.src.kp.amount<=0.001){const k=KITV.K.puddles.indexOf(s.src.kp);if(k>=0)KITV.K.puddles.splice(k,1);}KITV.dirty=true;kitPuddleSync();}
  }
  for(let i=0;i<DRW.N;i++){if(DRW.life[i]<=0){DRW.pos[i*3+1]=-999;continue;}DRW.life[i]-=dt*2.2;const t=1-Math.max(0,DRW.life[i]),e=t*t*(3-2*t);const sw=Math.sin(t*9+i)*.25*(1-t);
   DRW.pos[i*3]=DRW.from[i*3]+(me.x-DRW.from[i*3])*e+sw;DRW.pos[i*3+1]=DRW.from[i*3+1]+(me.y-DRW.from[i*3+1])*e+Math.sin(t*Math.PI)*.6;DRW.pos[i*3+2]=DRW.from[i*3+2]+(me.z-DRW.from[i*3+2])*e-sw;}
@@ -1095,7 +1192,7 @@ function comboFeed(type){const c=feed(CMB,type,performance.now()/1000);if(!c)ret
  CMB.last=c;return c;}
 
 // ---------- REFRAMERS (from ReFramer Rush): wake on rooftops, take a real car apart, rebuild it into a Roadframe ----------
-const RFR={W:null,mesh:null,arms:[],scan:null,car:null,wheels:[],wheelHome:[],said:{},t:0,
+const RFR={W:null,mesh:null,arms:[],scan:null,car:null,wheels:[],wheelHome:[],said:{},t:0,parts:[],reactT:0,
  hunt:null,escapeButton:null,escapeTouch:false,escapePadPrev:false};
 function reframerInit(){if(RFR.W||!colliders.length)return;
  const tall=colliders.filter(b=>b.max.y>7&&b.max.y<40).map(b=>({x:(b.min.x+b.max.x)/2,y:b.max.y,z:(b.min.z+b.max.z)/2}));
@@ -1161,7 +1258,14 @@ function reframerHit(kind,power,pos){if(REFRAMER_SQUAD&&reframerSquad?.hit(kind,
 function reframerEnd(r){const car=RFR.car;
  if(r.outcome==='roadframeDown'||r.outcome==='escaped'||r.outcome==='lostTarget'){ // shell-car material remains scrap when abandoned
   if(car){scene.remove(car);const i=cars.indexOf(car);if(i>=0)cars.splice(i,1);for(const w of RFR.wheels){w.position.set(car.position.x+(Math.random()-.5)*4,.45,car.position.z+(Math.random()-.5)*4);w.rotation.set(0,Math.random()*6,Math.PI/2);DRW.scrap.push({kind:'scrap',x:w.position.x,y:.45,z:w.position.z,mesh:w});}}
- }else if(car){for(let k=0;k<RFR.wheels.length;k++){const w=RFR.wheels[k];if(w){car.add(w);w.position.copy(RFR.wheelHome[k].p);w.quaternion.copy(RFR.wheelHome[k].q);}}car.userData.reframed=false;car.position.y=.05;car.rotation.x=car.rotation.z=0;car.userData.spd=car.userData.spd0||car.userData.spd;}
+ }else if(car){car.position.y=.05;car.rotation.x=car.rotation.z=0;let out=0;
+  for(let k=0;k<RFR.wheels.length;k++){const w=RFR.wheels[k];if(!w)continue;
+   if(w.parent===car){continue;}
+   if(r.outcome==='fledWithParts'){scene.remove(w);out++;continue;} // it carried them off
+   if(r.scatter){w.position.set(car.position.x+(Math.random()-.5)*7,.45,car.position.z+(Math.random()-.5)*7);w.rotation.set(0,Math.random()*6,Math.PI/2);RFR.parts.push({w,home:RFR.wheelHome[k],car,enc:r.id,t:-1});out++;}
+   else{car.add(w);w.position.copy(RFR.wheelHome[k].p);w.quaternion.copy(RFR.wheelHome[k].q);}}
+  if(r.outcome==='fledWithParts'){whisper('It fled with the wheels','');}
+  else if(!out){car.userData.reframed=false;car.userData.spd=car.userData.spd0||car.userData.spd;}else if(r.scatter)whisper('Parts on the ground','hold draw near the car to guide them back');}
  if(r.residue){st.gal=Math.min(1,st.gal+r.residue);}
  st.comboPend+=3;whisper(r.outcome==='aborted'?'REFRAMER FLED':r.outcome==='clean'?'REFRAMER DOWN — car saved':r.outcome==='roadframeDown'?'ROADFRAME DOWN — salvage the scrap':r.outcome==='lostTarget'?'ROADFRAME LOST THE TRAIL — Metal escaped':'ROADFRAME GOT AWAY','');if(HELP.on)toast('ReFramer: '+r.outcome);
  RFR.car=null;RFR.wheels=[];RFR.mesh.visible=false;for(const a of RFR.arms)a.g.visible=false;RFR.scan.visible=false;RFR.said={};
@@ -1232,12 +1336,1036 @@ function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=R
    const mid=_rc.copy(base).lerp(tip,.5);mid.y+=1.1;const midV=mid.clone();limb(a.s1,base,midV);limb(a.s2,midV,tip);a.cl.position.copy(tip);}
 }
 
+
+// ---------- MALLEABLE MORROW BLOCK v0.1 (RB1 "One Game, Every Power": first playable milestone) ----------
+// Skatepark block: material pickups, Gallium constructs you actually ride, a bar you bend and grind, a wall that breaks and
+// gets repaired, Osei's job board, and a saved world. Rules in malleable_world_core.mjs (node-tested).
+// Build: hold the glob (G / Y) and flick the right stick (or arrows): ↑ ramp · ←/→ rail · ↓ shield. Reclaim: Metal Draw on it.
+var MWB={S:null,rails:{},wall:null,wallMeshes:[],wallCols:[],conMesh:new Map(),barMesh:null,osei:null,saveT:0,dirty:false,flickPrev:false,repairT:0,straightT:0,lastRampT:-9,restoredOnce:false};
+const MW_KEY='wirWorldV1';
+function mwUnitsIn(){if(MWB.S)MWB.S.units=Math.round(st.gal*1000)/10;}
+function mwUnitsOut(){if(MWB.S)st.gal=Math.max(0,Math.min(1,MWB.S.units/100));}
+function mwSave(){MWB.dirty=true;}
+function mwInit(){if(MWB.S||!skYard)return;const cx=skYard.cx,cz=skYard.cz,b=skYard.base;
+ const fb=skYard.rails.find(r=>r.name==='Flat bar');
+ MWB.rails.bar=railFrom(fb?fb.a:{x:cx-9,y:b+.55,z:cz+4.2},fb?fb.b:{x:cx+6,y:b+.55,z:cz+4.2},'Flat bar');
+ MWB.wall=createWall(4,3);
+ let txt=null;try{if(new URLSearchParams(location.search).get('world')==='reset')localStorage.removeItem(MW_KEY);txt=localStorage.getItem(MW_KEY);}catch(e){}
+ MWB.S=txt?deserialize(txt,MWB.rails,MWB.wall):createWorldState();
+ if(!txt)MWB.S.units=Math.round(st.gal*100);else mwUnitsOut();
+ // hide the yard's own flat-bar meshes; the bendable bar draws itself
+ scene.traverse(o=>{if(o.userData&&o.userData.rail==='Flat bar')o.visible=false;});
+ mwRailsSync();mwBarMesh();mwWallBuild();for(const c of MWB.S.constructs)mwConMesh(c);
+ // Osei — engineer from the season bible (Gyre Lesson). Mission giver, PROPOSAL placement
+ const o=makeChar(0x3c6e8f);o.o.position.set(cx-16,b,cz+7);scene.add(o.o);o.target=o.o.position.clone();o.speed=0;o.wait=1e9;o.role='Osei';npcs.push(o);MWB.osei=o;
+ const tag=nameTag('Osei',0x9bd3ff);tag.position.y=2.25;o.o.add(tag);worldLabels.push(tag);tag.visible=HELP.on;
+}
+function toRail(seg){const dx=seg.b.x-seg.a.x,dz=seg.b.z-seg.a.z,len=Math.hypot(dx,seg.b.y-seg.a.y,dz);return {...seg,len,yaw:Math.atan2(dx,dz)};}
+function mwRailsSync(){if(!skYard)return;const R=skYard.rails;for(let i=R.length-1;i>=0;i--)if(R[i].name==='Flat bar'||R[i].bendable||R[i].construct)R.splice(i,1);
+ for(const sgm of railSegments(MWB.rails.bar))R.push(toRail(sgm));
+ for(const c of MWB.S.constructs)for(const sgm of constructRails(c))R.push(toRail(sgm));}
+function mwBarMesh(){if(MWB.barMesh){scene.remove(MWB.barMesh);MWB.barMesh.traverse(m=>m.geometry&&m.geometry.dispose());}
+ const g=new THREE.Group(),steel=new THREE.MeshStandardMaterial({color:0xb8c6d0,metalness:.85,roughness:.32}),up=new THREE.Vector3(0,1,0);
+ const pts=MWB.rails.bar.pts;for(let i=0;i<pts.length-1;i++){const A=new THREE.Vector3(pts[i].x,pts[i].y,pts[i].z),B=new THREE.Vector3(pts[i+1].x,pts[i+1].y,pts[i+1].z),d=B.clone().sub(A);
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,d.length(),10),steel);m.position.copy(A).addScaledVector(d,.5);m.quaternion.setFromUnitVectors(up,d.normalize());m.castShadow=true;g.add(m);}
+ for(const q of pts){const gh=skYard.base;if(q.y-gh>.05){const m=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,q.y-gh,8),steel);m.position.set(q.x,(q.y+gh)/2,q.z);g.add(m);}}
+ scene.add(g);MWB.barMesh=g;}
+function mwWallBuild(){const cx=skYard.cx,cz=skYard.cz,b=skYard.base;MWB.wallOrigin={x:cx-19,y:b,z:cz+12};
+ for(const m of MWB.wallMeshes)scene.remove(m.mesh);MWB.wallMeshes=[];
+ const conc=new THREE.MeshStandardMaterial({color:0xa79d90,roughness:.95});
+ for(const p of MWB.wall.panels){const mesh=new THREE.Mesh(new THREE.BoxGeometry(1.48,.98,.35),p.patched?galaxyCrystalMat({}):conc.clone());mesh.castShadow=mesh.receiveShadow=true;
+  mesh.position.set(MWB.wallOrigin.x+.75+p.c*1.5,b+.5+p.r,MWB.wallOrigin.z);scene.add(mesh);const box=new THREE.Box3().setFromObject(mesh);MWB.wallMeshes.push({p,mesh,box,fall:null});}
+ mwWallSync();}
+function mwWallSync(){for(const w of MWB.wallMeshes){const alive=w.p.hp>0;const i=colliders.indexOf(w.box);
+  if(alive&&i<0&&!w.fall){colliders.push(w.box);}if(!alive&&i>=0)colliders.splice(i,1);
+  if(alive){w.mesh.visible=true;w.fall=null;w.mesh.position.set(MWB.wallOrigin.x+.75+w.p.c*1.5,skYard.base+.5+w.p.r,MWB.wallOrigin.z);w.mesh.rotation.set(0,0,0);
+   if(w.mesh.material.color&&!w.p.patched)w.mesh.material.color.setHex(w.p.hp<.5?0x7f776c:0xa79d90);}
+  else if(!w.fall&&w.mesh.visible&&!w.rubble){w.fall={v:new THREE.Vector3((Math.random()-.5)*2,1,1.5+Math.random()*2),w:new THREE.Vector3(Math.random()*3,0,Math.random()*3)};}}}
+function mwWallTick(dt){for(const w of MWB.wallMeshes){if(!w.fall)continue;const f=w.fall;f.v.y-=9.8*dt;w.mesh.position.addScaledVector(f.v,dt);w.mesh.rotation.x+=f.w.x*dt;w.mesh.rotation.z+=f.w.z*dt;
+  if(w.mesh.position.y<skYard.base+.2){w.mesh.position.y=skYard.base+.2;f.v.multiplyScalar(.3);f.v.y=0;f.w.multiplyScalar(.2);if(f.v.length()<.2){w.fall=null;w.rubble=true;DRW.scrap.push({kind:'scrap',x:w.mesh.position.x,y:w.mesh.position.y,z:w.mesh.position.z,reserve:.08,rubbleOf:w});}}}}
+function mwHitWall(pos,force,src){if(!MWB.wall)return false;let hitAny=false;
+ for(const w of MWB.wallMeshes){if(w.p.hp<=0)continue;const bb=w.box.clone().expandByScalar(.35+(src==='glob'?.2:0));if(!bb.containsPoint(pos))continue;
+  const fell=hitWall(MWB.wall,w.p.c,w.p.r,force);hitAny=true;burst(pos,16+fell.length*12,5);FG.shake=Math.max(FG.shake,.15+.08*fell.length);beep(60,.1,'square',.05);
+  if(fell.length)whisper('Wall broke ('+fell.length+')','Osei: hold draw at the wall to patch it with Gallium');break;}
+ if(hitAny){mwWallSync();mwSave();MWB.restoredOnce=false;}return hitAny;}
+function mwConMesh(c){const b=c.base,grp=new THREE.Group(),mat=galaxyCrystalMat({});
+ if(c.kind==='ramp'){const sh=new THREE.Shape();sh.moveTo(0,0);for(let i=0;i<=12;i++){const u=i/12*3.2,k=u/3.2;sh.lineTo(u,1.1*k*k);}sh.lineTo(3.2,0);sh.lineTo(0,0);
+  const g=new THREE.ExtrudeGeometry(sh,{depth:2.4,bevelEnabled:false});g.translate(0,0,-1.2);const m=new THREE.Mesh(g,mat);m.rotation.y=c.h-Math.PI/2;grp.add(m);}
+ else if(c.kind==='rail'){const L=6,m=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,L,10),mat);m.rotation.x=Math.PI/2;m.position.y=.55;grp.add(m);for(const k of [-2.6,0,2.6]){const p=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,.55,8),mat);p.position.set(0,.275,k);grp.add(p);}grp.rotation.y=c.h;}
+ else{const m=new THREE.Mesh(new THREE.BoxGeometry(2.6,2.2,.3),mat);m.position.y=1.1;grp.add(m);grp.rotation.y=c.h;const box=new THREE.Box3();grp.userData.box=box;}
+ grp.position.set(c.x,b,c.z);grp.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});scene.add(grp);
+ if(c.kind==='shield'){grp.updateMatrixWorld(true);grp.userData.box.setFromObject(grp);colliders.push(grp.userData.box);}
+ MWB.conMesh.set(c.id,grp);}
+function mwConRemove(cid){const g=MWB.conMesh.get(cid);if(!g)return;if(g.userData.box){const i=colliders.indexOf(g.userData.box);if(i>=0)colliders.splice(i,1);}scene.remove(g);MWB.conMesh.delete(cid);mwRailsSync();}
+function mwBuild(kind){if(!MWB.S)return;
+ st.gal=Math.min(1,st.gal+GLB.g.spent);GLB.g.size=0;GLB.g.spent=0;if(GLB.mesh)GLB.mesh.visible=false;GLB.prevHold=false;GLB.suppress=.4; // the held glob becomes the construct's matter
+ mwUnitsIn();const f={x:Math.sin(yaw),z:Math.cos(yaw)},d=kind==='ramp'?1.2:2.6;
+ const r=build(MWB.S,kind,P.o.position.x+f.x*d,P.o.position.z+f.z*d,kind==='shield'?yaw:yaw,floorAt(P.o.position));
+ if(!r.ok){beep(110,.12,'square',.04);whisper(r.why==='locked'?'Not learned yet':'Not enough Gallium',r.why==='locked'?(kind==='rail'?'Osei: finish The Missing Span':'Osei: finish Don\'t Let It Fall'):'Metal Draw to gather more ('+MAT.COST[kind]+' units)');return;}
+ mwUnitsOut();mwConMesh(r.c);mwRailsSync();mwSave();burst(new THREE.Vector3(r.c.x,r.c.base+.6,r.c.z),50,6);beep(240,.09,'triangle',.05);setViolet(1);
+ whisper('Gallium '+kind+' · −'+MAT.COST[kind],'ride it · Metal Draw on it to take the material back');}
+function mwInput(){if(!MWB.S||!GLB.g.held||GLB.g.size<=0)return;const gp=RSK.gp;let dir=null;
+ if(gp){const x=gp.axes[2]||0,y=gp.axes[3]||0,m=Math.hypot(x,y);if(m>.8&&!MWB.flickPrev){dir=Math.abs(y)>Math.abs(x)?(y<0?'up':'down'):(x<0?'left':'right');}MWB.flickPrev=m>.5;}
+ if(tap('ArrowUp'))dir='up';else if(tap('ArrowDown'))dir='down';else if(tap('ArrowLeft'))dir='left';else if(tap('ArrowRight'))dir='right';
+ if(dir)mwBuild(dir==='up'?'ramp':dir==='down'?'shield':'rail');}
+function mwFloor(x,z){if(!MWB.S)return -1;let h=-1;for(const c of MWB.S.constructs){const v=constructHeight(c,x,z);if(v>h)h=v;}return h;}
+function mwTick(dt){if(!skYard||!P)return;mwInit();if(!MWB.S)return;mwInput();mwWallTick(dt);
+ const p=P.o.position;
+ // construct sources for Metal Draw (reclaim), and constructs drained → removed
+ for(const c of MWB.S.constructs){c.drawSrc=c.drawSrc||{kind:'scrap',x:c.x,y:c.base+.6,z:c.z,reserve:c.cost/100*Math.max(.2,c.hp),con:c.id};if(!DRW.scrap.includes(c.drawSrc))DRW.scrap.push(c.drawSrc);
+  if(c.drawSrc.reserve<=.001){const i=DRW.scrap.indexOf(c.drawSrc);if(i>=0)DRW.scrap.splice(i,1);MWB.S.constructs.splice(MWB.S.constructs.indexOf(c),1);MWB.S.stats.reclaimed++;mwConRemove(c.id);mwSave();whisper('Reclaimed','');break;}}
+ // drawing near the wall patches it; near the bent bar straightens it
+ const drawing=DRW.drawing;
+ if(drawing&&MWB.wallOrigin&&Math.hypot(p.x-(MWB.wallOrigin.x+3),p.z-MWB.wallOrigin.z)<4.5){MWB.repairT+=dt;if(MWB.repairT>.6){MWB.repairT=0;mwUnitsIn();const r=repairWall(MWB.S,MWB.wall);if(r&&r.ok){mwUnitsOut();const w=MWB.wallMeshes.find(m=>m.p===r.panel);if(w){w.rubble=false;w.mesh.material=galaxyCrystalMat({});const i=DRW.scrap.findIndex(s=>s.rubbleOf===w);if(i>=0)DRW.scrap.splice(i,1);}mwWallSync();mwSave();burst(w?w.mesh.position:p,24,4);beep(300,.06,'triangle',.04);}
+   else if(r&&!r.ok)whisper('Not enough Gallium to patch','10 units a panel');}}
+ else MWB.repairT=0;
+ const ws=wallState(MWB.wall);if(ws.broken===0&&ws.cracked===0&&MWB.wall.panels.some(q=>q.patched)&&!MWB.restoredOnce){MWB.restoredOnce=true;MWB.S.stats.wallRestored++;mwSave();}
+ if(drawing&&MWB.rails.bar.bent&&MWB.rails.bar.pts.some(q=>Math.hypot(q.x-p.x,q.z-p.z)<2.5)){MWB.straightT+=dt;if(MWB.straightT>1.5){MWB.straightT=0;mwUnitsIn();if(MWB.S.units>=MAT.COST.straighten){MWB.S.units-=MAT.COST.straighten;mwUnitsOut();straightenRail(MWB.rails.bar);mwRailsSync();mwBarMesh();mwSave();whisper('Bar straightened','');}}}else MWB.straightT=0;
+ // jobs (mastery-based unlocks)
+ MWB.jobT=(MWB.jobT||0)+dt;if(MWB.jobT>.5){MWB.jobT=0;const j=checkJobs(MWB.S);if(j){mwSave();st.gal=Math.min(1,st.gal+.2);burst(_fv2.copy(p).setY(p.y+1.4),60,6);beep(520,.1,'triangle',.05);setTimeout(()=>beep(780,.14,'triangle',.05),110);
+   whisper('Job done · '+j.title,j.unlock?'Learned: Gallium '+j.unlock:'');if(HELP.on)toast('Osei: '+j.title+' done'+(j.unlock?' — Gallium '+j.unlock+' learned':''));}}
+ if(MWB.osei){const d=MWB.osei.o.position.distanceTo(p);if(d<9){MWB.osei.o.rotation.y=Math.atan2(p.x-MWB.osei.o.position.x,p.z-MWB.osei.o.position.z);}
+  if(d<3&&pressed.KeyE){pressed.KeyE=false;const j=currentJob(MWB.S);play(MWB.osei,'Wave',true);beep(400,.05,'triangle',.03);whisper(j?'Osei · '+j.title:'Osei · all jobs done',j?j.ask:'the block remembers what you fixed');}}
+ // save (debounced)
+ MWB.saveT-=dt;if(MWB.dirty&&MWB.saveT<=0){MWB.saveT=2;MWB.dirty=false;mwUnitsIn();try{localStorage.setItem(MW_KEY,serialize(MWB.S,MWB.rails,MWB.wall));}catch(e){}}
+ MWB.S.stats.drawn+=(DRW.lastGot||0)*100;
+}
+
+
+// ---------- MILESTONE A: Metal lives here — get in a car, drive the same live city, get out (ReFramer Rush DrivePhysics) ----------
+// E / D-up near Metal's own car (parked by the Commons) or any empty car: the board is stowed, Rush's drive model takes over.
+// Pad: R2 gas · L2 brake/reverse · left stick steer · B handbrake drift · A nitro · Y or D-up get out.
+// Keys: W/↑ gas · S/↓ brake · A/D steer · Space drift · Shift nitro · E get out. PROPOSAL / HOLD.
+const DRV={active:false,car:null,c:null,U:0.094,keys:{},mine:null,hadBoard:false,prevUp:false,prevY:false,hitCd:0};
+addEventListener('keydown',e=>{DRV.keys[e.code]=true;});addEventListener('keyup',e=>{DRV.keys[e.code]=false;});
+function driveInit(){bikeInit();if(DRV.mine||!cars.length||!SPOTS.home||!SPOTS.home.c)return;
+ const base=cars.find(c=>c.children.length&&!c.userData.bike)||cars[0];const m=base.clone(true);m.traverse(o=>{if(o.isMesh&&o.material){o.material=o.material.clone();if(!/wheel/i.test(o.parent&&o.parent.name||'')&&o.material.color)o.material.color.setHex(0x15151b);}});
+ const h=SPOTS.home.c;m.position.set(h.x+BLOCK/2+2.2,.05,h.z-6);m.rotation.y=0;m.userData={axis:1,lane:m.position.x,dir:1,t:m.position.z,spd:0,parked:true,mine:true,occupantExited:true,occupantCount:0};scene.add(m);cars.push(m);DRV.mine=m;}
+function canDrive(c){const u=c.userData;return c!==heldCar&&!u.worldBody&&!u.reframed&&(u.mine||u.occupantExited);}
+function driveEnter(car){const u=car.userData;DRV.active=true;DRV.car=car;u.driven=true;u.parked=false;DRV.hadBoard=st.board;if(st.board){st.board=false;}
+ const h=car.rotation.y;DRV.c=vehicle(car.position.x/DRV.U,car.position.z/DRV.U,Math.PI/2-h);DRV.isBike=!!u.bike;P.o.visible=DRV.isBike;board.visible=false;vel.set(0,0,0);if(DRV.isBike)bikePose();
+ beep(180,.08,'triangle',.04);setTimeout(()=>beep(90,.25,'sawtooth',.03),90);whisper(DRV.isBike?'Riding the Morrow prototype':'Driving','R2 gas · L2 brake · B drift · A nitro · Y off');}
+function driveExit(){const car=DRV.car,u=car.userData;DRV.active=false;u.driven=false;u.parked=true;u.spd=0;P.o.visible=true;if(DRV.isBike){P.o.rotation.set(0,P.o.rotation.y,0);if(u.body)u.body.rotation.z=0;DRV.isBike=false;const a=P.acts.u_Walk_Carry_Loop;if(a)a.setEffectiveTimeScale(1);play(P,'Idle');}
+ const h=car.rotation.y,left=new THREE.Vector3(Math.cos(h),0,-Math.sin(h));const out=car.position.clone().addScaledVector(left,2.2);out.y=floorAt(out)+.02;P.o.position.copy(out);vel.set(0,0,0);yaw=h;
+ if(DRV.hadBoard){st.board=true;board.visible=true;}DRV.car=null;DRV.c=null;beep(140,.06,'triangle',.04);}
+function driveTick(dt){driveInit();const gp=RSK.gp;
+ const up=!!(gp&&gp.buttons[12]&&gp.buttons[12].pressed);if(up&&!DRV.prevUp)pressed.KeyE=true;DRV.prevUp=up; // D-up = interact everywhere
+ if(pressed.KeyE&&!DRV.active&&bindTry())pressed.KeyE=false; // Gallium Bind gets first say when someone is down next to you
+ if(!DRV.active){if(!P||st.swing||st.flying)return;if(pressed.KeyE){const near=cars.filter(canDrive).map(c=>({c,d:c.position.distanceTo(P.o.position)})).filter(o=>o.d<3.4).sort((a,b)=>a.d-b.d)[0];if(near){pressed.KeyE=false;driveEnter(near.c);}}return;}
+ const K=DRV.keys,car=DRV.car,c=DRV.c;
+ const yb=!!(gp&&gp.buttons[3]&&gp.buttons[3].pressed);const exit=pressed.KeyE||(yb&&!DRV.prevY);DRV.prevY=yb;if(exit&&Math.hypot(c.vx,c.vy)*DRV.U<6){pressed.KeyE=false;driveExit();return;}
+ const a={throttle:Math.max(gp?gp.buttons[7]?.value||0:0,K.KeyW||K.ArrowUp?1:0),brake:Math.max(gp?gp.buttons[6]?.value||0:0,K.KeyS||K.ArrowDown?1:0),
+  steer:Math.max(-1,Math.min(1,((gp?deadzone(gp.axes[0]||0,.13):0)+(K.KeyD||K.ArrowRight?1:0)-(K.KeyA||K.ArrowLeft?1:0))*(DRV.isBike?1.13:1))),drift:!!(K.Space||gp&&gp.buttons[1]?.pressed),nitro:!!(K.ShiftLeft||gp&&gp.buttons[0]?.pressed)};
+ // drafting behind traffic refills nitro (Rush slipstream)
+ let draft=0;const fw=new THREE.Vector3(Math.cos(c.angle),0,Math.sin(c.angle));for(const t of cars){if(t===car)continue;const v=t.position.clone().sub(car.position).setY(0),d=v.length();if(d>3&&d<14&&v.normalize().dot(fw)>.9)draft=Math.max(draft,1-d/14);}
+ const ox=c.x,oy=c.y;for(let s=0;s<2;s++)driveStepPhys(c,a,{road:true,draft,assist:'street'},dt/2);
+ // world collisions (buildings, shields, wall panels): bounce off, no clipping
+ const wp=new THREE.Vector3(c.x*DRV.U,1,c.y*DRV.U);let hitB=false;for(const b of colliders){if(b.max.y<.6)continue;const rr=DRV.isBike?.55:1.1;if(wp.x>b.min.x-rr&&wp.x<b.max.x+rr&&wp.z>b.min.z-rr&&wp.z<b.max.z+rr){hitB=true;break;}}
+ if(hitB){const sp=Math.hypot(c.vx,c.vy)*DRV.U;c.x=ox;c.y=oy;c.vx*=-.25;c.vy*=-.25;c.yawRate*=.3;if(sp>6&&DRV.hitCd<=0){DRV.hitCd=.6;FG.shake=Math.min(.5,.1+sp*.02);beep(55,.12,'square',.05);mwHitWall&&mwHitWall(wp.clone().setY(1),Math.min(1,sp/20),'car');}}
+ DRV.hitCd-=dt;
+ for(const t of cars){if(t===car||t.userData.worldBody)continue;const d=Math.hypot(t.position.x-c.x*DRV.U,t.position.z-c.y*DRV.U);if(d<2.6){c.vx*=.55;c.vy*=.55;if(DRV.hitCd<=0){DRV.hitCd=.5;FG.shake=.25;beep(70,.1,'square',.05);}}}
+ const E=RFR.W&&RFR.W.enc;if(E&&E.stage==='chase'){const d=Math.hypot(E.target.x-c.x*DRV.U,E.target.z-c.y*DRV.U),sp=Math.hypot(c.vx,c.vy)*DRV.U;if(d<3&&sp>7&&DRV.hitCd<=0){DRV.hitCd=.8;c.vx*=.3;c.vy*=.3;reframerHit('car',Math.min(1,sp/22),new THREE.Vector3(E.target.x,1,E.target.z));}}
+ car.position.set(c.x*DRV.U,.05,c.y*DRV.U);car.rotation.y=Math.PI/2-c.angle;car.rotation.z=-c.roll*.05;
+ const wsp=Math.hypot(c.vx,c.vy)*DRV.U;car.traverse(o=>{if(/wheel/i.test(o.name))o.rotation.x+=wsp*dt*2.4;});
+ if(DRV.isBike){const bd=car.userData.body,lean=Math.max(-.5,Math.min(.5,-(c.yawRate||0)*wsp*.012));car.rotation.z=0;bd.rotation.z+=(lean-bd.rotation.z)*Math.min(1,dt*6);P.o.position.copy(car.position).setY(car.position.y+.42);P.o.rotation.set(0,car.rotation.y,bd.rotation.z*.8);yaw=car.rotation.y;bikePose();}
+ else P.o.position.copy(car.position).setY(.3);vel.set(0,0,0);onGround=true;
+ camYaw+=angDiff(camYaw,car.rotation.y+Math.PI)*Math.min(1,dt*4);camPitch+=(.22-camPitch)*Math.min(1,dt*3);
+ if(Math.abs(c.driftAngle)>12&&wsp>14&&Math.random()<.3)burst(car.position.clone().setY(.2),2,1.5);
+}
+// stop the on-foot / skate input while driving (keys copied into DRV.keys above)
+function driveSwallowInput(){if(!DRV.active)return;for(const k of ['KeyW','KeyA','KeyS','KeyD','Space','ShiftLeft','ShiftRight','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyG','KeyQ','KeyF','KeyB']){keys[k]=false;pressed[k]=false;}}
+
+// ---------- LIL HEAVY (Milestone C) — scouts ahead, warns of machines, rolls Metal's board back after a bail ----------
+// Look is a PROPOSAL placeholder (small board-bodied buddy) pending Metal's Bot canon on Lil Heavy's design.
+const LH={o:null,v:new THREE.Vector3(),mode:'follow',warned:new Set(),beepT:0};
+function lilHeavyInit(){if(LH.o||!P)return;const g=new THREE.Group();g.name='LIL HEAVY | independent living miniature board prototype';
+ const M=(c,r=.6)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
+ const deck=new THREE.Mesh(new THREE.BoxGeometry(.23,.065,.53),M(0x0a0715,.6));deck.position.y=.12;g.add(deck); // owner v0.2 design
+ const strip=new THREE.Mesh(new THREE.BoxGeometry(.09,.025,.25),new THREE.MeshStandardMaterial({color:0x9966ce,roughness:.4,emissive:0x9966ce,emissiveIntensity:0}));strip.position.y=.16;g.add(strip);LH.eye=strip; // lights only when he's active
+ for(const x of [-.12,.12])for(const z of [-.18,.18]){const w=new THREE.Mesh(new THREE.CylinderGeometry(.055,.055,.07,8),M(0xb4a6aa));w.rotation.z=Math.PI/2;w.position.set(x,.045,z);g.add(w);}
+ LH.legs=[];for(let i=0;i<4;i++){const piv=new THREE.Group();piv.position.set((i%2?1:-1)*.15,.10,(i<2?-1:1)*.15);piv.rotation.y=(i%2?1:-1)*.6;const t=new THREE.Mesh(new THREE.BoxGeometry(.035,.03,.25),M(0x8d67a8,.45));piv.add(t);g.add(piv);LH.legs.push(piv);}
+ g.traverse(o=>{if(o.isMesh)o.castShadow=true;});g.position.copy(P.o.position).add(new THREE.Vector3(1.2,0,-1));scene.add(g);LH.o=g;}
+function lilHeavyTick(dt){lilHeavyInit();if(!LH.o)return;const o=LH.o,p=P.o.position;o.visible=!DRV.active;if(DRV.active){o.position.copy(p);return;}
+ let target=null,speed=6;LH.mode='follow';
+ if(RSK.loose&&!st.board){target=new THREE.Vector3(RSK.loose.p.x,0,RSK.loose.p.z);LH.mode='fetch';speed=8;
+  if(o.position.distanceTo(target.clone().setY(o.position.y))<.9){const L=RSK.loose,d=new THREE.Vector3(p.x-L.p.x,0,p.z-L.p.z);if(d.length()>1.3){d.normalize();L.v.x+=(d.x*2.6-L.v.x)*Math.min(1,dt*3);L.v.z+=(d.z*2.6-L.v.z)*Math.min(1,dt*3);L.roll*=.9;}}}
+ if(!target){ // scout: a machine or villain close by → roll toward it and chirp a warning once
+  const threats=[];const E=RFR.W&&RFR.W.enc;if(E)threats.push({id:'rf'+E.id,x:E.target.x,z:E.target.z});if(WTV.S&&WTV.S.mission==='DEFEND')threats.push({id:'rfWT',x:WTV.core.position.x,z:WTV.core.position.z});for(const c of STORY_FIGHTS)if(c.state!=='cool'&&c.members[0]&&c.members[0].ch.o.visible&&!c.members[0].R.out)threats.push({id:c.name,x:c.members[0].ch.o.position.x,z:c.members[0].ch.o.position.z});
+  const th=threats.map(t=>({...t,d:Math.hypot(t.x-p.x,t.z-p.z)})).filter(t=>t.d<40).sort((a,b)=>a.d-b.d)[0];
+  if(th&&!LH.warned.has(th.id)){LH.mode='scout';const dir=new THREE.Vector3(th.x-p.x,0,th.z-p.z).normalize();target=p.clone().addScaledVector(dir,4);if(o.position.distanceTo(target)<1.2){LH.warned.add(th.id);for(let k=0;k<3;k++)setTimeout(()=>beep(1250-k*180,.05,'square',.03),k*110);whisper('Lil Heavy: heads up',th.id.startsWith('rf')?'machine nearby':th.id+' nearby');}}
+  if(!target){const side=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw)),back=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));target=p.clone().addScaledVector(side,1).addScaledVector(back,1.4);speed=Math.max(3,Math.hypot(vel.x,vel.z)+2);}}
+ const d=target.clone().sub(o.position).setY(0),dist=d.length();
+ if(dist>40){o.position.copy(p).add(new THREE.Vector3(1,0,-1));} // caught a ride / took a shortcut
+ else if(dist>.3){const want=d.normalize().multiplyScalar(Math.min(speed,dist*3));LH.v.lerp(want,Math.min(1,dt*5));o.position.addScaledVector(LH.v,dt);o.rotation.y=Math.atan2(LH.v.x,LH.v.z);}
+ else LH.v.multiplyScalar(Math.exp(-6*dt));
+ o.position.y=floorAt(o.position.clone().setY(o.position.y+.5))+(Math.hypot(LH.v.x,LH.v.z)>.5?Math.abs(Math.sin(performance.now()/90))*.03:0);
+ LH.eye.material.emissiveIntensity=LH.mode==='scout'?1.2+Math.sin(performance.now()/60):LH.mode==='fetch'?.6:0;
+ const sp=Math.hypot(LH.v.x,LH.v.z),tt=performance.now()/1000;LH.legs.forEach((l,i)=>{l.rotation.x=sp>.4?Math.sin(tt*14+i*1.7)*.35:0;l.rotation.z=(i%2?-1:1)*(sp>.4?.25:.1);});}
+
+// ---------- MARI · game of S.K.A.T.E. (Milestone C skate competition; Season One Ep.21 "Side B") ----------
+const MARI={o:null,state:'idle',set:null,setter:'mari',letters:{metal:0,mari:0},t:0,skill:.8,said:''};
+const SKATE_POOL=['Ollie','Nollie','Kickflip','Heelflip','BS Pop Shove-It','FS Pop Shove-It','Varial Kickflip','Hardflip','Tre Flip','Impossible'];
+const TRICK_DIFF={Ollie:.05,Nollie:.12,Kickflip:.2,Heelflip:.22,'BS Pop Shove-It':.15,'FS Pop Shove-It':.17,'Varial Kickflip':.35,Hardflip:.45,'Tre Flip':.55,Impossible:.5};
+function mariInit(){if(MARI.o||!skYard)return;const fit={top:0xd9822b,bot:0x2a2d33,shoe:0xe8e4da,f:1,h:1.66};const ch=(crewFemGLTF||rivalGLTF)?makeFighter(crewFemGLTF||rivalGLTF,fit):makeChar(0xd9822b);
+ ch.o.position.set(skYard.cx+10,skYard.base,skYard.cz-16);scene.add(ch.o);MARI.o=ch;const tag=nameTag('Mari · S.K.A.T.E.',0xffb36b);tag.position.y=2.1;ch.o.add(tag);worldLabels.push(tag);tag.visible=HELP.on;}
+const SKATE_WORD='SKATE';
+function mariSay(t,s){MARI.said=t;whisper(t,s);}
+function mariLetters(){return 'Metal '+SKATE_WORD.slice(0,MARI.letters.metal).padEnd(5,'·')+' · Mari '+SKATE_WORD.slice(0,MARI.letters.mari).padEnd(5,'·');}
+function mariSet(){MARI.setter='mari';const pool=SKATE_POOL.filter(n=>TRICK_DIFF[n]<=MARI.skill*.7+.05);const pick=pool[Math.floor(Math.random()*pool.length)];
+ const lands=Math.random()<MARI.skill+.12-TRICK_DIFF[pick];playT(MARI.o,'Jump',.7);setTimeout(()=>beep(lands?520:160,.08,'triangle',.04),700);
+ if(lands){MARI.set=pick;MARI.state='match';MARI.t=15;mariSay('Mari set: '+pick,'land it within 15 s · '+mariLetters());}
+ else{MARI.state='metalSets';MARI.t=20;mariSay('Mari missed her set','your turn to set · '+mariLetters());}}
+function mariStart(){MARI.letters={metal:0,mari:0};MARI.skill=Math.min(.95,.7+.05*(+(localStorage.getItem('wirMariWins')||0)));mariSay('Game of S.K.A.T.E. with Mari','she sets first');setTimeout(mariSet,1200);MARI.state='wait';}
+function mariLetter(who){MARI.letters[who]++;beep(who==='metal'?140:600,.12,'triangle',.04);
+ if(MARI.letters[who]>=5){const won=who==='mari'?'metal':'mari';MARI.state='idle';mariSay(won==='metal'?'You beat Mari':'Mari wins — S.K.A.T.E.',won==='metal'?'she\'ll come back sharper':'run it back');if(won==='metal'){try{localStorage.setItem('wirMariWins',String(+(localStorage.getItem('wirMariWins')||0)+1));}catch(e){}st.comboPend+=4;}
+  else playT(MARI.o,'Dance',1.2);return true;}return false;}
+function mariOnLand(e){if(!MARI.o||MARI.o.o.position.distanceTo(P.o.position)>45)return;
+ if(MARI.state==='match'){if(e.ok&&e.name&&e.name.replace(/^(Fakie |FS \d+ |BS \d+ )/,'').startsWith(MARI.set)){mariSay('Matched '+MARI.set,mariLetters());MARI.state='metalSets';MARI.t=20;beep(660,.08,'triangle',.04);}else if(!e.ok||e.pts>0){if(!mariLetter('metal')){mariSay('Missed — letter',mariLetters());setTimeout(mariSet,1200);MARI.state='wait';}}}
+ else if(MARI.state==='metalSets'&&e.ok&&e.pts>0){const nm=SKATE_POOL.find(n=>e.name.includes(n))||e.name;const diff=TRICK_DIFF[nm]??.3;MARI.state='wait';mariSay('You set: '+nm,'Mari\'s turn');
+  setTimeout(()=>{playT(MARI.o,'Jump',.7);const lands=Math.random()<MARI.skill+.1-diff;setTimeout(()=>{if(lands){mariSay('Mari matched it',mariLetters());setTimeout(mariSet,1000);}else if(!mariLetter('mari')){mariSay('Mari missed — letter',mariLetters());MARI.state='metalSets';MARI.t=20;}},700);},900);}}
+function mariTick(dt){mariInit();if(!MARI.o)return;const o=MARI.o.o,p=P.o.position,d=o.position.distanceTo(p);
+ if(d<12)o.rotation.y=Math.atan2(p.x-o.position.x,p.z-o.position.z);
+ if(MARI.state==='idle'&&d<3&&pressed.KeyE){pressed.KeyE=false;mariStart();}
+ if(MARI.state==='match'||MARI.state==='metalSets'){MARI.t-=dt;if(d>45){MARI.state='idle';mariSay('Mari: game over — you left','');}
+  else if(MARI.t<=0){if(MARI.state==='match'){if(!mariLetter('metal')){mariSay('Time — letter',mariLetters());setTimeout(mariSet,1000);MARI.state='wait';}}else{mariSay('Too slow — Mari sets','');setTimeout(mariSet,600);MARI.state='wait';}}}}
+
+// ---------- PROLOGUE · LEARN THE CITY + GALLIUM BIND + POWER CARDS (PROPOSAL / HOLD, 2026-11-07) ----------
+// The first mission. Starts by itself on a fresh save (?prologue=0 = off · =reset = start over · =1 = replay).
+// Teaches: where you are → move + jump → board → push → gates → ollie → Gallop → Gallium line → Snapline →
+// a street fight with three different people (brawler · thrower · lookout) → restrain them (Gallium Bind) →
+// police pickup → cycle every power (D-pad ▼) → head to Morrow Block for Ep.1.
+// Gallium Bind works everywhere: D-pad ▲ / E next to someone tapped out or giving up. Nonlethal: cuffs hold until
+// the police take them, then the cuff Gallium drips back to the street as a puddle.
+const RF_GAP=75; // seconds between ReFramer encounters (PROPOSAL)
+const PRQ=new URLSearchParams(location.search).get('prologue'),PRO_KEY='wirPrologueV1',BIND_COST=.04;
+// STREET BRAWL (street_brawl_core.mjs): bystanders alarm when Metal is close, and fight back only once he swings on them.
+// A struck or swung-at bystander becomes a real fighter rig with the same custom brain as the prologue crew.
+const STREET=[],STREET_SHOTS=[];
+function streetPromote(npc){
+ if(npc.sbFoe)return npc.sbFoe;
+ if(!rivalGLTF||!npc.o)return null;
+ const role=npc.role||'commuter';
+ const ch=makeFighter(rivalGLTF,{top:role==='vendor'?0x5a4a2c:0x3a3550,bot:0x202227,shoe:0x151515,h:1.8});
+ ch.o.position.copy(npc.o.position);ch.o.rotation.y=npc.o.rotation.y;
+ scene.remove(npc.o);scene.add(ch.o);
+ const S=createStreet('street-'+(STREET.length+1),role);S.state='fight';S.cd=.3;
+ const R={kind:'street',label:'Street fighter',active:true,stance:1,level:1,out:false,slot:0,kb:new THREE.Vector3(),pr:0,street:S,custom:streetBrain};
+ const foe={ch,R};FOES.push(foe);STREET.push(foe);npc.sbFoe=foe;
+ const i=npcs.indexOf(npc);if(i>=0)npcs.splice(i,1);
+ return foe;
+}
+function streetThrow(from,dmg){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(.28,.18,.5),new THREE.MeshStandardMaterial({color:0x8a7f70,roughness:.7}));m.position.copy(from);scene.add(m);
+ STREET_SHOTS.push({m,from,to:P.o.position.clone().setY(groundY+1.1),t:0,dur:.7,dmg});}
+function streetShotsTick(dt){if(!P)return;const p=P.o.position;
+ for(let i=STREET_SHOTS.length-1;i>=0;i--){const q=STREET_SHOTS[i];q.t+=dt;const k=Math.min(1,q.t/q.dur);
+  q.m.position.lerpVectors(q.from,q.to,k);q.m.position.y+=Math.sin(k*Math.PI)*1.2;q.m.rotation.x+=dt*12;
+  if(k>=1){if(q.m.position.distanceTo(p)<2.2)metalHurt(q.dmg,q.from,'Thrown part');scene.remove(q.m);STREET_SHOTS.splice(i,1);}}}
+function streetBrain(foe,dt){const R=foe.R,S=R.street,o=foe.ch.o,p=P.o.position;
+ if(R.kb.lengthSq()>.0004){o.position.addScaledVector(R.kb,dt);R.kb.multiplyScalar(Math.exp(-6*dt));}
+ const d=Math.hypot(p.x-o.position.x,p.z-o.position.z),r=stepStreet(S,dt,d);
+ if(r.dir&&r.dir.toMetal){const dx=p.x-o.position.x,dz=p.z-o.position.z,l=Math.hypot(dx,dz)||1,s2=Math.min(l,r.speed*dt);o.position.x+=dx/l*s2;o.position.z+=dz/l*s2;o.rotation.y+=angDiff(o.rotation.y,Math.atan2(dx,dz))*Math.min(1,dt*8);}
+ else if(r.dir&&r.dir.away){const dx=o.position.x-p.x,dz=o.position.z-p.z,l=Math.hypot(dx,dz)||1;o.position.x+=dx/l*r.speed*dt;o.position.z+=dz/l*r.speed*dt;o.rotation.y+=angDiff(o.rotation.y,Math.atan2(dx,dz))*Math.min(1,dt*8);}
+ else if(S.state==='fight'){o.rotation.y+=angDiff(o.rotation.y,Math.atan2(p.x-o.position.x,p.z-o.position.z))*Math.min(1,dt*8);}
+ if(R.stun>0||R.out)return;
+ const A={walk:'Walking',run:'Running',idle:'Idle',guard:'Guard',stunned:'Idle',stagger:'HitChest'}[r.anim]||'Idle';
+ if(r.strike==='windup'&&!foe.ch.swung&&foe.ch.playAction){foe.ch.swung=true;foe.ch.playAction('Punch',{w:.8,speed:1.1,fadeIn:.04,fadeOut:.2});}
+ if(r.strike==='end')foe.ch.swung=false;
+ if(!foe.ch.swung&&foe.ch.acts&&foe.ch.acts[A]&&foe.ch.cur!==foe.ch.acts[A])play(foe.ch,A);
+ for(const e of r.events){
+  if(e.type==='impact'&&d<=SB.STRIKE_R+.4)metalHurt(e.dmg*outgoingMul(S),o.position,'Street fighter');
+  if(e.type==='throw')streetThrow(foe.ch.o.position.clone().setY(groundY+1.6),e.dmg);
+  if(e.type==='power'&&e.power==='surge')whisper('STREET FIGHTER SURGING','he is faster for a second');
+  if(e.type==='power'&&e.power==='guard')whisper('GUARD UP','hits do less for a moment');
+ }
+}
+// ReFramers fight with the parts they dismantled off cars: while one is chasing and Metal is in range, it throws a part.
+let rfPartCd=0;
+function reframerPartTick(dt){const W=RFR.W;rfPartCd-=dt;if(!W||!W.enc||!P)return;const E=W.enc;
+ if(E.stage!=='chase'||!E.target||rfPartCd>0)return;const p=P.o.position;
+ if(Math.hypot(p.x-E.target.x,p.z-E.target.z)>16)return;
+ rfPartCd=3.2;whisper('ROADFRAME THROWS A PART','sidestep it, it lands where you stand');
+ streetThrow(new THREE.Vector3(E.target.x,groundY+2.2,E.target.z),RF.RAM_DMG*.4);}
+function streetTick(dt){reframerPartTick(dt);if(!P)return;const p=P.o.position,swing=!!FG.act;
+ for(const n of npcs.slice()){if(n.sbFoe)continue;const d=Math.hypot(n.o.position.x-p.x,n.o.position.z-p.z);
+  if(!n.sb)n.sb=createStreet('npc-'+npcs.indexOf(n),n.role||'commuter');
+  const ev=streetWitness(n.sb,d,swing&&d<SB.STRIKE_R+.6);
+  if(ev&&ev.type==='fight'){const foe=streetPromote(n);if(foe){whisper('STREET FIGHT','they fight back when you swing on them');}}
+  else if(n.sb.state==='alarm'&&n.sb.flees){n.target=new THREE.Vector3(n.o.position.x+(n.o.position.x-p.x)*3,n.o.position.y,n.o.position.z+(n.o.position.z-p.z)*3);n.speed=3.2;n.wait=0;}
+  stepStreet(n.sb,dt,d);
+ }
+}
+const POWER_CARDS=[
+ {id:'glob',name:'Gallium Glob',pad:'Y — hold to bend it, let go to throw',keys:'G — hold, release to throw'},
+ {id:'blast',name:'Blast',pad:'L1 tap (needs charge — hold L1 near metal first)',keys:'U / Numpad 7 (charge: hold K)'},
+ {id:'draw',name:'Metal Draw',pad:'hold L1 near cars, lamps, rails',keys:'hold K / Numpad 5'},
+ {id:'line',name:'Gallium Line',pad:'R1 — swing from lamps and rooftops',keys:'Q'},
+ {id:'board',name:'Board — forge · call back · melt',pad:'B tap = call back / forge · hold B = melt to a puddle',keys:'B tap · hold B'},
+ {id:'pull',name:'PULL — Star Merkaba',pad:'L2 + R2 on foot — metal streams in',keys:'hold Y'},
+ {id:'sword',name:'Galaxy Sword',pad:'PULL + X',keys:'hold Y + J'},
+ {id:'shield',name:'Liquid Shield',pad:'PULL + B',keys:'hold Y + B'},
+ {id:'plasma',name:'Plasma Blast',pad:'PULL + Y',keys:'hold Y + G'},
+ {id:'gallop',name:'Gallium Gallop',pad:'X on the board — again right after each landing',keys:'C on the board'},
+ {id:'snapline',name:'Crown points + Snapline',pad:'on the board: D-pad ◀ mark · ▶ commit',keys:'1 mark · 2 commit'},
+ {id:'bind',name:'Gallium Bind',pad:'D-pad ▲ next to someone down or giving up',keys:'E'},
+ {id:'flight',name:'Star Merkaba Flight',pad:'hold R2 in the air',keys:'F in the air'},
+ {id:'form',name:'Season form',pad:'— (keys only for now)',keys:'I / Numpad 8'}];
+const PR={M:null,on:false,ready:false,el:null,pillar:null,gates:[],gi:0,crew:null,C:null,foes:[],site:null,routes:null,intents:null,bricks:[],clips:false,police:null,
+ prev:{yaw:null,pos:null,ground:true,swings:0,board:false,hand:null,form:null}};
+const PCARD={i:0,T:0,prev:false,el:null,used:new Set()};
+const CUFFS=new Map();
+function proSave(){try{if(PR.M)localStorage.setItem(PRO_KEY,proSerialize(PR.M));}catch(e){}}
+function proFeed(kind,v){if(!PR.on||!PR.M)return;const e=proPFeed(PR.M,kind,v);if(e)proEvent(e);}
+function proHook(kind,v){if(kind==='power'){PCARD.used.add(v);proFeed('power',v);}else proFeed(kind,v);}
+function proInit(){if(PR.ready||!P||!rivalGLTF||!SPOTS.home||!SPOTS.home.c)return;PR.ready=true;
+ if(PRQ==='reset'){try{localStorage.removeItem(PRO_KEY);}catch(e){}}
+ if(PRQ==='0')return;
+ let M=null;try{const t=localStorage.getItem(PRO_KEY);if(t)M=proDeserialize(t);}catch(e){}
+ if(!M||PRQ==='1'&&M.step==='done')M=createPro();if(M.step==='done')return;
+ try{proBuild();}catch(e){console.error(e);window.__errors&&window.__errors.push('prologue build: '+e.message);return;}PR.M=M;PR.on=true;proSave();proEnter(M.step);whisper('PROLOGUE · LEARN THE CITY','you are Metal — this is where it starts');}
+function proBuild(){const y=groundY;PR.site=new THREE.Vector3(-(BLOCK+ROAD)/2,y,12);const sx=PR.site.x;
+ PR.routes=[[{x:sx,z:40},{x:sx,z:84}],[{x:sx,z:-28},{x:-84,z:-28}],[{x:sx,z:28},{x:-84,z:28}]]; // real roads, away from the car
+ const src=cars.find(c=>!c.userData.mine&&!c.userData.bike&&!c.userData.worldBody);
+ if(src){const ud=[];src.traverse(o=>{ud.push([o,o.userData]);o.userData={};});const car=src.clone(true);for(const [o,u] of ud)o.userData=u;/* userData holds live links (draw sources) that clone() can't copy */car.position.set(sx+1.6,.05,PR.site.z+3);car.rotation.set(0,0,.05);scene.add(car);PR.car=car;let wh=null;car.traverse(o=>{if(!wh&&/wheel/i.test(o.name))wh=o;});if(wh)wh.visible=false;}
+ PR.C=createCrew();const c={name:'Scrap crew',home:PR.site.clone(),state:'pr',level:1,members:[],story:true,prCtl:true};PR.crew=c;
+ const fits=[{top:0x5b3b2a,bot:0x22252b,shoe:0x111111,h:1.92},{top:0x2f4a3a,bot:0x1d1f24,shoe:0x222222,h:1.8},{top:0x3a3550,bot:0x202227,shoe:0x151515,h:1.76}];
+ ROLES.forEach((role,i)=>{const ch=makeFighter(rivalGLTF,fits[i]);ch.o.position.set(sx-1.4+i*1.5,y,PR.site.z+(i===1?-1.2:1.2));ch.o.rotation.y=Math.PI/2;scene.add(ch.o);
+  const t=nameTag('Scrap crew · '+role,0xc9ccd4);t.position.y=2.35;ch.o.add(t);worldLabels.push(t);t.visible=HELP.on;
+  const R={kind:'crew',crew:c,label:'Scrap crew · '+role,style:'street',active:false,stance:1,level:1,out:false,slot:i*2,kb:new THREE.Vector3(),pr:i};
+  if(role!=='brawler')R.custom=proBrain;const foe={ch,R};c.members.push(foe);FOES.push(foe);PR.foes.push(foe);});
+ const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.33,.33,.22,16),new THREE.MeshStandardMaterial({color:0x151515,roughness:.8}));wheel.rotation.z=Math.PI/2;wheel.position.set(0,1.05,.42);PR.foes[2].ch.o.add(wheel);PR.wheel=wheel;
+ PR.pillar=new THREE.Mesh(new THREE.CylinderGeometry(.55,.55,36,16,1,true),new THREE.MeshBasicMaterial({color:0xffb347,transparent:true,opacity:.24,depthWrite:false,side:THREE.DoubleSide}));PR.pillar.visible=false;scene.add(PR.pillar);
+ const el=document.createElement('div');el.id='prologueCard';el.className='wir-keep';el.style.cssText='position:fixed;left:12px;top:64px;z-index:31;max-width:340px;padding:8px 11px;background:rgba(12,10,22,.72);color:#efe9ff;border-left:3px solid #ffb347;border-radius:8px;font:500 12.5px/1.4 system-ui;pointer-events:none';document.body.appendChild(el);PR.el=el;}
+const PRO_TEXT={
+ where:['Where you are',()=>'You\'re Metal. This is Savannah — WIR: Connected. You\'re standing in Forsyth Commons, your home block. Around it: Skatepark · Pickup Field · Fight Lot · Dojo Plaza · The Forge · Pluto Hub · Foundry Steps · Morrow Block. The amber light always shows where to go next.',p=>p?'Look around — right stick':'Look around — drag the mouse'],
+ walk:['Move',()=>'Get your feet under you.',p=>p?'Left stick to move · A to jump':'WASD to move · Space to jump'],
+ board:['Your board',()=>'Galaxy Gallium is finite liquid metal. It sets into a real four-wheel board under you.',p=>p?'Tap B — forge the board':'Tap B — forge the board'],
+ push:['Push',()=>'One stroke per tap. Lean is how you steer.',p=>p?'Tap A to push · left stick to lean':'Tap W to push · A / D to lean'],
+ gates:['Ride the line',()=>'Three amber gates on the road south of the Commons.',p=>'Ride through all three'],
+ pop:['Ollie',()=>'Knees first, then the snap.',p=>p?'Squeeze L2 + R2, then snap R2 to pop':'Hold Space, release to pop'],
+ gallop:['Gallium Gallop',()=>'THOOM — tik. Compress, anchor, release, four wheels down. The Gallium you spend stays on the street as a puddle.',p=>p?'X on the ground · tap X again right after each landing · chain 3':'C on the ground · again right after each landing · chain 3'],
+ swing:['Gallium Line',()=>'Your Gallium limb catches lamps and rooftop edges.',p=>p?'R1 to swing · R1 again to let go':'Q to swing · Q again to let go'],
+ snapline:['Crown points + Snapline',()=>'Mark where you\'re going, then commit. The arc clears the roofs. No cancel.',p=>p?'On the board: D-pad ◀ marks the next anchor (up to 3) · D-pad ▶ commits':'On the board: 1 marks the next anchor · 2 commits'],
+ toCrew:['Something\'s wrong',()=>'Somebody\'s stripping a parked car on the street west of the Commons.',p=>'Follow the amber light'],
+ fight:['Three of them',()=>'Brawler: strike and dodge. Thrower: he winds up, then dodge the brick as it comes. Lookout: he\'s running with the wheel — once he\'s clear of the fight, tap B for your board and run him down; catch him and he gives up. Nobody dies: anyone down or giving up, you restrain.',p=>p?'X strike · B dodge · Y glob · D-pad ▲ Gallium Bind':'Numpad 4/6 strike · ; dodge · G glob · E Gallium Bind'],
+ pickup:['Police pickup',()=>'The cuffs hold until the police arrive. Then the cuff Gallium drips back to the street.',p=>'Hold on…'],
+ powers:['Every power you have',()=>'Cycle the power cards and try them. Pull the cuff puddles back, then shape the metal.',p=>p?'D-pad ▼ next card':'3 = next card'],
+ next:['That\'s the city',()=>'Ep.1 "Concrete Has a Tempo" starts at Morrow Block — Nia\'s Field Studio. Free roam is yours too.',p=>'Follow the amber light to Morrow Block'],
+ done:['Prologue complete',()=>'',p=>'']};
+function proEnter(s){const p=P.o.position;
+ if(s==='gates')proGates();
+ if(s==='pickup'){if(!PR.police){PR.police=new THREE.PointLight(0xff2222,0,26);scene.add(PR.police);}PR.police.position.set(PR.site.x,4,PR.site.z);beep(700,.25,'sine',.04);setTimeout(()=>beep(560,.25,'sine',.04),280);}
+ if(s==='fight'&&PR.C&&!PR.C.alerted){const e=scAlert(PR.C,{x:p.x,z:p.z},PR.routes);if(e)proCrewEvent(e);}
+ if(s==='next'){whisper('PROLOGUE COMPLETE','Ep.1 waits at Morrow Block');beep(660,.12,'triangle',.05);setTimeout(()=>beep(990,.16,'triangle',.05),140);}
+ if(s==='done'){PR.on=false;if(PR.el)PR.el.style.display='none';if(PR.pillar)PR.pillar.visible=false;plog('achievements','Prologue · Learn the City');}}
+function proEvent(e){
+ if(e.type==='step'){proEnter(e.step);proSave();if(e.why==='wiped')whisper('They got you','get up — run it back');else beep(520,.06,'triangle',.04);}
+ else if(e.type==='skipped'){whisper('Moving on','you can practice that any time');}
+ else if(e.type==='gate'){beep(660+e.n*90,.06,'triangle',.04);}
+ else if(e.type==='card'||e.type==='power'){if(PR.M&&PR.M.step==='powers')beep(e.type==='power'?880:440,.04,'triangle',.03);}
+ else if(e.type==='complete'){proSave();}}
+function proGates(){for(const g of PR.gates)scene.remove(g);PR.gates=[];PR.gi=0;const z=(BLOCK+ROAD)/2;
+ for(const x of [-8,6,20]){const g=new THREE.Mesh(new THREE.TorusGeometry(2.1,.12,10,32),new THREE.MeshBasicMaterial({color:0xffb347}));g.position.set(x,groundY+2.1,z);g.rotation.y=Math.PI/2;scene.add(g);PR.gates.push(g);}}
+function proStartFight(){const c=PR.crew;$('foe').style.display='block';bell();
+ PR.foes.forEach((f,i)=>{const st0=SC.STANCE[ROLES[i]];Object.assign(f.R,{active:true,stance:st0,max:st0,out:false,sm:null,act:null,queue:[],guard:false,surrender:false});});}
+function proCrewEvent(e){const f=e.i!=null?PR.foes[e.i]:null;
+ if(e.type==='alert'){proStartFight();whisper('They saw you','the lookout\'s running with the wheel');}
+ else if(e.type==='tell'&&f){playT(f.ch,'OverhandThrow',.95)||playT(f.ch,'Punch',.6);f.R.animLock=.75;if(f.ch.body)f.ch.body.emissiveIntensity=.6;beep(240,.08,'sawtooth',.03);}
+ else if(e.type==='throw'&&f){if(f.ch.body)f.ch.body.emissiveIntensity=0;proBrick(f,e.at);}
+ else if(e.type==='surrender'&&f){const R=f.R;R.active=false;R.act=null;R.sm=null;R.surrender=true;play(f.ch,'Idle');whisper(e.why==='caught'?'Caught him — he gives up':'The last one gives up','don\'t hit someone who gave up · D-pad ▲ / E: Gallium Bind');
+  if(f===PR.foes[2]&&PR.wheel&&PR.wheel.parent===f.ch.o){f.ch.o.remove(PR.wheel);PR.wheel.position.copy(f.ch.o.position).setY(groundY+.33);PR.wheel.rotation.set(0,0,Math.PI/2);scene.add(PR.wheel);}}
+ else if(e.type==='winded'){whisper('He\'s winded','catch him')}
+ if(!activeFoes().length)$('foe').style.display='none';}
+function proBrick(f,at){const from=f.ch.o.position.clone().setY(groundY+1.7);const to=new THREE.Vector3(at.x,groundY+1.1,at.z);
+ const T=Math.max(.45,from.distanceTo(to)/13),v=to.clone().sub(from).divideScalar(T);v.y+=.5*9.8*T;
+ const m=new THREE.Mesh(new THREE.BoxGeometry(.24,.1,.12),new THREE.MeshStandardMaterial({color:0x8a3b2a,roughness:.9}));m.position.copy(from);scene.add(m);PR.bricks.push({m,v,from,t:0,done:false});}
+function proBricks(dt){const p=P.o.position;for(let i=PR.bricks.length-1;i>=0;i--){const b=PR.bricks[i];b.t+=dt;
+ if(b.m.position.y>groundY+.06){b.v.y-=9.8*dt;b.m.position.addScaledVector(b.v,dt);b.m.rotation.x+=dt*9;b.m.rotation.z+=dt*5;}
+ if(!b.done&&b.m.position.distanceTo(_fv2.set(p.x,p.y+1,p.z))<1.05){b.done=true;if(FG.iframe>0){proFeed('dodge');toast('Dodged');}else metalHurt(.07,b.from,null);b.v.multiplyScalar(-.2);}
+ if(b.m.position.y<=groundY+.06)b.done=true;
+ if(b.t>5){scene.remove(b.m);PR.bricks.splice(i,1);}}}
+function proBrain(foe,dt){const R=foe.R,o=foe.ch.o,it=PR.intents&&PR.intents[R.pr];
+ if(R.kb.lengthSq()>.0004){o.position.addScaledVector(R.kb,dt);R.kb.multiplyScalar(Math.exp(-6*dt));}
+ if(R.stun>0||!it)return;let mv=null;
+ if(it.move){const dx=it.move.x-o.position.x,dz=it.move.z-o.position.z,d=Math.hypot(dx,dz);if(d>.15){const s=Math.min(d,it.move.speed*dt);o.position.x+=dx/d*s;o.position.z+=dz/d*s;mv=Math.atan2(dx,dz);}}
+ const f=it.face?Math.atan2(it.face.x-o.position.x,it.face.z-o.position.z):mv;if(f!=null)o.rotation.y+=angDiff(o.rotation.y,f)*Math.min(1,dt*8);
+ if(R.animLock>0){R.animLock-=dt;return;}
+ const a=it.anim==='run'?'Running':mv!=null?'Walking':it.anim==='guard'||it.anim==='windup'?'Guard':'Idle';if(foe.ch.acts[a]&&foe.ch.cur!==foe.ch.acts[a])play(foe.ch,a);}
+function proFightOver(c,win){if(!win)proWipe();}
+function proWipe(){st.hp=1;FG.stun=0;proFeed('wiped');if(!PR.C)return;scReset(PR.C);
+ PR.foes.forEach((f,i)=>{const R=f.R;Object.assign(R,{active:false,out:false,stance:1,act:null,sm:null,queue:[],surrender:false,bound:false,taken:false,stun:0,animLock:0});R.kb.set(0,0,0);
+  const c=CUFFS.get(f);if(c){scene.remove(c);CUFFS.delete(f);}f.ch.o.visible=true;f.ch.o.position.set(PR.site.x-1.4+i*1.5,groundY,PR.site.z+(i===1?-1.2:1.2));play(f.ch,'Idle');});
+ if(PR.wheel&&PR.wheel.parent!==PR.foes[2].ch.o){scene.remove(PR.wheel);PR.wheel.rotation.set(0,0,Math.PI/2);PR.wheel.position.set(0,1.05,.42);PR.foes[2].ch.o.add(PR.wheel);}
+ $('foe').style.display=activeFoes().length?'block':'none';}
+function proWatch(){const pv=PR.prev,p=P.o.position;
+ if(pv.yaw!=null)proFeed('look',Math.abs(angDiff(pv.yaw,camYaw)));pv.yaw=camYaw;
+ if(pv.pos&&!st.board&&onGround){const d=Math.hypot(p.x-pv.pos.x,p.z-pv.pos.z);if(d<1)proFeed('walk',d);}pv.pos=p.clone();
+ if(pv.ground&&!onGround&&!st.board&&vel.y>2.5)proFeed('jump');pv.ground=onGround;
+ if(SWS.swings>pv.swings){proFeed('swing');proHook('power','line');}pv.swings=SWS.swings;
+ if(st.board&&!pv.board)proHook('power','board');pv.board=st.board;
+ if(KITV.K.pulling)proHook('power','pull');
+ const h=KITV.K.hand;if(h&&h!==pv.hand)proHook('power',h);pv.hand=h;
+ if(st.flying)proHook('power','flight');if(DRW.drawing)proHook('power','draw');
+ if(pv.form!=null&&st.form!==pv.form)proHook('power','form');pv.form=st.form;}
+// METAL HEALTH BAR: always-on HUD strip, top-left. Reads st.hp (0..1). Colour steps down as Metal gets hurt.
+const HPB={el:null,fill:null,txt:null};
+function hpBarTick(){
+ if(!HPB.el){const d=document.createElement('div');d.id='metalHealth';d.className='wir-keep';
+  d.style.cssText='position:fixed;left:calc(12px + env(safe-area-inset-left,0px));top:calc(12px + env(safe-area-inset-top,0px));z-index:30;width:220px;pointer-events:none;font:700 11px/1 system-ui;color:#f1ebff;text-shadow:0 1px 2px #000';
+  const t=document.createElement('div');t.style.cssText='display:flex;justify-content:space-between;margin-bottom:4px;letter-spacing:.6px';
+  const name=document.createElement('span');name.textContent='METAL';const pct=document.createElement('span');t.append(name,pct);
+  const bar=document.createElement('div');bar.style.cssText='height:12px;border-radius:7px;background:rgba(10,8,20,.7);border:1px solid #8674aa;overflow:hidden';
+  const fill=document.createElement('div');fill.style.cssText='height:100%;width:100%;transition:width .15s linear,background .2s';bar.appendChild(fill);
+  d.append(t,bar);document.body.appendChild(d);HPB.el=d;HPB.fill=fill;HPB.txt=pct;}
+ const f=Math.max(0,Math.min(1,+st.hp||0));
+ HPB.fill.style.width=(f*100).toFixed(1)+'%';
+ HPB.fill.style.background=f>.5?'#7ef0b0':f>.25?'#ffd166':'#ff5d6c';
+ HPB.txt.textContent=Math.ceil(f*100)+'%';
+}
+function proTick(dt){proInit();hpBarTick();powerCardTick(dt);bindTick(dt);if(!PR.on||!PR.M||!P)return;const M=PR.M,p=P.o.position;
+ if(!PR.clips&&EP.clips.npc&&EP.clips.npc.length){PR.clips=true;for(const f of PR.foes)addClips(f.ch,EP.clips.npc);}
+ proWatch();proBricks(dt);
+ // the crew
+ const C=PR.C;let crewDist=99;
+ PR.foes.forEach((f,i)=>{if(f.R.out&&C.members[i].state!=='out'&&!['bound','taken','surrender'].includes(C.members[i].state)){scMarkOut(C,i);proFeed('down');
+  if(i===2&&PR.wheel&&PR.wheel.parent===f.ch.o){f.ch.o.remove(PR.wheel);PR.wheel.position.copy(f.ch.o.position).setY(groundY+.33);scene.add(PR.wheel);}}});
+ if(M.step==='fight'||M.step==='pickup'){const o=scStep(C,{metal:{x:p.x,z:p.z},members:PR.foes.map(f=>({x:f.ch.o.position.x,z:f.ch.o.position.z})),routes:PR.routes},dt);PR.intents=o.intents;for(const e of o.events)proCrewEvent(e);}
+ else if(!C.alerted)PR.foes.forEach(f=>{if(!f.R.active&&f.ch.acts.Chest_Open&&f.ch.cur!==f.ch.acts.Chest_Open&&f!==PR.foes[1])play(f.ch,'Chest_Open');}); // working on the car
+ crewDist=Math.min(...PR.foes.map(f=>f.ch.o.position.distanceTo(p)));
+ {const lo=PR.foes[2],m=C.members[2];if(m.state==='flee'){const near=lo.ch.o.position.distanceTo(p)<14;if(lo.R.active!==near){lo.R.active=near;if(!activeFoes().length)$('foe').style.display='none';else $('foe').style.display='block';}if(!near)proBrain(lo,dt);}}
+ if(M.step==='fight'&&st.hp<=.001)proWipe();
+ // gates
+ if(M.step==='gates'&&PR.gi<PR.gates.length){const g=PR.gates[PR.gi];g.rotation.z+=dt;if(Math.hypot(g.position.x-p.x,g.position.z-p.z)<2.4&&Math.abs(p.y+1-g.position.y)<3){g.material.color.set(0xb983ff);const gg=g;setTimeout(()=>scene.remove(gg),400);PR.gi++;proFeed('gate');}}
+ if(PR.police){PR.police.intensity=M.step==='pickup'?(Math.sin(performance.now()/90)>0?40:0):0;PR.police.color.set(Math.sin(performance.now()/180)>0?0xff2222:0x2255ff);}
+ const tgt=PR.site,studio=EP.studioPt?new THREE.Vector3(EP.studioPt.x,0,EP.studioPt.z):(SPOTS.morrow&&SPOTS.morrow.c);
+ const out=proPStep(M,{riding:RSK.active||st.board,speed:RSK.R?Math.abs(RSK.R.core.speed):Math.hypot(vel.x,vel.z),crewDist,crewBound:scBoundCount(C),crewTotal:C.members.length,cardsTotal:POWER_CARDS.length,nextDist:studio?Math.hypot(studio.x-p.x,studio.z-p.z):99},dt);
+ for(const e of out.events){proEvent(e);if(e.type==='pickup')proPickup();}
+ // the amber light: where to go
+ let at=null;if(M.step==='gates'&&PR.gates[PR.gi])at=PR.gates[PR.gi].position;else if(M.step==='toCrew')at=tgt;else if(M.step==='next')at=studio;
+ PR.pillar.visible=!!at;if(at)PR.pillar.position.set(at.x,18,at.z);
+ proCard();}
+function proPickup(){PR.foes.forEach((f,i)=>{if(scTake(PR.C,i)){f.ch.o.visible=false;f.R.taken=true;const c=CUFFS.get(f);if(c){scene.remove(c);CUFFS.delete(f);}kitPuddleAdd(f.ch.o.position.x,groundY,f.ch.o.position.z,BIND_COST);}});
+ if(PR.wheel&&PR.car){scene.remove(PR.wheel);}whisper('Police took them','the cuff Gallium dripped back — pull it in');}
+function proCard(){const el=PR.el;if(!el)return;const M=PR.M,T=PRO_TEXT[M.step];if(!T){el.style.display='none';return;}el.style.display='block';const pad=!!RSK.gp,n=M.n;
+ let prog='';
+ if(M.step==='where')prog=Math.min(100,Math.round(n.look/PRO.LOOK*100))+'%';
+ else if(M.step==='walk')prog=Math.min(PRO.WALK,Math.round(n.walk))+' / '+PRO.WALK+' m · jump '+(n.jumps?'✓':'—');
+ else if(M.step==='push')prog=(RSK.R?Math.abs(RSK.R.core.speed):0).toFixed(1)+' / '+PRO.PUSH_SPEED+' m/s';
+ else if(M.step==='gates')prog=PR.gi+' / '+PRO.GATES;else if(M.step==='gallop')prog='best chain '+n.gallop+' / '+PRO.GALLOP;
+ else if(M.step==='fight')prog='restrained '+scBoundCount(PR.C)+' / 3';
+ else if(M.step==='powers')prog='cards '+M.seen.length+' / '+POWER_CARDS.length+' · '+['glob','blast','pull'].map(k=>k+(M.used.includes(k)?' ✓':' —')).join(' · ')+' · form '+(PRO.FORMS.some(k=>M.used.includes(k))?'✓':'—');
+ const left=PRO.GRACE-M.t;const skip=['fight','toCrew','pickup','next'].includes(M.step)?'':left<20?' · moving on in '+Math.ceil(left)+' s':'';
+ el.innerHTML='<div style="font-size:10px;letter-spacing:2px;color:#ffcf8a">PROLOGUE · LEARN THE CITY</div><div style="font-weight:700;font-size:14px;margin:2px 0">'+T[0]+'</div>'+(T[1]()?'<div style="opacity:.85;margin-bottom:4px">'+T[1]()+'</div>':'')+'<div style="color:#ffcf8a">'+T[2](pad)+'</div>'+(prog||skip?'<div style="opacity:.75;font-size:11px;margin-top:3px">'+prog+skip+'</div>':'');}
+// POWER PINWHEEL: tap D-pad ▼ / 3 = next card · hold it = a ring of all 14 powers. Stick (or ←/→) picks, release equips.
+// Equipping only chooses the power the card shows; each power still fires from its own buttons.
+const PW={open:false,hold:0,sel:0,el:null,prevDown:false};
+function pwBuild(){const N=POWER_CARDS.length,d=document.createElement('div');d.id='powerWheel';d.className='wir-keep';
+ d.style.cssText='position:fixed;left:50%;top:50%;width:330px;height:330px;margin:-165px 0 0 -165px;z-index:32;display:none;pointer-events:none;border-radius:50%;background:radial-gradient(circle,rgba(12,10,22,.82) 40%,rgba(12,10,22,.35) 72%,transparent 73%)';
+ POWER_CARDS.forEach((c,i)=>{const th=i/N*Math.PI*2,a=th-Math.PI/2,r=128;const s=document.createElement('div');s.dataset.i=i;
+  s.style.cssText='position:absolute;left:50%;top:50%;width:92px;text-align:center;padding:3px 4px;border-radius:6px;font:600 10.5px/1.15 system-ui;color:#efe9ff;transform:translate(-50%,-50%) translate('+(Math.cos(a)*r).toFixed(1)+'px,'+(Math.sin(a)*r).toFixed(1)+'px)';
+  s.textContent=c.name;d.appendChild(s);});
+ const ctr=document.createElement('div');ctr.id='powerWheelCenter';ctr.style.cssText='position:absolute;left:50%;top:50%;width:150px;margin-left:-75px;margin-top:-42px;text-align:center;font:500 11px/1.35 system-ui;color:#efe9ff';d.appendChild(ctr);
+ document.body.appendChild(d);PW.el=d;}
+function powerCardTick(dt){const N=POWER_CARDS.length,gp=RSK.gp,dd=!!(gp&&gp.buttons[13]&&gp.buttons[13].pressed),down=dd||!!keys.Digit3;
+ if(!PW.el)pwBuild();
+ if(down&&!PW.prevDown){PW.hold=0;PW.open=false;}
+ if(down){PW.hold+=dt;if(!PW.open&&PW.hold>=.25){PW.open=true;PW.sel=PCARD.i;beep(300,.05,'triangle',.03);}}
+ if(PW.open){
+  if(gp&&gp.axes){const x=gp.axes[0]||0,y=gp.axes[1]||0;if(Math.hypot(x,y)>.55){let th=Math.atan2(x,-y);if(th<0)th+=Math.PI*2;PW.sel=Math.round(th/(Math.PI*2/N))%N;}}
+  if(tap('ArrowRight'))PW.sel=(PW.sel+1)%N;if(tap('ArrowLeft'))PW.sel=(PW.sel+N-1)%N;
+ }
+ if(!down&&PW.prevDown){
+  if(PW.open){PCARD.i=PW.sel;beep(520,.05,'triangle',.04);}
+  else{PCARD.i=(PCARD.i+1)%N;beep(420+PCARD.i*20,.04,'triangle',.03);}
+  PCARD.T=6;proFeed('card',POWER_CARDS[PCARD.i].id);PW.open=false;
+ }
+ PW.prevDown=down;
+ PW.el.style.display=PW.open?'block':'none';
+ if(PW.open){const c=POWER_CARDS[PW.sel],pad=!!gp;
+  [...PW.el.children].forEach(ch=>{if(ch.dataset&&ch.dataset.i!==undefined){const on=+ch.dataset.i===PW.sel;ch.style.background=on?'#b983ff':'rgba(12,10,22,.7)';ch.style.color=on?'#0c0a16':'#efe9ff';ch.style.fontWeight=on?'800':'600';}});
+  document.getElementById('powerWheelCenter').innerHTML='<div style="font-weight:700;font-size:13px">'+c.name+'</div><div>'+(pad?c.pad:c.keys)+'</div><div style="opacity:.6;font-size:10px;margin-top:3px">'+(pad?'release to equip':'release to equip · ← → to pick')+'</div>';}
+ PCARD.T-=dt;const show=PCARD.T>0||PR.on&&PR.M&&PR.M.step==='powers';
+ if(!PCARD.el){const d=document.createElement('div');d.id='powerCard';d.className='wir-keep';d.style.cssText='position:fixed;right:12px;bottom:84px;z-index:31;width:250px;padding:8px 11px;background:rgba(12,10,22,.78);color:#efe9ff;border-right:3px solid #b983ff;border-radius:8px;font:500 12px/1.4 system-ui;pointer-events:none';document.body.appendChild(d);PCARD.el=d;}
+ PCARD.el.style.display=show?'block':'none';if(!show)return;const c=POWER_CARDS[PCARD.i],pad=!!RSK.gp;
+ PCARD.el.innerHTML='<div style="font-size:10px;letter-spacing:2px;color:#cdb5ff">POWER '+(PCARD.i+1)+' / '+POWER_CARDS.length+(PCARD.used.has(c.id)?' · USED ✓':'')+'</div><div style="font-weight:700;font-size:14px">'+c.name+'</div><div>'+(pad?c.pad:c.keys)+'</div><div style="opacity:.6;font-size:10.5px;margin-top:3px">'+(pad?'D-pad ▼':'3')+' — next power</div>';}
+// ---- Gallium Bind (everywhere): restrain someone tapped out or giving up. Nonlethal.
+function bindTarget(){const p=P.o.position;let best=null,bd=2.4;for(const f of FOES){const R=f.R;if(R.bound||R.taken||!f.ch.o.visible)continue;if(!(R.out||R.surrender))continue;if(R.ep1||R.fb!=null||R.kind==='rival')continue;const d=f.ch.o.position.distanceTo(p);if(d<bd){bd=d;best=f;}}return best;}
+function bindTry(){if(!P||st.board||st.flying||st.swing)return false;const f=bindTarget();if(!f)return false;
+ if(st.gal<BIND_COST){toast('Not enough Galaxy Gallium for cuffs — pull some back (L2+R2)');return true;}
+ st.gal-=BIND_COST;const R=f.R,stand=!!R.surrender;R.bound=true;R.boundT=0;R.active=false;R.act=null;R.sm=null;R.surrender=false;
+ const ring=new THREE.Mesh(new THREE.TorusGeometry(stand?.3:.48,.055,8,22),galaxyCrystalMat({}));ring.userData.stand=stand;scene.add(ring);CUFFS.set(f,ring);
+ if(stand){if(!playT(f.ch,'Idle_FoldArms_Loop'))play(f.ch,'Idle');if(f.ch.acts.Idle_FoldArms_Loop)play(f.ch,'Idle_FoldArms_Loop');}
+ beep(330,.08,'triangle',.05);setTimeout(()=>beep(495,.1,'triangle',.05),90);burst(f.ch.o.position.clone().setY(groundY+(stand?1.1:.3)),22,2.5);setViolet(.8);
+ whisper('Gallium Bind','the cuffs hold until the police take them — the Gallium comes back to you');proHook('power','bind');
+ if(R.pr!=null&&PR.C&&scBind(PR.C,R.pr))proFeed('bind');
+ if(!activeFoes().length)$('foe').style.display='none';return true;}
+function bindTick(dt){if(!P)return;
+ for(const [f,ring] of CUFFS){const o=f.ch.o;ring.position.set(o.position.x,groundY+(ring.userData.stand?1.08:.28),o.position.z);ring.rotation.x=Math.PI/2;ring.rotation.z+=dt*.6;
+  const R=f.R;if(R.pr!=null||R.taken)continue;R.boundT=(R.boundT||0)+dt;
+  if(R.boundT>12){R.taken=true;o.visible=false;scene.remove(ring);CUFFS.delete(f);kitPuddleAdd(o.position.x,groundY,o.position.z,BIND_COST);whisper('Police took '+(R.label||'them'),'the cuff Gallium dripped back');}}
+ const t=bindTarget();if(t&&!t.R.bindSaid){t.R.bindSaid=true;whisper((RSK.gp?'D-pad ▲':'E')+' — Gallium Bind',t.R.surrender?'he gave up — restrain him':'restrain them');}}
+// ---------- THE REFRAMER SIGNAL (idea 30): you hear them before you see them ----------
+const RSIG={t:0,beat:0};
+function reframerSignal(dt){const W=RFR.W;if(!W||W.enc||!P){RSIG.t=0;return true;}
+ if(PR.on&&PR.M&&!['next','done'].includes(PR.M.step)){RSIG.t=0;return false;} /* no ReFramers during the prologue lessons */
+ if((RSIG.gap||0)>0){RSIG.gap-=dt;RSIG.t=0;return false;} /* city-wide wake, but a breather between encounters */
+const p=P.o.position;let best=1e9;for(const n of W.nests)if(n.cool<=0){const d=Math.hypot(n.x-p.x,n.z-p.z);if(d<best)best=d;}
+ if(best>RF.WAKE){RSIG.t=0;return false;}
+ RSIG.t+=dt;RSIG.beat-=dt;if(RSIG.beat<=0){RSIG.beat=.42;const v=.012+.03*Math.max(0,1-best/RF.SIGNAL_R);const k=Math.floor(RSIG.t/.42)%4;beep([82,82,110,164][k],k===3?.14:.06,k===3?'sawtooth':'square',v);}
+ return RSIG.t>=3.2&&best<RF.WAKE;} // three bars of the machine rhythm before it drops
+
+
+// ---------- SOUND (owner audio, 2026-11-06): ring bell, crowd, ring music, ring ambience, machine phase-in ----------
+// Bell = every spar / story fight starts and ends · crowd + ring music under fights · ring ambience by the Fight Lot ·
+// phase-in = a ReFramer dropping onto a car (machines only — Metal never teleports).
+const SFX={buf:{},loops:{},loading:false};
+const SFX_FILES={bell:'assets/audio/bell.mp3',phase:'assets/audio/phase_in.mp3',crowd:'assets/audio/crowd.mp3',ring:'assets/audio/ring_music.mp3',amb:'assets/audio/ring_ambience.mp3'};
+function sfxLoad(){if(SFX.loading)return;SFX.loading=true;try{actx=actx||new AudioContext();}catch(e){return;}
+ for(const [k,u] of Object.entries(SFX_FILES))fetch(u).then(r=>r.ok?r.arrayBuffer():Promise.reject(r.status)).then(b=>actx.decodeAudioData(b)).then(d=>{SFX.buf[k]=d;}).catch(e=>{SFX.err=String(e&&e.message||e);});}
+for(const ev of ['pointerdown','keydown','touchstart'])addEventListener(ev,()=>{sfxLoad();try{actx&&actx.state==='suspended'&&actx.resume();}catch(e){}},{passive:true});
+addEventListener('gamepadconnected',()=>sfxLoad());
+function sfx(k,v=.6,rate=1){const b=SFX.buf[k];if(!b||!actx)return;try{const s=actx.createBufferSource();s.buffer=b;s.playbackRate.value=rate;const g=actx.createGain();g.gain.value=v;s.connect(g).connect(actx.destination);s.start();}catch(e){}}
+function sfxLoop(k,target,dt){let L=SFX.loops[k];
+ if(!L){if(target<=.003||!SFX.buf[k]||!actx)return;try{const s=actx.createBufferSource();s.buffer=SFX.buf[k];s.loop=true;const g=actx.createGain();g.gain.value=0;s.connect(g).connect(actx.destination);s.start(0,Math.random()*SFX.buf[k].duration*.8);L=SFX.loops[k]={s,g,v:0};}catch(e){return;}}
+ L.v+=(target-L.v)*Math.min(1,dt*(target>L.v?1.2:.8));L.g.gain.value=L.v;if(L.v<.003&&target<=.003){try{L.s.stop();}catch(e){}delete SFX.loops[k];}}
+function bell(){sfx('bell',.55);}
+function audioTick(dt){if(!P)return;const p=P.o.position;
+ const dLot=fightC?Math.hypot(p.x-fightC.x,p.z-fightC.z):1e9;
+ const lotFight=rivalSt&&rivalSt.active||[...CREWS,...STORY_FIGHTS].some(c=>c.state==='fight'&&c.home&&fightC&&c.home.distanceTo(fightC)<30);
+ const epFight=typeof EP!=='undefined'&&EP.M&&(EP.M.stage==='clash'||EP.M.stage==='platform');
+ sfxLoop('amb',dLot<40?.2*(1-dLot/40):0,dt);
+ sfxLoop('crowd',lotFight?.42:epFight?.26:0,dt);
+ sfxLoop('ring',FG.inFight&&!DRV.active?(lotFight?.3:.22):0,dt);}
+
+// ---------- EP.1 "CONCRETE HAS A TEMPO" — the Morrow block (owner's Season One blueprint, 2026-11-06) PROPOSAL / HOLD ----------
+// Nia's Field Studio · the Morrow depot with its delivery platform · the corner market and its awning. Rules in
+// ep1_mission_core.mjs (node-tested). Kit: Quaternius Downtown City + Sci-Fi Essentials (CC0). Clips: UAL2 (CC0).
+var EP={M:null,B:null,c:null,foe:null,kit:null,clips:{npc:[],metal:[]},nia:null,civs:[],crate:null,tosses:[],clock:0,lastBeat:-1,lastHalf:-1,aPrev:false,
+ path:[],pi:0,awnSag:0,AWN_TILT:.12,brace:null,beacon:null,siren:0,saveKey:'wirEp1V1',latchM:null,plat:null,platY:1,haulCrates:[],ready:false,lastStage:null};
+function kitPiece(key){if(!EP.kit)return null;const n=EP.kit.scene.children.find(o=>o.name.split('|')[0]===key);if(!n)return null;const g=n.clone(true);g.position.set(0,0,0);
+ g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});return g;}
+// place a kit piece by its footprint: centred on (x,z), feet on y, rotated, scaled
+function placeKit(key,x,y,z,rot=0,s=1,collide=false){const g=kitPiece(key);if(!g)return null;const w=new THREE.Group();w.add(g);w.rotation.y=rot;w.scale.multiplyScalar(s);scene.add(w);w.updateMatrixWorld(true);
+ const bb=new THREE.Box3().setFromObject(w);w.position.set(x-(bb.min.x+bb.max.x)/2,y-bb.min.y,z-(bb.min.z+bb.max.z)/2);w.updateMatrixWorld(true);if(collide)registerGrippableStructure(w);return w;}
+function kitBoxFallback(x,y,z,sx,sy,sz,color,collide=true){const m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),new THREE.MeshStandardMaterial({color,roughness:.85}));m.position.set(x,y+sy/2,z);m.castShadow=m.receiveShadow=true;scene.add(m);if(collide)registerGrippableStructure(m);return m;}
+async function buildMorrowBlock(c){sign(SPOTS.morrow);const y=groundY,L=(x,z)=>new THREE.Vector3(c.x+x,y,c.z+z);EP.c=c;
+ try{EP.kit=await loadMissionAsset(loadG,'assets/models/morrow/morrow_kit.glb',{timeout:MISSION_ASSET_TIMEOUTS.optional,fallback:()=>null,onWarning:w=>boot.warning(w)});}catch(e){EP.kit=null;}
+ const S=L(-10,-14),D=L(11,-15);
+ // Nia | Field Studio (Building_Small_1) + rooftop signal dish + AC
+ const st0=placeKit('studio',S.x,y,S.z,0,.72,true)||kitBoxFallback(S.x,y,S.z,9,10,10,0x6f5a4c);
+ const sb=new THREE.Box3().setFromObject(st0);placeKit('dish',sb.max.x-1.6,sb.max.y,sb.min.z+2.2,Math.PI*.8,.45);placeKit('ac',sb.min.x+1.4,sb.max.y,sb.min.z+2,0,1.4);
+ // Morrow depot (Building_Medium_2) + loading dock + delivery platform gantry
+ const dp=placeKit('depot',D.x,y,D.z,0,.62,true)||kitBoxFallback(D.x,y,D.z,9.5,14,8,0x4d5460);
+ const db=new THREE.Box3().setFromObject(dp);EP.depotDoor=L(11,db.max.z-c.z+.8);
+ kitBoxFallback(c.x+11,y,db.max.z+1.6,8.5,.9,3.2,0x6d6a66); // dock (walkable)
+ const steel=new THREE.MeshStandardMaterial({color:0x3a3f47,metalness:.75,roughness:.4}),pz=db.max.z+6.2;EP.platPt={x:c.x+11,z:pz};EP.postPt={x:c.x+15.1,z:pz};
+ for(const px of [7.2,14.8]){const p=new THREE.Mesh(new THREE.BoxGeometry(.3,6,.3),steel);p.position.set(c.x+px,y+3,pz);p.castShadow=true;scene.add(p);registerGrippableStructure(p);}
+ const beam=new THREE.Mesh(new THREE.BoxGeometry(7.9,.35,.35),steel);beam.position.set(c.x+11,y+6.1,pz);scene.add(beam);
+ const lever=new THREE.Mesh(new THREE.BoxGeometry(.18,.7,.18),new THREE.MeshStandardMaterial({color:0xc9a24a,metalness:.6,roughness:.35,emissive:0xffb347,emissiveIntensity:0}));lever.position.set(c.x+15.15,y+1.4,pz+.3);scene.add(lever);EP.lever=lever;
+ const plat=new THREE.Group(),deck=new THREE.Mesh(new THREE.BoxGeometry(3.4,.28,3.4),new THREE.MeshStandardMaterial({color:0x5b5f66,metalness:.6,roughness:.45}));deck.castShadow=deck.receiveShadow=true;plat.add(deck);
+ for(const [x,z] of [[-1.2,-1.2],[1.2,-1.2],[-1.2,1.2],[1.2,1.2]]){const k=placeKit(['crate','barrel','tarp','crateL'][(x>0)+(z>0)*2],0,0,0,0,.55);if(k){scene.remove(k);k.position.x+=x*.6;k.position.z+=z*.6;k.position.y+=.14;plat.add(k);}}
+ plat.position.set(EP.platPt.x,y+4.6,pz);scene.add(plat);EP.plat=plat;
+ EP.chains=[];for(const [x,z] of [[-1.5,-1.5],[1.5,-1.5],[-1.5,1.5],[1.5,1.5]]){const ch=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,1,6),steel);scene.add(ch);EP.chains.push({m:ch,x,z});}
+ EP.latchM=new THREE.Mesh(new THREE.BoxGeometry(.5,.4,.5),new THREE.MeshStandardMaterial({color:0x9a8a5a,metalness:.7,roughness:.3,emissive:0xffb347,emissiveIntensity:0}));EP.latchM.position.set(EP.platPt.x,y+5.75,pz);scene.add(EP.latchM);
+ // depot yard: crates, barrels, lockers, shelves (Sci-Fi Essentials)
+ for(const [k,x,z,r,s] of [['crateL',5.5,-8,0,.8],['crate',4.5,-5.5,.4,.7],['barrel',17.5,-8,0,1],['barrel2',18.2,-7.2,0,1],['barrel',18,-6,0,1],['locker',3.8,-9.2,0,.8],['shelves',18.4,-4,Math.PI/2,.8],['tarp',6,-2.5,.2,.8],['crate',16.5,1.5,.8,.7]])placeKit(k,c.x+x,y,c.z+z,r,s,true);
+ // corner market + awning (v0.2 booth colours)
+ EP.marketPt={x:c.x-4,z:c.z+14};const ax=c.x-4,az=c.z+14;
+ for(let n=0;n<3;n++){const bx=ax-4+n*4,bo=new THREE.Group();const b1=new THREE.Mesh(new THREE.BoxGeometry(2.4,.95,1.2),new THREE.MeshStandardMaterial({color:n%2?0x203341:0x493345,roughness:.8}));b1.position.y=.48;bo.add(b1);
+  const b2=new THREE.Mesh(new THREE.BoxGeometry(2.6,.12,1.4),new THREE.MeshStandardMaterial({color:n%2?0x7d6580:0x2c6571,roughness:.7}));b2.position.y=1.0;bo.add(b2);bo.position.set(bx,y,az-.9);bo.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true;});scene.add(bo);}
+ const awn=new THREE.Group();awn.position.set(ax,y+3.05,az-2.4);const canvas=new THREE.Mesh(new THREE.BoxGeometry(13,.08,4.6),new THREE.MeshStandardMaterial({color:0xb3452f,roughness:.9,side:THREE.DoubleSide}));canvas.position.set(0,0,2.3);canvas.castShadow=true;awn.add(canvas);
+ for(let s=-6;s<=6;s+=1.3){const st=new THREE.Mesh(new THREE.BoxGeometry(.55,.085,4.62),new THREE.MeshStandardMaterial({color:0xe9e1cf,roughness:.9}));st.position.set(s,.005,2.3);awn.add(st);}
+ const val=new THREE.Mesh(new THREE.BoxGeometry(13,.45,.05),new THREE.MeshStandardMaterial({color:0xe9e1cf,roughness:.9}));val.position.set(0,-.22,4.6);awn.add(val); // scalloped front valance
+ scene.add(awn);EP.awn=awn;awn.rotation.x=EP.AWN_TILT;EP.posts=[];const fh=3.05-4.6*Math.sin(EP.AWN_TILT);for(const [x,z,h] of [[-6.4,2.2,fh],[6.4,2.2,fh],[-6.4,-2.4,3.05],[6.4,-2.4,3.05]]){const p=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,h,8),steel);p.position.set(ax+x,y+h/2,az+z);scene.add(p);EP.posts.push(p);}
+ EP.frontPost=EP.posts[0];EP.frontPostY=EP.frontPost.position.y;
+ // street furniture
+ for(const [x,z] of [[-14,6],[-12,6],[-10,6],[2,6],[4,6]])placeKit('bollard',c.x+x,y,c.z+z,0,1.3);
+ for(const [x,z] of [[-18,8],[-18,20],[20,20]])placeKit('planter',c.x+x,y,c.z+z,0,.8,true);
+ // Midnight Garage (v0.2) — the prototype motorcycle lives here
+ kitBoxFallback(c.x-18,y,c.z-1,5,3.4,5.2,0x2a2730);placeKit('door',c.x-15.45,y,c.z-1,Math.PI/2,1);
+ // signs (help-only words)
+ label('NIA | FIELD STUDIO',L(-10,-5.6).setY(y+4.6),'#b0f1e8');label('MORROW DEPOT',new THREE.Vector3(D.x,y+7.2,db.max.z+.3),'#cfd6e0');label('CORNER MARKET',L(-4,18).setY(y+4.4),'#ffd39b');label('MIDNIGHT GARAGE',L(-18,1.8).setY(y+4.2),'#eecb83');
+ // where Metal walks in for the session, and the robbery run (depot door → round the block → the market)
+ EP.studioPt={x:c.x-10,z:c.z-5.2};
+ EP.path=[[11,-5],[20,-1],[20.5,11],[11,19.5],[1,18.5]].map(([x,z])=>new THREE.Vector3(c.x+x,y,c.z+z));
+ // beacon for the next place to go (amber; violet stays on Metal's seams)
+ const bc=new THREE.Mesh(new THREE.CylinderGeometry(.55,.55,26,16,1,true),new THREE.MeshBasicMaterial({color:0xffc36b,transparent:true,opacity:.12,depthWrite:false,side:THREE.DoubleSide}));bc.position.y=13;const bl=new THREE.PointLight(0xffb35a,0,9);bl.position.y=1.6;const bg=new THREE.Group();bg.add(bc,bl);scene.add(bg);EP.beacon={g:bg,l:bl,m:bc};
+ EP.sirenL=new THREE.PointLight(0xff2a1a,0,18);EP.sirenL.position.set(c.x+11,y+4.2,db.max.z+.6);scene.add(EP.sirenL);
+ // UAL2 clips (Metal glob throw · neighbourhood idles · Ballast's carry)
+ Promise.all(['assets/anim/npc_ual2.json','assets/anim/metal_ual2.json'].map(u=>fetch(u).then(r=>r.json()).catch(()=>[]))).then(([n,m])=>{EP.clips.npc=n.map(j=>THREE.AnimationClip.parse(j));EP.clips.metal=m.map(j=>THREE.AnimationClip.parse(j));if(P)addMetalClips();});
+}
+function addClips(ch,list){if(!ch||!ch.mixer)return;for(const c of list)if(!ch.acts[c.name])ch.acts[c.name]=ch.mixer.clipAction(c);}
+function addMetalClips(){if(!P||P.metalClips===P.mixer||!EP.clips.metal.length)return;P.metalClips=P.mixer;addClips(P,EP.clips.metal);if(P.acts.u_OverhandThrow)P.acts.GlobThrow=P.acts.u_OverhandThrow;}
+function ep1Person(fit,pos,name,color){const g=fit.f&&crewFemGLTF?crewFemGLTF:rivalGLTF;const ch=g?makeFighter(g,fit):makeChar(fit.top);ch.o.position.copy(pos);scene.add(ch.o);addClips(ch,EP.clips.npc);
+ if(name){const t=nameTag(name,color);t.position.y=(fit.h||1.8)+.35;ch.o.add(t);worldLabels.push(t);t.visible=HELP.on;}return ch;}
+function ep1Init(){if(EP.ready||!EP.c||!P||!STORY_FIGHTS.length)return;EP.ready=true;addMetalClips();
+ let txt=null;try{if(new URLSearchParams(location.search).get('ep1')==='reset')localStorage.removeItem(EP.saveKey);txt=localStorage.getItem(EP.saveKey);}catch(e){}
+ EP.M=txt?ep1Load(txt):createEp1();
+ const c=STORY_FIGHTS.find(s=>s.entry&&s.entry.id==='ballast');if(c){EP.B=c;EP.foe=c.members[0];c.home0=c.home.clone();addClips(EP.foe.ch,EP.clips.npc);EP.foe.R.ep1=true;}
+ EP.nia=ep1Person({top:0x2c6571,bot:0x1d1f26,shoe:0xe8e4da,f:1,h:1.66},new THREE.Vector3(EP.studioPt.x+2.2,groundY,EP.studioPt.z-.6),'Nia · Field Studio',0xb0f1e8);
+ EP.nia.o.rotation.y=Math.PI;const fits=[{top:0xd2a53c,bot:0x2a2d33,f:1,h:1.64},{top:0x1f6f78,bot:0xb9a77f,h:1.78},{top:0xe9e4da,bot:0x3a4250,f:1,h:1.6},{top:0x8a3b2e,bot:0x111216,h:1.8}];
+ const m=EP.marketPt;EP.civs=fits.map((f,i)=>{const ch=ep1Person(f,new THREE.Vector3(m.x-4.5+i*3,groundY,m.z+.5+(i%2)*.8),null);ch.o.rotation.y=(i%2?1:-1)*.6;play(ch,ch.acts.Idle_TalkingPhone_Loop&&i%2?'Idle_TalkingPhone_Loop':ch.acts.Idle_FoldArms_Loop?'Idle_FoldArms_Loop':'Idle');return {ch,state:'shop',i};});
+ ep1Place(true);}
+// put the world in the state the saved checkpoint expects
+function ep1Place(first){const M=EP.M,c=EP.B,f=EP.foe;if(!c||!f)return;const s=M.stage;
+ c.ep1Ctl=s!=='done';if(s==='done'){f.ch.o.visible=true;return;}
+ c.state='ep1';f.R.active=false;f.R.out=false;
+ if(s==='toStudio'||s==='session'){f.ch.o.visible=false;f.ch.o.position.copy(EP.depotDoor).add(new THREE.Vector3(0,0,-3));}
+ else if(s==='chase'){f.ch.o.visible=true;f.ch.o.position.copy(EP.depotDoor);EP.pi=0;ep1Carry(true);}
+ else if(s==='platform'){f.ch.o.visible=true;f.ch.o.position.set(EP.platPt.x,groundY,EP.platPt.z);EP.awnSag=1;for(const v of EP.civs){v.state='gone';v.ch.o.visible=false;}}
+ else if(s==='return'){f.ch.o.visible=false;}
+ if(!first)return;}
+function ep1Carry(on){const f=EP.foe;if(!f)return;if(on&&!EP.crate){EP.crate=placeKit('crate',0,0,0,0,.42);if(EP.crate){scene.remove(EP.crate);EP.crate.position.set(-.33,1.05,.55);f.ch.o.add(EP.crate);}}
+ if(!on&&EP.crate){f.ch.o.remove(EP.crate);EP.crate=null;}}
+function ep1SaveNow(){try{localStorage.setItem(EP.saveKey,ep1Save(EP.M));}catch(e){}}
+function ep1EndFight(c){c.state='ep1';for(const f of c.members){const R=f.R;R.active=false;R.act=null;R.queue=[];R.guard=false;R.sm=null;R.haul=null;R.minStance=0;if(f.ch.body)f.ch.body.emissiveIntensity=0;}
+ if(!activeFoes().length)$('foe').style.display='none';FG.act=null;bell();}
+function ep1FightOver(c,win){ep1EndFight(c);st.hp=1;const back=ep1Abandon(EP.M);whisper(back==='chase'?'Ballast got away':'Ballast is back at his haul',back==='chase'?'catch him again':'come back at him');}
+function ep1StartFight(round){const c=EP.B,f=EP.foe;if(!c||!f)return;ep1Carry(false);
+ c.home=round===2?new THREE.Vector3(EP.platPt.x,groundY,EP.platPt.z):f.ch.o.position.clone();startCrew(c);
+ f.R.minStance=round===2?EP1.PLAT.minStance:EP1.CLASH_MIN_STANCE;f.R.haul=round===2?{x:EP.platPt.x,z:EP.platPt.z,r:8}:null;}
+function ep1Walk(target,speed,anim,dt){const o=EP.foe.ch.o,v=target.clone().sub(o.position).setY(0),d=v.length();if(d<.15)return true;
+ o.position.addScaledVector(v.normalize(),Math.min(d,speed*dt));o.rotation.y+=angDiff(o.rotation.y,Math.atan2(v.x,v.z))*Math.min(1,dt*7);
+ const a=EP.foe.ch.acts[anim]?anim:'Running';play(EP.foe.ch,a);if(EP.foe.ch.acts[a])EP.foe.ch.acts[a].setEffectiveTimeScale(anim==='Walk_Carry_Loop'?Math.max(1,speed/1.5):1);return false;}
+function ep1Knockdown(){const f=EP.foe,p=P.o.position;const d=p.clone().sub(f.ch.o.position).setY(0).normalize();FG.kb.addScaledVector(d,9);FG.shake=.55;FG.stun=1.4;st.hp=Math.max(.25,st.hp);
+ burst(p.clone().setY(p.y+1),40,7);beep(48,.3,'square',.07);if(!st.board&&P.acts.Knock){playT(P,'Knock',.7);actT=1.4;setTimeout(()=>{if(P.acts.GetUp)playT(P,'GetUp',1.2);},900);}playT(f.ch,'Hook',.7);}
+function ep1Toss(){const f=EP.foe,from=f.ch.o.position.clone().setY(groundY+1.6),to=P.o.position.clone().setY(P.o.position.y+.8);const k=placeKit('crate',0,0,0,0,.5);if(!k)return;
+ k.position.copy(from);const d=to.clone().sub(from),T=Math.max(.6,d.length()/14);EP.tosses.push({m:k,v:new THREE.Vector3(d.x/T,d.y/T+4.9*T,d.z/T),t:0,w:new THREE.Vector3(Math.random()*6,Math.random()*4,Math.random()*6)});playT(f.ch,f.ch.acts.OverhandThrow?'OverhandThrow':'Hook',.6);}
+function ep1Tosses(dt){for(let i=EP.tosses.length-1;i>=0;i--){const q=EP.tosses[i];q.t+=dt;if(q.t<3){q.v.y-=9.8*dt;q.m.position.addScaledVector(q.v,dt);q.m.rotation.x+=q.w.x*dt;q.m.rotation.y+=q.w.y*dt;
+  const me=_fv2.copy(P.o.position);me.y+=1;if(!q.hit&&q.m.position.distanceTo(me)<1.1){q.hit=true;metalHurt(.07,q.m.position,null);burst(q.m.position,24,5);q.t=3;}
+  const fl=floorAt(q.m.position);if(q.m.position.y<fl+.3){q.m.position.y=fl+.3;q.v.multiplyScalar(.3);q.v.y=Math.abs(q.v.y)*.2;q.w.multiplyScalar(.5);if(!q.thud){q.thud=true;beep(70,.08,'square',.05);burst(q.m.position,10,3);}}}
+  else if(q.t>7){scene.remove(q.m);EP.tosses.splice(i,1);}}}
+// what Metal did this frame that the session listens for: any push / A / Space / tap on Nia's beat
+function ep1Beats(dt){const M=EP.M;if(M.stage!=='session'){EP.clock=0;EP.lastBeat=-1;return;}
+ EP.clock+=dt;const pb=60/EP1.BPM,k=Math.floor(EP.clock/pb),h=Math.floor(EP.clock/(pb/2));
+ if(k!==EP.lastBeat){EP.lastBeat=k;beep(52,.16,'sine',.16);beep(104,.04,'triangle',.05);vRing(EP.studioPt.x,EP.studioPt.z,2.4,.35,0xffc36b);if(EP.nia)EP.nia.o.position.y=groundY+.04;}
+ else if(h!==EP.lastHalf){beep(7400,.025,'square',.012);if(EP.nia)EP.nia.o.position.y=groundY;}EP.lastHalf=h;
+ const a=!!(keys.Space||pressed.Space||RSK.gp&&RSK.gp.buttons[0]&&RSK.gp.buttons[0].pressed);
+ if(a&&!EP.aPrev){const e=ep1Feed(M,'push',{time:EP.clock});if(e&&e.type==='onBeat'){beep(880,.06,'triangle',.05);setTimeout(()=>beep(1320,.05,'triangle',.04),60);burst(P.o.position.clone().setY(P.o.position.y+.3),10,2.5);
+   whisper('On the beat · '+e.beats+'/'+EP1.BEATS_NEEDED,'Nia is recording the board on concrete');}else whisper('Off the beat','push on the kick');}
+ EP.aPrev=a;}
+// glob on the latch (from globTick)
+function ep1LatchHit(pos,r,power){if(!EP.M||EP.M.stage!=='platform'||!EP.latchM)return false;if(pos.distanceTo(EP.latchM.position)>r+1.1)return false;
+ const e=ep1Feed(EP.M,'latch',{power});if(e)ep1Event(e);return true;}
+function ep1LatchAim(){if(!EP.latchM||!EP.M||EP.M.stage!=='platform'||EP.M.plat.state!=='up')return null; // Ep.1: the platform latch outranks Ballast as a glob target
+ const v=EP.latchM.position.clone().sub(_globHand()),d=v.length();if(d>17||d<1)return null;const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+ if(Math.acos(Math.max(-1,Math.min(1,v.clone().setY(0).normalize().dot(f))))>.8)return null;return v.normalize();}
+function ep1OnHit(foe,s){if(!EP.M||foe!==EP.foe)return;if(s&&(s.src==='glob'||s.src==='car'))return;const e=ep1Feed(EP.M,'punch');if(e)ep1Event(e);}
+function ep1Event(e){const M=EP.M,f=EP.foe,p=P.o.position;
+ switch(e.type){
+  case 'stage':if(['chase','platform','return','done','toStudio'].includes(e.stage))ep1SaveNow();break;
+  case 'sessionStart':play(EP.nia,EP.nia.acts.Idle_FoldArms_Loop?'Idle_FoldArms_Loop':'Idle');whisper('Session with Nia','push on her beat — A / Space / tap');beep(330,.08,'triangle',.04);break;
+  case 'take':playT(EP.nia,'Wave',1.2);for(const [k,fq] of [[0,523],[1,659],[2,784]])setTimeout(()=>beep(fq,.12,'triangle',.04),k*90);whisper(e.beats>=EP1.BEATS_NEEDED?'That\'s the take':'Nia: we\'ll fix it in the mix','');break;
+  case 'depotAlarm':f.ch.o.visible=true;f.ch.o.position.copy(EP.depotDoor);EP.pi=0;ep1Carry(true);EP.siren=4.5;burst(EP.depotDoor.clone().setY(groundY+1.5),50,7);FG.shake=.3;
+   whisper('Depot alarm · Ballast','chase him down');plog('discoveries','Ep.1 Concrete Has a Tempo — Ballast robbed the Morrow depot');break;
+  case 'tossCrate':ep1Toss();break;
+  case 'fight':ep1StartFight(e.round);whisper(e.round===1?'Ballast':'Round two — at the depot',e.round===1?'front is armored':'');break;
+  case 'scriptedLoss':ep1EndFight(EP.B);ep1Knockdown();whisper('He didn\'t even move','hitting harder won\'t work on Ballast');break;
+  case 'awningBreak':{const fp=EP.frontPost;burst(fp.position.clone(),40,6);beep(60,.3,'sawtooth',.06);FG.shake=.4;fp.rotation.x=-1.1;fp.position.y=groundY+.5;fp.position.z+=.9;
+   for(const v of EP.civs){if(v.state!=='shop')continue;v.state='trapped';play(v.ch,v.ch.acts.Guard?'Guard':'Idle');}
+   whisper('The awning is coming down','hold Metal Draw by the market to brace it');ep1Carry(true);break;}
+  case 'civOut':{const v=EP.civs.find(q=>q.state==='trapped');if(v){v.state='out';v.go=new THREE.Vector3(EP.marketPt.x-6+v.i*4,groundY,EP.marketPt.z+9);}beep(700,.06,'triangle',.04);whisper('Out safe · '+(EP1.AWN.civs-e.left)+'/'+EP1.AWN.civs,'');break;}
+  case 'awningDown':for(const v of EP.civs)if(v.state==='trapped'){v.state='shaken';v.go=new THREE.Vector3(EP.marketPt.x-6+v.i*4,groundY,EP.marketPt.z+9);}
+   burst(new THREE.Vector3(EP.marketPt.x,groundY+.8,EP.marketPt.z),80,8);FG.shake=.6;beep(42,.4,'square',.08);whisper('The awning came down','they crawled out shaken');break;
+  case 'hint':whisper('Bigger punches won\'t move him','back off · he loads his haul under the platform · drop it on him');break;
+  case 'latchHit':beep(420,.06,'square',.04);burst(EP.latchM.position,14,3);break;
+  case 'platformRelease':beep(180,.08,'sawtooth',.05);setTimeout(()=>beep(120,.12,'sawtooth',.05),120);whisper('Platform released','');break;
+  case 'platformMiss':FG.shake=.5;beep(40,.35,'square',.08);burst(new THREE.Vector3(EP.platPt.x,groundY+.4,EP.platPt.z),60,7);if(e.metalUnder)metalHurt(.22,EP.plat.position,null);whisper('Missed him','it hoists back up — lure him under');break;
+  case 'rehoisted':beep(300,.05,'square',.03);break;
+  case 'pinned':{FG.shake=.75;beep(36,.5,'square',.09);burst(new THREE.Vector3(EP.platPt.x,groundY+1,EP.platPt.z),110,9);ep1EndFight(EP.B);f.R.out=true;playT(f.ch,'Knock',.6);
+   whisper('Pinned under his own haul','the platform did what punches couldn\'t');sfx('crowd',.5,1.1);break;}
+  case 'ballastDown':plog('achievements','Ep.1 — Ballast pinned under the delivery platform');whisper('Ballast is down','back to the session with Nia');break;
+  case 'complete':{st.gal=Math.min(1,st.gal+.3);FG.crewWins++;playT(EP.nia,'Wave',1.4);for(const [k,fq] of [[0,392],[1,523],[2,659],[3,784]])setTimeout(()=>beep(fq,.16,'triangle',.05),k*120);
+   burst(p.clone().setY(p.y+1.4),80,7);toast('Ep.1 Concrete Has a Tempo · stem '+e.stems+'/'+e.of+(e.civsShaken?' · '+e.civsShaken+' shaken':' · everyone out clean'));plog('achievements','Ep.1 Concrete Has a Tempo complete — stem 1/6');
+   const c=EP.B;c.ep1Ctl=false;c.home=c.home0.clone();f.R.out=false;f.R.minStance=0;f.R.haul=null;f.ch.o.position.copy(c.home0);f.ch.o.visible=true;c.state='cool';c.cool=60;ep1SaveNow();break;}
+ }}
+function ep1Tick(dt){if(!EP.c||!P)return;ep1Init();addMetalClips();if(!EP.M||!EP.foe)return;const M=EP.M,f=EP.foe,o=f.ch.o,p=P.o.position,c=EP.B;
+ ep1Beats(dt);ep1Tosses(dt);
+ const w={metal:{x:p.x,z:p.z},studio:EP.studioPt,ballast:{x:o.position.x,z:o.position.z},market:EP.marketPt,platform:EP.platPt,post:EP.postPt,metalHp:st.hp,braced:DRW.drawing,drawing:DRW.drawing};
+ const out=ep1Step(M,w,dt);for(const e of out.events)ep1Event(e);
+ f.R.minStance=c.state==='fight'?out.minStance:0;
+ // Ballast between rounds (the fight system owns him during rounds)
+ if(c.state!=='fight'&&M.stage!=='done'){const mode=out.ballastMode;
+  if(mode==='run'){const t=EP.path[EP.pi];if(t){if(ep1Walk(t,EP1.BALLAST_RUN,'Walk_Carry_Loop',dt))EP.pi++;}else{o.rotation.y+=angDiff(o.rotation.y,Math.atan2(p.x-o.position.x,p.z-o.position.z))*Math.min(1,dt*4);play(f.ch,f.ch.acts.Idle_FoldArms_Loop?'Idle_FoldArms_Loop':'Idle');}}
+  else if(mode==='wreck'){const fp=EP.frontPost.position;ep1Walk(new THREE.Vector3(fp.x+.3,groundY,fp.z+1.1),5.5,'Running',dt);}
+  else if(mode==='toDock'){ep1Walk(new THREE.Vector3(EP.platPt.x,groundY,EP.platPt.z),2.6,'Walk_Carry_Loop',dt);}
+  else if(mode==='fight'&&M.stage==='platform'&&Math.hypot(p.x-o.position.x,p.z-o.position.z)<12&&o.visible)ep1StartFight(2);
+  else if(mode==='pinned'){}}
+ // the awning: sags unless braced; Metal props it with a Galaxy Gallium column
+ if(out.sag!=null)EP.awnSag=out.sag;const sag=Math.min(1,EP.awnSag);if(EP.awn){EP.awn.rotation.x=EP.AWN_TILT+sag*.5;}
+ if(out.braced){if(!EP.brace){EP.brace=new THREE.Mesh(new THREE.CylinderGeometry(.16,.24,1,7),galaxyCrystalMat({}));scene.add(EP.brace);}const fx=EP.marketPt.x-6.1,fz=EP.marketPt.z+2.0,h=Math.max(.3,3.05-4.4*Math.sin(EP.AWN_TILT+sag*.5));
+  EP.brace.visible=true;EP.brace.scale.set(1,h,1);EP.brace.position.set(fx,groundY+h/2,fz);setViolet(.5);if(Math.random()<.8){const a=p.clone().setY(p.y+1.2);burst(a.lerp(EP.brace.position,Math.random()),1,.6);}}
+ else if(EP.brace)EP.brace.visible=false;
+ if(M.stage==='awning'&&Math.random()<dt*2*sag)beep(90+Math.random()*40,.05,'sawtooth',.02); // creak
+ // civilians
+ for(const v of EP.civs){if(v.state==='out'||v.state==='shaken'){const d=v.go.clone().sub(v.ch.o.position).setY(0),L=d.length();if(L>.3){v.ch.o.position.addScaledVector(d.normalize(),Math.min(L,dt*(v.state==='out'?4:1.4)));v.ch.o.rotation.y=Math.atan2(d.x,d.z);play(v.ch,v.state==='out'?'Running':'Walking');if(v.state==='shaken'&&v.ch.acts.Walking)v.ch.acts.Walking.setEffectiveTimeScale(.6);}
+   else{v.state='safe';v.ch.o.rotation.y=Math.atan2(p.x-v.ch.o.position.x,p.z-v.ch.o.position.z);playT(v.ch,'Wave',1.2);}}}
+ // delivery platform
+ if(EP.plat){const Y=out.platY!=null?out.platY:(M.stage==='pinned'||M.stage==='return'?-1:1);EP.platY+=((Y<0?.3:Y)-EP.platY)*(Y<EP.platY?1:Math.min(1,dt*6));
+  const py=Y<0?groundY+.72:groundY+.14+EP.platY*4.46;EP.plat.position.y=py;
+  for(const ch of EP.chains){const top=groundY+6.0,len=Math.max(.05,top-py);ch.m.scale.y=len;ch.m.position.set(EP.platPt.x+ch.x*(Y<0?1.2:1),py+len/2,EP.platPt.z+ch.z*(Y<0?1.2:1));}
+  const live=M.stage==='platform'&&M.plat.state==='up';EP.latchM.material.emissiveIntensity=live?.35+.25*Math.sin(performance.now()/160):0;EP.lever.material.emissiveIntensity=live?.3:0;
+  if(live&&DRW.drawing&&Math.hypot(p.x-EP.postPt.x,p.z-EP.postPt.z)<3){EP.lever.rotation.z=Math.min(1,(M.plat.pull||0)/EP1.PLAT.pullT)*1.2;burst(EP.lever.position,1,.8);}else EP.lever.rotation.z*=.9;
+  if(M.stage==='pinned'||M.stage==='return'){o.position.y=groundY;}}
+ // siren + beacon
+ EP.siren-=dt;if(EP.sirenL)EP.sirenL.intensity=EP.siren>0?(Math.sin(performance.now()/90)>0?14:0):0;if(EP.siren>0&&Math.floor(EP.siren/.38)!==EP.sirenK){EP.sirenK=Math.floor(EP.siren/.38);beep(EP.sirenK%2?740:560,.3,'sawtooth',.025);}
+ const go=M.stage==='toStudio'||M.stage==='return'?EP.studioPt:M.stage==='awning'?EP.marketPt:M.stage==='platform'&&c.state!=='fight'?EP.platPt:null;
+ EP.beacon.g.visible=!!go;if(go){EP.beacon.g.position.set(go.x,groundY,go.z);const k=.08+.05*Math.sin(performance.now()/400);EP.beacon.m.material.opacity=Math.hypot(p.x-go.x,p.z-go.z)<6?k*.4:k;EP.beacon.l.intensity=3+Math.sin(performance.now()/300);}
+ // Nia: watches Metal, run it back after the episode
+ if(EP.nia){const n=EP.nia.o,d=n.position.distanceTo(p);if(d<14)n.rotation.y+=angDiff(n.rotation.y,Math.atan2(p.x-n.position.x,p.z-n.position.z))*Math.min(1,dt*4);
+  if(d<3&&pressed.KeyE&&!FG.inFight){pressed.KeyE=false;if(M.stage==='done'){ep1Replay(M);for(const v of EP.civs){v.state='shop';v.ch.o.visible=true;v.ch.o.position.set(EP.marketPt.x-4.5+v.i*3,groundY,EP.marketPt.z+.5+(v.i%2)*.8);play(v.ch,'Idle');}
+    EP.awnSag=0;EP.frontPost.rotation.x=0;EP.frontPost.position.set(EP.marketPt.x-6.4,EP.frontPostY,EP.marketPt.z+2.2);EP.platY=1;ep1Place();ep1SaveNow();whisper('Nia · run the session back','Ep.1 replay');}
+   else whisper('Nia · Field Studio',M.stage==='done'?'':'Ep.1 Concrete Has a Tempo');playT(EP.nia,'Wave',1);}}
+}
+
+// ---------- MORROW prototype motorcycle (owner's v0.2 PROPOSAL design) — parked at the Midnight Garage; same Rush drive model, steer ×1.13 ----------
+function makeBike(){const bike=new THREE.Group(),body=new THREE.Group();body.rotation.y=Math.PI;bike.add(body);
+ const M=(c,r=.5,m=.2)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});const box=(x,y,z,w,h,d,c,r)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),M(c,r));m.position.set(x,y,z);m.castShadow=true;body.add(m);return m;};
+ for(const z of [-.83,.83]){const wh=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.18,16),M(0x090c11,.9,.1));wh.rotation.z=Math.PI/2;wh.position.set(0,.42,z);body.add(wh);
+  const hub=new THREE.Mesh(new THREE.CylinderGeometry(.14,.14,.19,10),M(0xcad6dc,.3,.72));hub.rotation.z=Math.PI/2;hub.position.set(0,.42,z);body.add(hub);}
+ box(0,.65,0,.46,.20,1.5,0x4b2f6c,.5);box(0,.84,-.20,.48,.24,.52,0x141d27,.16);box(0,.90,.38,.29,.12,.55,0x101014,.14);box(0,1.05,-.86,.90,.08,.08,0xbec1de,.5);
+ const hl=box(0,.62,-.91,.52,.16,.08,0xe4eeff,.14);hl.material.emissive=new THREE.Color(0xe4eeff);hl.material.emissiveIntensity=.6;
+ for(const x of [-.22,.22])box(x,.57,-.45,.10,.20,.45,0x868eab,.54);bike.userData.body=body;return bike;}
+function bikePose(){const a=P.acts.u_Walk_Carry_Loop;if(!a)return;if(P.cur!==a){play(P,'u_Walk_Carry_Loop',false,.15);a.time=.05;}a.setEffectiveTimeScale(0);}
+function bikeInit(){if(DRV.bike||!EP.c||!cars)return;const b=makeBike();b.position.set(EP.c.x-13.6,.05,EP.c.z-1);b.rotation.y=Math.PI/2;
+ b.userData={axis:1,lane:b.position.x,dir:1,t:b.position.z,spd:0,parked:true,mine:true,bike:true,occupantExited:true,occupantCount:0,body:b.userData.body};scene.add(b);cars.push(b);DRV.bike=b;}
+
+
+// ---------- WRONG TARGET — Foundry Steps (owner's "Machine Wars" brief + v0.3 reducer) PROPOSAL / PUBLISH HOLD ----------
+// Rules in wrong_target_core.mjs (node-tested). Machines: owner-supplied MagicaVoxel bots (Arachnodroid body = ReFramer core,
+// ReconBot = Framekeeper drone, MobileStorageBot = scavenger) — licence not in the zips, confirm before publishing.
+var WTV={S:null,c:null,site:null,kit:null,ready:false,saveKey:'wirWrongTargetV1',bus:null,heads:[],limbs:[],core:null,coreY:4.2,keeper:null,kp:new THREE.Vector3(),
+ offs:[],people:[],field:null,signal:null,scav:null,snareT:0,snareLine:null,coll:0,ePrev:false,lhSeen:false,lastMode:null};
+async function buildFoundry(c){sign(SPOTS.foundry);WTV.c=c;const y=groundY,L=(x,z)=>({x:c.x+x,z:c.z+z});
+ try{WTV.kit=await loadMissionAsset(loadG,'assets/models/machines/wt_machines.glb',{timeout:MISSION_ASSET_TIMEOUTS.optional,fallback:()=>null,onWarning:w=>boot.warning(w)});}catch(e){WTV.kit=null;}
+ WTV.site={signal:L(-6,-14),bus:L(-4,2),door:L(-5,4.2),safe:L(-15,15),nest:L(5,-4),field:{...L(6,8),dx:-.6,dz:.8},officerSpawn:L(22,21)};
+ // Foundry Steps: terraced concrete with a handrail (rideable ledges)
+ const conc=new THREE.MeshStandardMaterial({color:0x8d8a84,roughness:.92});
+ for(let k=0;k<4;k++){const s=new THREE.Mesh(new THREE.BoxGeometry(14-k*2.5,.32*(k+1),2.2),conc);s.position.set(c.x+12,y+.16*(k+1),c.z-17+k*2.2);s.castShadow=s.receiveShadow=true;scene.add(s);registerGrippableStructure(s);}
+ // civic shuttle (pivots on the door-side bottom edge; the far side lifts)
+ const bus=new THREE.Group(),body=new THREE.Group();bus.position.set(WTV.site.bus.x,y,WTV.site.bus.z+1.3);body.position.z=-1.3;bus.add(body);
+ const M=(col,r=.6,m=.2)=>new THREE.MeshStandardMaterial({color:col,roughness:r,metalness:m});
+ const hull=new THREE.Mesh(new THREE.BoxGeometry(8.4,2.5,2.6),M(0x457e87));hull.position.y=1.65;body.add(hull);
+ const glass=new THREE.Mesh(new THREE.BoxGeometry(7.6,.75,2.64),M(0xb9d6de,.2,.4));glass.position.y=2.2;body.add(glass);
+ const roof=new THREE.Mesh(new THREE.BoxGeometry(8.2,.18,2.4),M(0xcad0c7));roof.position.y=2.98;body.add(roof);
+ const door=new THREE.Mesh(new THREE.BoxGeometry(1.2,2.1,.06),new THREE.MeshStandardMaterial({color:0x84a7bb,roughness:.3,emissive:0xffb347,emissiveIntensity:0}));door.position.set(-1,1.45,1.32);body.add(door);WTV.door=door;
+ WTV.wheels=[];for(const [x,z] of [[-2.9,-1.2],[2.9,-1.2],[-2.9,1.2],[2.9,1.2]]){const w=new THREE.Mesh(new THREE.CylinderGeometry(.48,.48,.32,14),M(0x111923,.9));w.rotation.x=Math.PI/2;w.position.set(x,.48,z);body.add(w);WTV.wheels.push(w);}
+ WTV.heads=[];for(const x of [-2.2,1.4]){const h=new THREE.Mesh(new THREE.SphereGeometry(.17,10,8),M(0x6b4a3a));h.position.set(x,2.25,.4);body.add(h);WTV.heads.push(h);}
+ bus.traverse(o=>{if(o.isMesh)o.castShadow=true;});scene.add(bus);WTV.bus=bus;WTV.busBody=body;
+ // safe zone (teal) — the only place a rider counts as safe
+ const sz=new THREE.Mesh(new THREE.RingGeometry(3.3,3.6,40),new THREE.MeshBasicMaterial({color:0x6fe8c1,transparent:true,opacity:.6,side:THREE.DoubleSide}));sz.rotation.x=-Math.PI/2;sz.position.set(WTV.site.safe.x,y+.03,WTV.site.safe.z);scene.add(sz);WTV.safeRing=sz;
+ for(let k=0;k<6;k++){const a=k/6*Math.PI*2,p=new THREE.Mesh(new THREE.CylinderGeometry(.08,.08,.9,6),M(0xe8e4da));p.position.set(WTV.site.safe.x+Math.cos(a)*3.9,y+.45,WTV.site.safe.z+Math.sin(a)*3.9);scene.add(p);}
+ // the ReFramer: voxel core + eight jointed limbs (procedural so each joint has its own state)
+ const core=new THREE.Group();const kc=wtVox('rfCore',1.35);if(kc)core.add(kc);else{const b=new THREE.Mesh(new THREE.BoxGeometry(3.4,1.6,2.4),M(0x232f42,.5,.6));core.add(b);}
+ const eye=new THREE.PointLight(0xff3a5a,0,10);eye.position.set(0,.9,1.4);core.add(eye);WTV.eye=eye;core.visible=false;scene.add(core);WTV.core=core;
+ const steel=M(0x9fb4cb,.45,.7),steel2=M(0x6c7c90,.5,.7);
+ for(let i=0;i<8;i++){const up=new THREE.Mesh(new THREE.BoxGeometry(.32,.32,1),steel.clone()),lo=new THREE.Mesh(new THREE.BoxGeometry(.26,.26,1),steel2.clone()),kn=new THREE.Mesh(new THREE.SphereGeometry(.28,10,8),M(0x9b88ca,.4,.5));
+  for(const m of [up,lo,kn]){m.castShadow=true;m.visible=false;scene.add(m);}WTV.limbs.push({up,lo,kn,knee:new THREE.Vector3(),foot:new THREE.Vector3(),sh:new THREE.Vector3(),down:0});}
+ // Framekeeper drone (ReconBot) with eight tool arms
+ const kp=new THREE.Group();const kv=wtVox('keeper',.17);if(kv){kv.position.y=-.5;kp.add(kv);}else kp.add(new THREE.Mesh(new THREE.SphereGeometry(.4,10,8),M(0x5a8090)));
+ WTV.kArms=[];for(let k=0;k<8;k++){const a=new THREE.Mesh(new THREE.BoxGeometry(.05,.05,.55),M(0x8caaa9,.4,.6));kp.add(a);WTV.kArms.push(a);}
+ kp.visible=false;scene.add(kp);WTV.keeper=kp;
+ // bounded gravity anomaly: a slanted shimmer column + debris that falls the wrong way
+ const fc=new THREE.Mesh(new THREE.CylinderGeometry(7,7,6,32,1,true),new THREE.MeshBasicMaterial({color:0xa3b5fa,transparent:true,opacity:.07,side:THREE.DoubleSide,depthWrite:false}));fc.position.set(WTV.site.field.x,y+3,WTV.site.field.z);fc.visible=false;scene.add(fc);WTV.field=fc;
+ WTV.debris=[];for(let k=0;k<10;k++){const d=new THREE.Mesh(new THREE.BoxGeometry(.25,.12,.3),M(0x777777));d.visible=false;scene.add(d);WTV.debris.push({m:d,a:Math.random()*6.3,r:1+Math.random()*5,h:Math.random()*3});}
+ // the signal (ReFramer sensor red — violet stays Metal's)
+ const sg=new THREE.PointLight(0xff3a5a,0,14);sg.position.set(WTV.site.signal.x,y+2,WTV.site.signal.z);scene.add(sg);WTV.signal=sg;
+ label('FOUNDRY STEPS',new THREE.Vector3(c.x+12,y+3.4,c.z-18),'#cfd6e0');label('SAFE ZONE',new THREE.Vector3(WTV.site.safe.x,y+2.4,WTV.site.safe.z),'#a9f6cb');label('CIVIC SHUTTLE',new THREE.Vector3(WTV.site.bus.x,y+4,WTV.site.bus.z),'#def8eb');}
+function wtVox(name,s){if(!WTV.kit)return null;const n=WTV.kit.scene.children.find(o=>o.name===name);if(!n)return null;const g=n.clone(true);g.position.set(0,0,0);g.scale.setScalar(s);
+ g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.material=o.material.clone();o.material.vertexColors=true;}});const w=new THREE.Group();w.add(g);g.updateMatrixWorld(true);const bb=new THREE.Box3().setFromObject(g);g.position.x-=(bb.min.x+bb.max.x)/2;g.position.z-=(bb.min.z+bb.max.z)/2;g.position.y-=bb.min.y;return w;}
+function wtSeg(m,a,b){m.position.copy(a).add(b).multiplyScalar(.5);m.scale.z=Math.max(.05,a.distanceTo(b));m.lookAt(b);}
+function wtOfficer(i){const sp=WTV.site.officerSpawn,fit={top:0x1d2a44,bot:0x141a26,shoe:0x0c0f14,h:1.84};const ch=rivalGLTF?makeFighter(rivalGLTF,fit):makeChar(0x1d2a44);
+ ch.o.position.set(sp.x+i*1.6,groundY,sp.z);scene.add(ch.o);addClips(ch,EP.clips.npc);
+ // pressure-cage helmet: visor + external load-bearing struts down to a shoulder ring (WIR design, PROPOSAL)
+ const hb=ch.o.getObjectByName('head')||ch.o.getObjectByName('Head');const cage=new THREE.Group();const st=new THREE.MeshStandardMaterial({color:0xb8c0c8,metalness:.8,roughness:.3});
+ const ring=new THREE.Mesh(new THREE.TorusGeometry(.2,.025,6,16),st);ring.rotation.x=Math.PI/2;cage.add(ring);
+ for(let k=0;k<4;k++){const a=k/4*Math.PI*2+Math.PI/4,s=new THREE.Mesh(new THREE.BoxGeometry(.03,.42,.03),st);s.position.set(Math.cos(a)*.19,-.12,Math.sin(a)*.19);cage.add(s);}
+ const vis=new THREE.Mesh(new THREE.SphereGeometry(.16,12,8,0,Math.PI*2,0,Math.PI*.6),new THREE.MeshStandardMaterial({color:0xaee6ff,transparent:true,opacity:.28,roughness:.1}));vis.position.y=.02;cage.add(vis);
+ const gauge=new THREE.Mesh(new THREE.BoxGeometry(.06,.04,.02),new THREE.MeshStandardMaterial({color:0x222,emissive:0x6fe8c1,emissiveIntensity:.8}));gauge.position.set(.16,-.05,.12);cage.add(gauge);WTV.gauges=(WTV.gauges||[]).concat(gauge);
+ if(hb){cage.position.y=.12;hb.add(cage);}else{cage.position.y=1.75;ch.o.add(cage);}
+ const t=nameTag(i?'MC-02':'MC-01',0xcbd9fb);t.position.y=2.25;ch.o.add(t);worldLabels.push(t);t.visible=HELP.on;ch.o.visible=false;return ch;}
+function wtInit(){if(WTV.ready||!WTV.c||!P)return;WTV.ready=true;let txt=null;try{if(new URLSearchParams(location.search).get('wt')==='reset')localStorage.removeItem(WTV.saveKey);txt=localStorage.getItem(WTV.saveKey);}catch(e){}
+ WTV.S=txt?wtRestore(txt,WTV.site):createWT(WTV.site);WTV.offs=[wtOfficer(0),wtOfficer(1)];
+ const fits=[{top:0xd9a14a,bot:0x2a2d33,f:1,h:1.62},{top:0x2e5e8a,bot:0x9a8f7a,h:1.76}];WTV.people=fits.map(f=>{const ch=ep1Person(f,new THREE.Vector3(WTV.site.door.x,groundY,WTV.site.door.z),null);ch.o.visible=false;return ch;});
+ if(WTV.S.mission==='COMPLETE')wtAftermath();}
+function wtAftermath(){const S=WTV.S;WTV.signal.intensity=0;WTV.core.visible=false;for(const l of WTV.limbs){l.up.visible=l.lo.visible=l.kn.visible=false;}WTV.keeper.visible=false;
+ for(const h of WTV.heads)h.visible=false;if(!WTV.brace&&S.bus.braced)wtBraceMesh();}
+function wtBraceMesh(){const m=new THREE.Mesh(new THREE.BoxGeometry(7.6,.3,.35),galaxyCrystalMat({}));m.position.set(0,.5,-1.45);WTV.busBody.add(m);
+ for(const x of [-3.2,0,3.2]){const p=new THREE.Mesh(new THREE.CylinderGeometry(.12,.2,2.4,7),galaxyCrystalMat({}));p.position.set(x,1.4,-1.62);p.rotation.x=.25;WTV.busBody.add(p);}WTV.brace=m;}
+// glob / strike / pulse from Metal (called first inside reframerHit)
+function wtHit(kind,power,pos){const S=WTV.S;if(!S||S.mission!=='DEFEND')return false;const p=P.o.position;
+ if(kind==='pulse'){if(WTV.keeper.visible&&WTV.kp.distanceTo(p)<7){wtEv(hitKeeper(S,.6));return true;}return false;}
+ if(!pos)return false;
+ if(WTV.keeper.visible&&S.keeper.hp>0&&pos.distanceTo(WTV.kp)<(kind==='glob'?1.6:1.4)){wtEv(hitKeeper(S,kind==='glob'?1:.5));return true;}
+ let best=null,bd=kind==='glob'?1.9:1.5;const q=new THREE.Vector3(),seg=new THREE.Line3();
+ WTV.limbs.forEach((l,i)=>{if(S.boss.limbs[i].hp<=0)return;for(const [a,b] of [[l.sh,l.knee],[l.knee,l.foot]]){seg.set(a,b);seg.closestPointToPoint(pos,true,q);const d=q.distanceTo(pos);if(d<bd){bd=d;best=i;}}});
+ if(best!=null){const e=hitLimb(S,best+1,power);wtEv(e);burst(pos,22,4);beep(220,.07,'square',.04);return true;}
+ // a glob into the occupied shuttle is collateral — and the officers see it
+ if(kind==='glob'){const bp=WTV.site.bus;if(Math.hypot(pos.x-bp.x,pos.z-bp.z)<4.5&&pos.y<groundY+3.6&&S.t-(WTV.collT??-9)>1.2){WTV.collT=S.t;WTV.coll++;S.after.collateral++;wtWitness('COLL-'+WTV.coll,'collateral',pos);S.bus.integrity-=6;return false;}}
+ return false;}
+function wtLOS(a,b){const ray=new THREE.Ray(a.clone(),b.clone().sub(a).normalize()),L=a.distanceTo(b),hit=new THREE.Vector3();for(const bx of colliders){if(ray.intersectBox(bx,hit)&&hit.distanceTo(a)<L-.3)return false;}return true;}
+function wtWitness(id,kind,pos){const S=WTV.S;WTV.offs.forEach((o,i)=>{const eye=o.o.position.clone().setY(o.o.position.y+1.7),tp=new THREE.Vector3(pos.x,(pos.y||groundY)+1,pos.z);
+ wtEv(wtObserve(S,i,id,kind,{dist:Math.hypot(eye.x-pos.x,eye.z-pos.z),occluded:!o.o.visible||!wtLOS(eye,tp)}));});}
+function wtEv(e){if(!e)return;const S=WTV.S,p=P.o.position;
+ switch(e.type){
+  case 'activate':{WTV.core.visible=true;WTV.dropT=0;sfx('phase',.6);FG.shake=.35;whisper('ReFramer on an occupied shuttle','brace it · get them out · take its legs');plog('discoveries','Wrong Target — a ReFramer is harvesting a civic shuttle at Foundry Steps');WTV.keeper.visible=true;WTV.kp.copy(WTV.core.position).add(new THREE.Vector3(2,1,0));break;}
+  case 'policeArrive':for(const o of WTV.offs)o.o.visible=true;beep(660,.12,'square',.03);setTimeout(()=>beep(880,.12,'square',.03),160);whisper('Armored police on scene','they decide from what they see');break;
+  case 'braced':st.gal=Math.max(0,st.gal-e.cost/100);wtBraceMesh();setViolet(.6);burst(WTV.bus.position.clone().setY(groundY+1.5),60,6);whisper('Shuttle braced · '+e.cost+' Gallium','the door is clear');break;
+  case 'blocked':whisper(e.why==='brace'?'Too risky to open':'Not enough Gallium',e.why==='brace'?'brace the shuttle first — hold Metal Draw beside it':'draw more metal');break;
+  case 'busSwing':FG.shake=.5;beep(70,.35,'sawtooth',.06);whisper('It ripped a wheel off','the riders are shaken');WTV.wheels[0].visible=false;break;
+  case 'extracted':{const ch=WTV.people[e.id==='A'?0:1];ch.o.visible=true;ch.o.position.set(WTV.site.door.x,groundY,WTV.site.door.z+.6);WTV.heads[e.id==='A'?0:1].visible=false;playT(ch,'Wave',.8);whisper('Out of the shuttle','not safe yet — walk them to the safe zone');break;}
+  case 'waiting':whisper('They stopped','they won\'t follow from that far');break;
+  case 'safe':beep(700,.08,'triangle',.05);setTimeout(()=>beep(1050,.1,'triangle',.05),90);burst(new THREE.Vector3(WTV.site.safe.x,groundY+1,WTV.site.safe.z),30,4);whisper('Safe · '+S.after.rescued+'/2','');break;
+  case 'police':if(e.mode==='ASSIST')whisper(e.officer+' stands down','they\'re helping now');else if(e.mode==='PURSUE')whisper(e.officer+' is coming for you','keep moving — a snare only slows you');break;
+  case 'snare':WTV.snareT=WT.SNARE_T;WTV.snareFrom=WTV.offs[e.officer==='MC-01'?0:1];beep(300,.2,'square',.04);break;
+  case 'limbHit':if(e.down){burst(WTV.limbs[e.id-1].knee,40,6);FG.shake=.3;beep(90,.25,'sawtooth',.05);whisper(e.id<=4?'Support leg down':'Harvest arm down',e.shift?'that leg was carrying the shuttle — it dropped onto it':e.stance?'it can\'t hold its stance':'');}break;
+  case 'repair':whisper('Framekeeper is welding leg '+e.id,'stock '+e.stock+' · stop the drone, not the armor');break;
+  case 'keeperDown':burst(WTV.kp,40,5);beep(160,.2,'square',.05);whisper('Repair drone down','');break;
+  case 'keeperHit':burst(WTV.kp,12,3);break;
+  case 'lilHeavyScan':whisper('Lil Heavy filmed it','independent footage · the drone backs off');break;
+  case 'stomp':metalHurt(WT.STOMP_DMG,WTV.core.position,'stomp');vRing(p.x,p.z,2.2,.4,0xff6a6a);break;
+  case 'gravOff':whisper('The field collapsed','');break;
+  case 'complete':{FG.shake=.6;beep(40,.5,'square',.08);burst(WTV.core.position,120,9);st.gal=Math.min(1,st.gal+.25);
+   toast('Wrong Target · '+e.rescued+'/2 safe'+(e.shaken?' ('+e.shaken+' shaken)':'')+' · police trust '+e.trust);plog('achievements','Wrong Target — both riders safe, Roadframe down, trust '+e.trust);
+   whisper('The machine is down','everyone out · the stop reopens');for(const o of WTV.offs)playT(o,'Wave',1.2);try{localStorage.setItem(WTV.saveKey,wtSave(S));}catch(_){}break;}
+ }}
+function wtTick(dt){if(!WTV.c||!P)return;wtInit();const S=WTV.S;if(!S)return;const p=P.o.position,y=groundY;
+ const ePress=!!pressed.KeyE&&Math.hypot(p.x-WTV.site.door.x,p.z-WTV.site.door.z)<WT.DOOR_R;if(ePress)pressed.KeyE=false;
+ let lhScan=false;if(S.mission==='DEFEND'&&!WTV.lhSeen&&LH.o&&LH.o.position.distanceTo(WTV.core.position.clone().setY(y))<14&&LH.mode==='scout'){WTV.lhSeen=true;lhScan=true;}
+ const w={metal:{x:p.x,z:p.z},drawing:DRW.drawing,interact:ePress,gal:st.gal*100,officers:WTV.offs.map(o=>({x:o.o.position.x,z:o.o.position.z})),
+  occluded:WTV.offs.map(o=>!o.o.visible||!wtLOS(o.o.position.clone().setY(y+1.7),p.clone().setY(p.y+1))),lilHeavyScan:lhScan};
+ const prevM=S.mission;const out=wtStep(S,w,dt);for(const e of out.events)wtEv(e);
+ // signal before it starts
+ WTV.signal.intensity=S.mission==='APPROACH'?6+5*Math.sin(performance.now()/180):0;
+ if(S.mission==='APPROACH'||S.mission==='COMPLETE'&&prevM==='COMPLETE'){return;}
+ // gravity anomaly (bounded): pushes Metal and loose debris sideways
+ WTV.field.visible=S.grav.on;if(S.grav.on){if(!DRV.active&&out.grav){vel.x+=out.grav.ax*dt;vel.z+=out.grav.az*dt;}for(const d of WTV.debris){d.m.visible=true;d.a+=dt*.6;d.h=(d.h+dt*.5)%3;d.m.position.set(WTV.site.field.x+Math.cos(d.a)*d.r+S.site.field.dx*d.h,y+.3+d.h,WTV.site.field.z+Math.sin(d.a)*d.r+S.site.field.dz*d.h);d.m.rotation.x+=dt*2;}}
+ else for(const d of WTV.debris)d.m.visible=false;
+ // snare: a cable from the officer slows Metal, he can drag through it
+ if(out.snare)WTV.snareT=out.snare;WTV.snareT-=dt;if(WTV.snareT>0&&WTV.snareFrom){vel.multiplyScalar(Math.exp(-4*dt));if(!WTV.snareLine){WTV.snareLine=new THREE.Mesh(new THREE.CylinderGeometry(.02,.02,1,5),new THREE.MeshBasicMaterial({color:0xcfe8ff}));WTV.snareLine.rotation.order='YXZ';scene.add(WTV.snareLine);}
+  const a=WTV.snareFrom.o.position.clone().setY(y+1.2),b=p.clone().setY(p.y+1);WTV.snareLine.visible=true;WTV.snareLine.position.copy(a).add(b).multiplyScalar(.5);WTV.snareLine.scale.y=a.distanceTo(b);WTV.snareLine.lookAt(b);WTV.snareLine.rotateX(Math.PI/2);}
+ else if(WTV.snareLine)WTV.snareLine.visible=false;
+ // shuttle tilt + door cue
+ WTV.bus.rotation.x=S.bus.tilt*.5;WTV.door.material.emissiveIntensity=S.bus.braced&&S.people.some(q=>q.phase==='TRAPPED')?.5+.3*Math.sin(performance.now()/200):0;
+ // ReFramer pose
+ const B=S.boss,cp=WTV.site.nest,target=B.mode==='COLLAPSED'?.9:B.mode==='RECOVER_STANCE'?2.1:4.2;WTV.dropT=(WTV.dropT||0)+dt;
+ WTV.coreY+=(target-WTV.coreY)*Math.min(1,dt*(WTV.dropT<1?8:2));const drop=WTV.dropT<.7?(1-WTV.dropT/.7)*14:0;
+ WTV.core.position.set(cp.x,y+WTV.coreY+drop,cp.z);WTV.core.rotation.z=B.mode==='RECOVER_STANCE'?.18:B.mode==='COLLAPSED'?.35:Math.sin(S.t*1.3)*.03;WTV.core.rotation.y=-.3;
+ WTV.eye.intensity=B.mode==='COLLAPSED'?0:3+Math.sin(S.t*6);
+ const bp=WTV.site.bus,legFeet=[[-2.6,3.6],[2.6,3.6],[-4.2,-3.6],[4.2,-3.6]],armX=[-3,-1,1,3];const t=S.t;
+ WTV.limbs.forEach((l,i)=>{const Ld=B.limbs[i],dead=Ld.hp<=0,ang=i/8*Math.PI*2;for(const m of [l.up,l.lo,l.kn])m.visible=true;
+  l.sh.set(WTV.core.position.x+Math.cos(ang)*1.3,WTV.core.position.y+.6,WTV.core.position.z+Math.sin(ang)*1.0);
+  if(Ld.support){const [fx,fz]=legFeet[i];l.foot.set(cp.x+fx*(dead?.6:1),y+(dead?.3:0),cp.z+fz*(dead?.6:1));}
+  else{const lift=S.bus.tilt*.5,bx=bp.x+armX[i-4],bz=bp.z-1.3*Math.cos(lift),by=y+2.9*(1)+Math.sin(lift)*2.6;l.foot.set(bx,dead?y+.4:by+Math.sin(t*3+i)*.08,dead?bz-2:bz);}
+  l.knee.copy(l.sh).lerp(l.foot,.5);l.knee.y+=dead?-.6:Ld.support?2.0:1.2;wtSeg(l.up,l.sh,l.knee);wtSeg(l.lo,l.knee,l.foot);l.kn.position.copy(l.knee);
+  const col=dead?0x5a2f38:Ld.hp<100?0xc08a7a:0x9fb4cb;l.up.material.color.setHex(col);l.lo.material.color.setHex(dead?0x3c2328:0x6c7c90);l.kn.material.color.setHex(dead?0x964f61:0x9b88ca);
+  if(dead&&Math.random()<dt*3)burst(l.knee,2,1.2);});
+ // Framekeeper drone
+ const K=S.keeper;WTV.keeper.visible=true;let kt;
+ if(K.mode==='DOWN'){kt=WTV.kp.clone().setY(y+.35);}else if(K.mode==='REPAIR'&&K.target){kt=WTV.limbs[K.target-1].knee.clone().add(new THREE.Vector3(.6,.4,0));if(WTV.kp.distanceTo(kt)<1.2&&Math.random()<.6)burst(WTV.limbs[K.target-1].knee,2,1.5);}
+ else if(K.mode==='STABILIZE')kt=new THREE.Vector3(bp.x,y+4.2,bp.z);else if(K.mode==='EVADE')kt=WTV.core.position.clone().add(new THREE.Vector3(0,2.5,-2));else kt=WTV.core.position.clone().add(new THREE.Vector3(Math.cos(t*.7)*3,1.4,Math.sin(t*.7)*3));
+ WTV.kp.lerp(kt,Math.min(1,dt*(K.mode==='DOWN'?6:2)));WTV.keeper.position.copy(WTV.kp);if(K.mode!=='DOWN')WTV.keeper.position.y+=Math.sin(t*4)*.08;WTV.keeper.rotation.z=K.mode==='DOWN'?1.2:0;
+ WTV.kArms.forEach((a,k)=>{const an=k/8*Math.PI*2+t*(K.mode==='REPAIR'?3:.6);a.position.set(Math.cos(an)*.42,-.1+Math.sin(t*5+k)*.05,Math.sin(an)*.42);a.rotation.y=-an;});
+ // riders
+ S.people.forEach((q,i)=>{const ch=WTV.people[i];if(q.phase==='TRAPPED')return;ch.o.visible=true;const tp=new THREE.Vector3(q.x,y,q.z),d=tp.clone().sub(ch.o.position).setY(0);
+  if(d.length()>.02){ch.o.position.copy(tp);ch.o.rotation.y=Math.atan2(d.x,d.z);play(ch,'Walking');if(q.shaken&&ch.acts.Walking)ch.acts.Walking.setEffectiveTimeScale(.6);}
+  else{play(ch,q.phase==='SAFE'?(ch.acts.Idle_TalkingPhone_Loop?'Idle_TalkingPhone_Loop':'Idle'):'Idle');if(q.phase!=='SAFE')ch.o.rotation.y+=angDiff(ch.o.rotation.y,Math.atan2(p.x-ch.o.position.x,p.z-ch.o.position.z))*Math.min(1,dt*3);}});
+ // officers act on their assessment
+ S.officers.forEach((o,i)=>{const ch=WTV.offs[i];if(o.mode==='OFFDUTY'||!ch.o.visible)return;const op=ch.o.position;let goal=null,run=false;
+  if(o.mode==='PURSUE'){goal=p.clone();run=true;}
+  else if(o.mode==='ASSIST'){const esc=S.people.find(q=>q.phase==='ESCORTING'||q.phase==='WAITING');goal=esc?new THREE.Vector3(esc.x+1.2,y,esc.z+.8):new THREE.Vector3(WTV.site.safe.x+2.5+i*1.5,y,WTV.site.safe.z-2.5);}
+  else{const dir=op.clone().sub(p).setY(0);if(dir.length()<.1)dir.set(1,0,0);goal=p.clone().addScaledVector(dir.normalize(),8+i*1.5);}
+  const v=goal.sub(op).setY(0),dd=v.length();if(dd>14)run=true;const sp=run?5.2:2.2;
+  if(dd>.4){op.addScaledVector(v.normalize(),Math.min(dd,sp*dt));ch.o.rotation.y=Math.atan2(v.x,v.z);play(ch,run?'Running':'Walking');}
+  else{ch.o.rotation.y+=angDiff(ch.o.rotation.y,Math.atan2(p.x-op.x,p.z-op.z))*Math.min(1,dt*4);play(ch,o.mode==='INVESTIGATE'&&ch.acts.Idle_TalkingPhone_Loop?'Idle_TalkingPhone_Loop':'Idle');}
+  if(WTV.gauges&&WTV.gauges[i])WTV.gauges[i].material.emissive.setHex(o.mode==='PURSUE'?0xff5a6a:o.mode==='ASSIST'?0x6fe8c1:0xffd36b);});
+ if(S.mission==='COMPLETE'&&prevM!=='COMPLETE'){for(const h of WTV.heads)h.visible=false;}
+}
+
+
+// ---------- GALAXY GALLIUM KIT v1 (owner direction 2026-11-06) PROPOSAL / PUBLISH HOLD — rules in gallium_kit_core.mjs ----------
+// Liquid metal heated and cooled with particles from the vacuum of space: hot (liquid, flowing) while Metal shapes it,
+// set into black galaxy crystal when it cools. Finite: board ⇄ puddles ⇄ reserve ⇄ sword / shield / blast.
+var KITV={on:true,K:createKit(),bT:0,bPrev:false,bFired:false,forgeReq:false,formReq:null,recall:null,meshes:new Map(),merk:null,arcs:null,sword:null,shield:null,beams:[],yPrev:false,saveT:0,dirty:false,loaded:false,saveKey:'wirPuddlesV1'};
+function starTetra(r,mat){const g=new THREE.Group(),a=new THREE.Mesh(new THREE.TetrahedronGeometry(r,0),mat),b=a.clone();b.scale.set(-1,-1,-1);g.add(a,b);g.userData.a=a;g.userData.b=b;g.rotation.set(Math.atan(Math.SQRT1_2),0,Math.PI/4);return g;}
+function liquidMat(cool=0,o={}){const m=galaxyCrystalMat({cool,...o});m.side=THREE.DoubleSide;return m;}
+function kitPuddleAdd(x,y,z,amt){const p=kitAddPuddle(KITV.K,x,y,z,amt);KITV.dirty=true;kitPuddleSync();return p;}
+function kitPuddleSync(){const live=new Set();
+ for(const p of KITV.K.puddles){live.add(p.id);let m=KITV.meshes.get(p.id);if(!m){m=new THREE.Mesh(new THREE.CircleGeometry(1,14),liquidMat(.3));m.rotation.x=-Math.PI/2;m.receiveShadow=true;scene.add(m);KITV.meshes.set(p.id,m);}
+  const r=.3+1.9*Math.sqrt(Math.max(0,p.amount));m.scale.set(r,r,1);m.position.set(p.x,p.y+.03,p.z);}
+ for(const [id,m] of KITV.meshes)if(!live.has(id)){scene.remove(m);KITV.meshes.delete(id);}}
+function kitInit(){if(KITV.loaded||!P)return;KITV.loaded=true;
+ try{if(new URLSearchParams(location.search).get('world')==='reset')localStorage.removeItem(KITV.saveKey);const t=localStorage.getItem(KITV.saveKey);if(t)kitLoadPuddles(KITV.K,t);}catch(e){}kitPuddleSync();
+ KITV.merk=starTetra(.95,liquidMat(0,{transparent:true,opacity:.7}));KITV.merk.visible=false;scene.add(KITV.merk);
+ const g=new THREE.BufferGeometry();KITV.arcPos=new Float32Array(8*7*2*3);g.setAttribute('position',new THREE.BufferAttribute(KITV.arcPos,3));
+ KITV.arcs=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0xb46bff,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false}));KITV.arcs.frustumCulled=false;KITV.arcs.visible=false;scene.add(KITV.arcs);}
+// the sword lives in the right hand, the shield on the left forearm (rebuilt if the rig changes)
+function kitHandMeshes(){if(!P||!P.model)return;const want=KITV.K.hand;
+ const rh=P.model.getObjectByName('RightHand')||P.model.getObjectByName('hand_r'),la=P.model.getObjectByName('LeftLowerArm')||P.model.getObjectByName('lowerarm_l');
+ if(!KITV.sword&&rh){const s=new THREE.Group(),blade=new THREE.Mesh(new THREE.BoxGeometry(.06,1.05,.022),liquidMat(.35,{emissive:0x7b4dff,emissiveIntensity:.1}));blade.position.y=.62;
+  const edge=new THREE.Mesh(new THREE.BoxGeometry(.012,1.0,.026),new THREE.MeshBasicMaterial({color:0xcdb8ff}));edge.position.set(.032,.62,0);
+  const guard=new THREE.Mesh(new THREE.BoxGeometry(.22,.04,.06),liquidMat(.8));guard.position.y=.08;s.add(blade,edge,guard);s.scale.setScalar(1/(rh.getWorldScale(new THREE.Vector3()).x||1));rh.add(s);KITV.sword=s;}
+ if(!KITV.shield&&la){const s=new THREE.Group(),disc=new THREE.Mesh(new THREE.CylinderGeometry(.52,.52,.05,24),liquidMat(.4));disc.rotation.z=Math.PI/2;
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(.52,.03,6,24),liquidMat(.9));rim.rotation.y=Math.PI/2;s.add(disc,rim);s.position.x=.08;s.scale.setScalar(1/(la.getWorldScale(new THREE.Vector3()).x||1));la.add(s);KITV.shield=s;}
+ if(KITV.sword)KITV.sword.visible=want==='sword';if(KITV.shield)KITV.shield.visible=want==='shield';}
+function kitDoB(hold){const L=RSK.loose,p=P.o.position;
+ const a=kitBAction(KITV.K,{hold,riding:!!st.board,fight:FG.inFight,loose:L?{x:L.p.x,z:L.p.z}:null,metal:{x:p.x,z:p.z},gal:st.gal});
+ switch(a.act){
+  case 'recall':KITV.recall={L,t:0,dur:.3+a.d/70,from:{...L.p}};RSK.looseR=null;beep(520,.08,'triangle',.04);setViolet(.6);whisper('Board — come back','B tap');break;
+  case 'forgeFar':kitPuddleAdd(L.p.x,L.p.y,L.p.z,FORGE_COST);RSK.loose=null;RSK.looseR=null;board.visible=false;KITV.forgeReq=true;whisper('Too far to call back','it melted where it lay · forging a new one');break;
+  case 'forge':KITV.forgeReq=true;break;
+  case 'noMaterial':whisper('Not enough Gallium for a board','L2 + R2 pulls puddles and metal back');break;
+  case 'dismantleBoard':st.board=false;board.visible=false;try{forgeController?.dissolve?.();}catch(e){}kitPuddleAdd(p.x,floorAt(p),p.z,FORGE_COST);vel.multiplyScalar(.4);burst(p.clone().setY(p.y+.2),30,3);beep(160,.2,'sine',.05);whisper('Board melted','a puddle — it stays · pull it back any time');break;
+  case 'dismantleLoose':kitPuddleAdd(L.p.x,L.p.y,L.p.z,FORGE_COST);RSK.loose=null;RSK.looseR=null;board.visible=false;burst(new THREE.Vector3(L.p.x,L.p.y+.2,L.p.z),24,3);whisper('Board melted where it lay','');break;
+  case 'meltHand':{const r=kitMeltHand(KITV.K);kitPuddleAdd(p.x,floorAt(p),p.z,r.amount);kitHandMeshes();burst(p.clone().setY(p.y+1),20,2);whisper((r.kind==='sword'?'Sword':'Shield')+' melted','');break;}
+ }}
+function kitBeam(power){const dir=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)),o=P.o.position.clone().setY(P.o.position.y+1.25).addScaledVector(dir,.7),L=24;
+ const g=new THREE.Group(),r=.28+.5*power,outer=new THREE.Mesh(new THREE.CylinderGeometry(r,r*.8,L,18,1,true),liquidMat(0,{transparent:true,opacity:.92})),
+  core=new THREE.Mesh(new THREE.CylinderGeometry(r*.45,r*.4,L,12,1,true),new THREE.MeshBasicMaterial({color:0xc9a6ff,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+ g.add(outer,core);g.position.copy(o).addScaledVector(dir,L/2);g.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir);scene.add(g);KITV.beams.push({g,t:0,power});
+ FG.shake=Math.max(FG.shake,.35+.4*power);setViolet(1);vRing(o.x,o.z,1.5+power*2,.4,0xb46bff);if(P.acts.Blast){playT(P,'Blast',.4);actT=.5;}
+ for(let k=0;k<6;k++)setTimeout(()=>beep(900-k*120,.07,'sawtooth',.04),k*35);beep(55,.5,'square',.08);
+ const seg=new THREE.Line3(o,o.clone().addScaledVector(dir,L)),q=new THREE.Vector3();
+ for(const f of FOES){if(!f.R.active||f.R.out)continue;seg.closestPointToPoint(f.ch.o.position.clone().setY(f.ch.o.position.y+1),true,q);if(q.distanceTo(f.ch.o.position.clone().setY(f.ch.o.position.y+1))<1.1+power)hitFoe(f,{...STRK.blast,dmg:.18+.34*power,kb:5+10*power,down:power>.6,react:'Knock',src:'glob'},0,dir);}
+ let hits=0;for(let s=1;s<L&&hits<3;s+=1.5){const pt=o.clone().addScaledVector(dir,s);if(reframerHit('blast',Math.min(1,.5+power*.6),pt))hits++;}
+ for(const c of cars){if(c.userData.driven||c.userData.bike)continue;seg.closestPointToPoint(c.position,true,q);if(q.distanceTo(c.position)<1.6+power){const imp=dir.clone().multiplyScalar(9*power);c.userData.kick=imp;burst(c.position.clone().setY(1),18,4);}}}
+function kitTick(dt){if(!P)return;kitInit();const K=KITV.K,p=P.o.position,gp=RSK.gp;
+ // B: tap / hold (while pulling: B = shield)
+ const bDown=!!(keys.KeyB||(gp&&gp.buttons[1]&&gp.buttons[1].pressed));
+ if(K.pulling){if(bDown&&!KITV.bPrev)KITV.formReq='shield';KITV.bFired=true;KITV.bT=0;}
+ else if(bDown){KITV.bT+=dt;if(KITV.bT>=KIT.HOLD_B&&!KITV.bFired){KITV.bFired=true;kitDoB(true);}}
+ else{if(KITV.bPrev&&!KITV.bFired&&KITV.bT<KIT.HOLD_B&&!st.wall)kitDoB(false);KITV.bT=0;KITV.bFired=false;}
+ KITV.bPrev=bDown;
+ // recall flight: the board arcs home trailing liquid metal, Metal steps on when it lands
+ if(KITV.recall){const R=KITV.recall,L=R.L;if(RSK.loose!==L)KITV.recall=null;else{R.t+=dt;const k=Math.min(1,R.t/R.dur),e=k*k*(3-2*k);
+  L.p.x=R.from.x+(p.x-R.from.x)*e;L.p.z=R.from.z+(p.z-R.from.z)*e;L.p.y=R.from.y+(floorAt(p)-R.from.y)*e+Math.sin(k*Math.PI)*2.4;L.roll+=dt*16;
+  if(Math.random()<.8)burst(new THREE.Vector3(L.p.x,L.p.y+.1,L.p.z),1,.4);if(k>=1){L.roll=0;L.p.y=floorAt(p);RSK.looseT=1;KITV.recall=null;beep(330,.05,'triangle',.03);}}}
+ // L2 + R2 on foot (keyboard: hold Y) = PULL
+ const l2=!!(keys.KeyY||gp&&gp.buttons[6]&&gp.buttons[6].value>.5),r2=!!(keys.KeyY||gp&&gp.buttons[7]&&gp.buttons[7].value>.5);
+ const onFoot=!st.board&&!DRV.active&&!st.swing&&!st.flying&&!RSK.active&&!KITV.recall;
+ const o=kitPullStep(K,{l2,r2,onFoot},K.pulling?(DRW.lastGot||0):0,dt);
+ for(const e of o.ev){if(e==='pullStart'){whisper('Pulling metal','+ X sword · + B shield · + Y plasma blast');beep(110,.25,'sine',.04);}
+  if(e==='heavy'){whisper('Heavy Hands','strikes hit like a truck for a while');beep(70,.3,'square',.06);FG.shake=.25;}}
+ const xb=!!(gp&&gp.buttons[2]&&gp.buttons[2].pressed);if(o.pulling){vel.x*=Math.exp(-6*dt);vel.z*=Math.exp(-6*dt);if(pressed.Numpad4||xb&&!KITV.xPrev){pressed.Numpad4=false;KITV.formReq='sword';}}KITV.xPrev=xb;
+ if(KITV.formReq){const r=kitForm(K,KITV.formReq,st.gal);KITV.formReq=null;
+  if(r.ok){st.gal=Math.max(0,st.gal-r.net);kitHandMeshes();burst(p.clone().setY(p.y+1.2),30,3);beep(r.kind==='sword'?880:440,.12,'triangle',.05);whisper(r.kind==='sword'?'Galaxy sword':'Liquid-metal shield','hold B to melt it back');}
+  else if(r.why==='material')whisper('Not enough Gallium','');}
+ const y=!!(gp&&gp.buttons[3]&&gp.buttons[3].pressed)||!!keys.KeyG;if(o.pulling&&y&&!KITV.yPrev){const b=kitBlast(K,st.gal);if(b.ok){st.gal=Math.max(0,st.gal-b.cost);kitBeam(b.power);proHook('power','plasma');}else whisper(b.why==='charge'?'Keep pulling':'Not enough Gallium','');}KITV.yPrev=y;
+ // Merkaba + purple plasma arcs
+ const M=KITV.merk,c=o.merkaba;M.visible=c>.02;if(M.visible){M.position.copy(p).setY(p.y+1.15);const s=.35+1.05*c;M.scale.setScalar(s);M.userData.a.rotation.y+=dt*(1.5+4*c);M.userData.b.rotation.y-=dt*(1.5+4*c);M.userData.a.material.opacity=.35+.5*c;if(o.pulling)setViolet(.4+.6*c);}
+ KITV.arcs.visible=o.arcs&&o.pulling;if(KITV.arcs.visible){const A=KITV.arcPos,R0=.95*(.35+1.05*c);let n=0;
+  for(let b=0;b<8;b++){const th=Math.random()*6.283,ph=Math.random()*3.1416,tx=p.x+Math.sin(ph)*Math.cos(th)*R0*1.3,ty=p.y+1.15+Math.cos(ph)*R0*1.3,tz=p.z+Math.sin(ph)*Math.sin(th)*R0*1.3;
+   let ax=p.x+(b%2?.3:-.3),ay=p.y+1.1,az=p.z;for(let k=1;k<=7;k++){const f=k/7,j=(1-Math.abs(f-.5)*2)*.28;const bx=ax+(tx-ax)/(8-k)+(Math.random()-.5)*j,by=ay+(ty-ay)/(8-k)+(Math.random()-.5)*j,bz=az+(tz-az)/(8-k)+(Math.random()-.5)*j;
+    A[n++]=ax;A[n++]=ay;A[n++]=az;A[n++]=bx;A[n++]=by;A[n++]=bz;ax=bx;ay=by;az=bz;}}
+  KITV.arcs.geometry.attributes.position.needsUpdate=true;if(Math.random()<.25)beep(2400+Math.random()*1800,.02,'square',.012);}
+ // beams fade; cars kicked by a beam roll
+ for(let i=KITV.beams.length-1;i>=0;i--){const B=KITV.beams[i];B.t+=dt;const k=B.t/.75;B.g.scale.set(1+k*.6*(1-k),1,1+k*.6*(1-k));B.g.children[0].material.opacity=Math.max(0,.92*(1-k));B.g.children[1].material.opacity=Math.max(0,.9*(1-k));if(k>=1){scene.remove(B.g);KITV.beams.splice(i,1);}}
+ for(const c of cars){const kk=c.userData.kick;if(!kk)continue;c.position.addScaledVector(kk,dt);kk.multiplyScalar(Math.exp(-2.5*dt));c.rotation.y+=kk.length()*dt*.15;if(kk.length()<.2)c.userData.kick=null;}
+ kitHandMeshes();
+ // the puddles stay — save them
+ KITV.saveT-=dt;if(KITV.dirty&&KITV.saveT<=0){KITV.saveT=3;KITV.dirty=false;try{localStorage.setItem(KITV.saveKey,kitSerializePuddles(KITV.K));}catch(e){}}}
+function kitShieldBlock(dmg,from){if(KITV.K.hand!=='shield'||!from||!P)return dmg;const f=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw)),d=from.clone().sub(P.o.position).setY(0);if(d.lengthSq()<1e-4)return dmg;d.normalize();
+ const r=kitShieldHit(KITV.K,dmg,f.dot(d)>.2);if(r.blocked){burst(P.o.position.clone().setY(P.o.position.y+1.2).addScaledVector(f,.5),14,3);beep(1200,.05,'triangle',.04);
+  if(r.broke){kitPuddleAdd(P.o.position.x,floorAt(P.o.position),P.o.position.z,r.broke.amount);kitHandMeshes();whisper('Shield broke','it fell as a puddle');}}return r.dmg;}
+
+// ---------- FRAMEBREAKERS + FRAMEKEEPER PIT CREW (Machine Wars) PROPOSAL / PUBLISH HOLD — rules in framebreaker_core.mjs ----------
+var FBV={S:null,c:null,units:[],drones:[],plates:[],patrol:null,pi:[0,0],snareT:0,snareFrom:null,snareLine:null,ready:false,lockFx:[]};
+function fbInit(){if(FBV.ready||!rivalGLTF||!SPOTS.foundry||!SPOTS.foundry.c||!WTV.kit&&!WTV.c)return;FBV.ready=true;const C=SPOTS.foundry.c,y=groundY;
+ FBV.S=fbCreateSquad(2,2);FBV.patrol=[new THREE.Vector3(C.x-14,y,C.z-23),new THREE.Vector3(C.x+14,y,C.z-23)];
+ const c={name:'Framebreakers',home:FBV.patrol[0].clone(),state:'fb',level:4,members:[],story:true,fbCtl:true};FBV.c=c;
+ const steel=new THREE.MeshStandardMaterial({color:0x50565f,metalness:.85,roughness:.35}),hazard=new THREE.MeshStandardMaterial({color:0xd98a2b,metalness:.5,roughness:.5});
+ for(let i=0;i<2;i++){const ch=makeFighter(rivalGLTF,{top:0x2b2f36,bot:0x1d2026,shoe:0x0d0f12,h:1.98});ch.o.position.copy(FBV.patrol[0]).add(new THREE.Vector3(i*1.8,0,0));scene.add(ch.o);
+  const bone=n=>ch.o.getObjectByName(n);const sp=bone('spine_03'),ul=bone('upperarm_l'),ur=bone('upperarm_r'),hd=bone('Head');const P2={};
+  const plate=(parent,w,h,d,x,yy,z,mat)=>{if(!parent)return null;const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);const sc=1/(parent.getWorldScale(new THREE.Vector3()).x||1);m.scale.setScalar(sc);m.position.set(x*sc,yy*sc,z*sc);m.castShadow=true;parent.add(m);m.userData.home={parent,pos:m.position.clone(),q:m.quaternion.clone()};return m;};
+  P2.chest=plate(sp,.44,.34,.12,0,.05,.16,steel);P2.back=plate(sp,.42,.36,.1,0,.05,-.16,steel);P2.shoulderL=plate(ul,.2,.14,.26,0,.04,0,hazard);P2.shoulderR=plate(ur,.2,.14,.26,0,.04,0,hazard);
+  if(hd){const sc=1/(hd.getWorldScale(new THREE.Vector3()).x||1),hm=new THREE.Group();const shell=new THREE.Mesh(new THREE.BoxGeometry(.3,.3,.32),steel);const vis=new THREE.Mesh(new THREE.BoxGeometry(.26,.1,.02),new THREE.MeshStandardMaterial({color:0x111,emissive:0xd98a2b,emissiveIntensity:1}));vis.position.set(0,.02,.165);hm.add(shell,vis);hm.scale.setScalar(sc);hm.position.set(0,.1*sc,.02*sc);hd.add(hm);FBV.visors=(FBV.visors||[]).concat(vis);}
+  const t=nameTag('Framebreaker FB-'+(i+1),0xd98a2b);t.position.y=2.4;ch.o.add(t);worldLabels.push(t);t.visible=HELP.on;
+  const R={kind:'crew',crew:c,label:'Framebreaker',style:'heavy',active:false,stance:1,level:4,out:false,slot:i*3,kb:new THREE.Vector3(),fb:i};const foe={ch,R};c.members.push(foe);FOES.push(foe);FBV.units.push({ch,R,plates:P2});
+  const lock=new THREE.Mesh(new THREE.RingGeometry(.35,.6,16),new THREE.MeshBasicMaterial({color:0xd98a2b,transparent:true,opacity:.8,side:THREE.DoubleSide}));lock.rotation.x=-Math.PI/2;lock.visible=false;scene.add(lock);FBV.lockFx.push(lock);}
+ STORY_FIGHTS.push(c);
+ for(let j=0;j<2;j++){const d=new THREE.Group();const v=wtVox('keeper',.075);if(v){v.position.y=-.22;d.add(v);}else d.add(new THREE.Mesh(new THREE.SphereGeometry(.18,8,6),new THREE.MeshStandardMaterial({color:0x5a8090})));
+  for(let k=0;k<8;k++){const a=new THREE.Mesh(new THREE.BoxGeometry(.025,.025,.24),new THREE.MeshStandardMaterial({color:0x8caaa9,metalness:.6}));const an=k/8*Math.PI*2;a.position.set(Math.cos(an)*.2,-.05,Math.sin(an)*.2);a.rotation.y=-an;d.add(a);}
+  d.position.copy(FBV.patrol[0]).add(new THREE.Vector3(j,2.6,-1));scene.add(d);FBV.drones.push({m:d,carry:null,fall:0});}}
+function fbOnHit(foe,s,dir){const i=foe.R.fb;if(i==null||!FBV.S)return s;const u=FBV.units[i],fw=new THREE.Vector3(Math.sin(u.ch.o.rotation.y),0,Math.cos(u.ch.o.rotation.y));
+ const fromFront=dir?fw.dot(dir)<0:true,power=Math.min(1,(s.dmg||.1)*3.2*((s.kb||0)>6?1.25:1)),kind=s.src==='glob'?'glob':'strike';
+ const h=fbHitUnit(FBV.S,i,power,{fromFront,kind});if(!h)return s;
+ if(h.plateOff)fbDropPlate(i,h.plateOff);if(h.lockBroken){whisper('Ground lock broken','');beep(300,.1,'square',.04);}
+ foe.R.minStance=fbPlatesOn(FBV.S.units[i])>0?.15:0;
+ return {...s,dmg:s.dmg*h.dmgMul,kb:(s.kb||0)*h.kbMul};}
+function fbDropPlate(i,name){const m=FBV.units[i].plates[name];if(!m)return;const wp=m.getWorldPosition(new THREE.Vector3()),wq=m.getWorldQuaternion(new THREE.Quaternion()),ws=m.getWorldScale(new THREE.Vector3());
+ m.removeFromParent();m.position.copy(wp);m.quaternion.copy(wq);m.scale.copy(ws);scene.add(m);FBV.plates.push({m,i,name,v:new THREE.Vector3((Math.random()-.5)*3,3.5,(Math.random()-.5)*3),w:new THREE.Vector3(Math.random()*6,Math.random()*6,0),held:false});
+ burst(wp,22,4);beep(240,.08,'square',.05);whisper('Plate knocked loose','stop the little drones or it goes right back on');}
+function fbTick(dt){fbInit();const S=FBV.S;if(!S)return;const p=P.o.position,y=groundY,c=FBV.c;
+ const trust=WTV.S&&WTV.S.mission==='COMPLETE'?WTV.S.after.trust:0;const E=RFR.W&&RFR.W.enc;
+ const rfPos=E?{x:E.target.x,z:E.target.z}:(WTV.S&&WTV.S.mission==='DEFEND'?{x:WTV.core.position.x,z:WTV.core.position.z}:null);
+ const near=rfPos&&FBV.units.some(u=>Math.hypot(u.ch.o.position.x-rfPos.x,u.ch.o.position.z-rfPos.z)<40);
+ FBV.units.forEach((u,i)=>{if(u.R.out&&S.units[i].state!=='surrender'){S.units[i].state='surrender';whisper('FB-'+(i+1)+' surrenders','the operator climbs out · nonlethal');}});
+ const out=fbStep(S,{metal:{x:p.x,z:p.z},riding:!!st.board&&RSK.active,trust,reframerNear:!!near,units:FBV.units.map(u=>({x:u.ch.o.position.x,z:u.ch.o.position.z}))},dt);
+ for(const e of out.events){const u=FBV.units[e.i];
+  if(e.type==='state'){if(e.state==='confront'&&c.state!=='fight'){c.home=u.ch.o.position.clone();startCrew(c);for(const f of c.members)f.R.minStance=.15;whisper('Framebreakers','plates, not health — knock them loose, stop the drones');}
+   if((e.state==='standdown'||e.state==='ally')&&c.state==='fight'&&!S.units.some(q=>q.state==='confront'))fbEndFight();
+   if(e.state==='standdown'){whisper('FB-'+(e.i+1)+' stands down','they heard what you did at Foundry Steps');playT(u.ch,'Wave',1);}}
+  if(e.type==='alliance'){whisper('Emergency alliance','the Framebreakers turn on the machine');if(c.state==='fight')fbEndFight();}
+  if(e.type==='groundLock'){FBV.lockFx[e.i].visible=true;FBV.lockFx[e.i].userData.t=2.5;beep(180,.12,'square',.04);}
+  if(e.type==='frameShear'&&st.board&&RSK.active){fbShear(u);}
+  if(e.type==='snare'){FBV.snareT=1.6;FBV.snareFrom=u;beep(300,.2,'square',.04);}
+  if(e.type==='droneCatch'){const pl=FBV.plates.find(q=>q.i===e.i&&q.name===e.plate&&!q.held);if(pl){pl.held=true;FBV.drones[e.j].carry=pl;}}
+  if(e.type==='plateRepaired'){const pl=FBV.plates.find(q=>q.i===e.i&&q.name===e.plate);if(pl){const h=pl.m.userData.home;h.parent.add(pl.m);pl.m.position.copy(h.pos);pl.m.quaternion.copy(h.q);pl.m.scale.setScalar(1/(h.parent.getWorldScale(new THREE.Vector3()).x||1));FBV.plates.splice(FBV.plates.indexOf(pl),1);}
+   FBV.drones[e.j].carry=null;burst(u.ch.o.position.clone().setY(y+1.4),10,2);beep(1400,.04,'square',.03);u.R.minStance=.15;}}
+ // units between fights: patrol / stand / walk on the machine
+ FBV.units.forEach((u,i)=>{const su=S.units[i],o=u.ch.o;const lk=FBV.lockFx[i];if(lk.visible){lk.userData.t-=dt;lk.position.set(o.position.x,y+.04,o.position.z);if(lk.userData.t<=0)lk.visible=false;}
+  if(c.state==='fight'||u.R.out)return;let goal=null,run=false;
+  if(su.state==='patrol'){goal=FBV.patrol[FBV.pi[i]];if(o.position.distanceTo(goal)<1)FBV.pi[i]^=1;}
+  else if(su.state==='ally'&&rfPos){goal=new THREE.Vector3(rfPos.x+(i?3:-3),y,rfPos.z+4);run=true;if(o.position.distanceTo(goal)<2&&Math.random()<dt*.8){const at=new THREE.Vector3(rfPos.x,y+1.5,rfPos.z);reframerHit('strike',.6,at);burst(at,14,3);playT(u.ch,'Melee_Hook',.6);}}
+  else if(su.state==='standdown'){o.rotation.y+=angDiff(o.rotation.y,Math.atan2(p.x-o.position.x,p.z-o.position.z))*Math.min(1,dt*3);play(u.ch,'Idle');}
+  if(goal){const v=goal.clone().sub(o.position).setY(0),d=v.length();if(d>.3){o.position.addScaledVector(v.normalize(),Math.min(d,(run?5:1.8)*dt));o.rotation.y=Math.atan2(v.x,v.z);play(u.ch,run?'Running':'Walking');}}});
+ if(FBV.visors)FBV.visors.forEach((v,i)=>v.material.emissive.setHex(S.units[i].state==='confront'?0xff5a3a:S.units[i].state==='surrender'?0x6fe8c1:0xd98a2b));
+ // loose plates fall; drones fly to them and carry them home
+ for(const pl of FBV.plates){if(pl.held)continue;pl.v.y-=9.8*dt;pl.m.position.addScaledVector(pl.v,dt);pl.m.rotation.x+=pl.w.x*dt;pl.m.rotation.y+=pl.w.y*dt;const fl=floorAt(pl.m.position)+.08;if(pl.m.position.y<fl){pl.m.position.y=fl;pl.v.set(0,0,0);pl.w.multiplyScalar(0);}}
+ FBV.drones.forEach((d,j)=>{const sd=S.drones[j];if(sd.hp<=0){d.fall+=dt;d.m.position.y=Math.max(y+.2,d.m.position.y-dt*6);d.m.rotation.z=1.2;if(d.carry){d.carry.held=false;d.carry=null;}return;}
+  let tgt;const pl=d.carry;if(pl){const task=S.loose.find(L=>L.drone===j);const tt=task?task.t/FB.REPAIR_T:1;const u=FBV.units[pl.i].ch.o.position;
+   tgt=tt<.45?pl.m.position.clone().setY(pl.m.position.y+.3):new THREE.Vector3(u.x,y+1.5,u.z);if(tt>=.45){pl.m.position.lerp(d.m.position.clone().setY(d.m.position.y-.25),Math.min(1,dt*10));}}
+  else{const u=FBV.units[j%2].ch.o.position;tgt=new THREE.Vector3(u.x+(j?-.8:.8),y+2.5+Math.sin(performance.now()/400+j)*.15,u.z-.8);}
+  d.m.position.lerp(tgt,Math.min(1,dt*FB.DRONE_SPEED*.5));d.m.rotation.y+=dt*(pl?6:1.5);});
+ // inertia snare
+ FBV.snareT-=dt;if(FBV.snareT>0&&FBV.snareFrom){vel.multiplyScalar(Math.exp(-4*dt));if(!FBV.snareLine){FBV.snareLine=new THREE.Mesh(new THREE.CylinderGeometry(.02,.02,1,5),new THREE.MeshBasicMaterial({color:0xffc070}));scene.add(FBV.snareLine);}
+  const a=FBV.snareFrom.ch.o.position.clone().setY(y+1.2),b=p.clone().setY(p.y+1);FBV.snareLine.visible=true;FBV.snareLine.position.copy(a).add(b).multiplyScalar(.5);FBV.snareLine.scale.y=a.distanceTo(b);FBV.snareLine.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),b.clone().sub(a).normalize());}
+ else if(FBV.snareLine)FBV.snareLine.visible=false;
+ if(fbAllDown(S)&&c.state==='fight'){fbEndFight();toast('Framebreakers down — both operators surrendered');plog('achievements','Beat a Framebreaker squad and its pit crew (nonlethal)');}}
+// glob / strike / pulse near a pit-crew drone (checked first inside reframerHit)
+function fbDroneHit(kind,pos){if(!FBV.S)return false;const p=P.o.position;let best=-1,bd=kind==='pulse'?7:1.5;
+ FBV.drones.forEach((d,j)=>{if(FBV.S.drones[j].hp<=0)return;const dd=pos?d.m.position.distanceTo(pos):(kind==='pulse'?d.m.position.distanceTo(p):1e9);if(dd<bd){bd=dd;best=j;}});
+ if(best<0)return false;const d=FBV.drones[best];fbHitDrone(FBV.S,best);burst(d.m.position,24,4);beep(160,.2,'square',.05);whisper('Pit-crew drone down','that plate stays off');return true;}
+function fbEndFight(){const c=FBV.c;c.state='fb';for(const f of c.members){const R=f.R;R.active=false;R.act=null;R.queue=[];R.guard=false;R.sm=null;R.minStance=0;}if(!activeFoes().length)$('foe').style.display='none';FG.act=null;bell();}
+function fbFightOver(c,win){fbEndFight();if(!win){for(const u of FBV.S.units)if(u.state==='confront')u.state='patrol';whisper('The Framebreakers let you go','');}}
+// Frame Shear: they go for the trucks — the board gets knocked loose and lost
+function fbShear(u){const R=RSK.R;if(!R)return;const p=P.o.position,dir=p.clone().sub(u.ch.o.position).setY(0).normalize();
+ const L=createLoose({x:p.x,y:p.y+.2,z:p.z},{x:dir.x*6+vel.x*.5,y:3.5,z:dir.z*6+vel.z*.5},{roll:9,yaw:4},true);
+ RSK.loose=L;RSK.looseR={loose:L,world:R.world};RSK.looseT=0;st.board=false;board.visible=true;sk.bailT=0;skBail('Frame Shear');bodyMachine.fall(vel.x,vel.z);
+ playT(u.ch,'Melee_Hook',.6);burst(p.clone().setY(p.y+.3),30,4);beep(120,.2,'sawtooth',.06);whisper('Frame Shear — board knocked loose','tap B to call it back');}
+
 // ---- sparks (contact bursts + charge aura; silver-white so violet stays on the seams) ----
 const SPK={n:220,i:0};
 function initSparks(){const g=new THREE.BufferGeometry();SPK.pos=new Float32Array(SPK.n*3).fill(-999);SPK.vel=new Float32Array(SPK.n*3);SPK.life=new Float32Array(SPK.n);
  g.setAttribute('position',new THREE.BufferAttribute(SPK.pos,3));SPK.pts=new THREE.Points(g,new THREE.PointsMaterial({color:0xe8ecff,size:.08,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
  SPK.pts.frustumCulled=false;scene.add(SPK.pts);}
-function burst(p,count,speed,up=0){if(!SPK.pts)initSparks();for(let k=0;k<count;k++){const i=SPK.i++%SPK.n;SPK.pos[i*3]=p.x;SPK.pos[i*3+1]=p.y;SPK.pos[i*3+2]=p.z;
+// VFX (AI VFX workflow, billboard flipbook): every impact gets a camera-facing flash that plays an 8-frame
+// flipbook. Frames are drawn in code, so it costs no image files. Sparks above stay the code-driven points.
+const FLIP={pool:[],i:0,tex:null,cols:4,rows:2,frames:8};
+function flipTex(){if(FLIP.tex)return FLIP.tex;const c=document.createElement('canvas');c.width=256;c.height=128;const g=c.getContext('2d');
+ for(let f=0;f<FLIP.frames;f++){const x=(f%FLIP.cols)*64,y=Math.floor(f/FLIP.cols)*64,k=f/(FLIP.frames-1),r=6+k*26;
+  const grd=g.createRadialGradient(x+32,y+32,0,x+32,y+32,r);grd.addColorStop(0,'rgba(255,255,255,1)');grd.addColorStop(.35,'rgba(255,240,200,.9)');grd.addColorStop(.7,'rgba(180,140,255,.45)');grd.addColorStop(1,'rgba(120,80,255,0)');
+  g.fillStyle=grd;g.fillRect(x,y,64,64);g.strokeStyle='rgba(230,215,255,'+(1-k).toFixed(2)+')';g.lineWidth=2;
+  for(let q=0;q<6;q++){const a=q/6*Math.PI*2+k*1.3;g.beginPath();g.moveTo(x+32+Math.cos(a)*r*.5,y+32+Math.sin(a)*r*.5);g.lineTo(x+32+Math.cos(a)*r*.95,y+32+Math.sin(a)*r*.95);g.stroke();}}
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;FLIP.tex=t;return t;}
+function flashFx(p,size=1,hue=0xc9a8ff){if(!scene)return;
+ if(!FLIP.pool.length){for(let i=0;i<12;i++){const tx=flipTex().clone();tx.repeat.set(1/FLIP.cols,1/FLIP.rows);tx.needsUpdate=true;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tx,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));sp.visible=false;scene.add(sp);FLIP.pool.push({sp,t:1,life:.28,tx});}}
+ const f=FLIP.pool[FLIP.i++%FLIP.pool.length];f.sp.position.copy(p);f.sp.material.color.set(hue);f.sp.material.opacity=1;f.sp.scale.setScalar(size);f.t=0;f.sp.visible=true;}
+function flipTick(dt){for(const f of FLIP.pool){if(!f.sp.visible)continue;f.t+=dt;const k=Math.min(1,f.t/f.life);
+ const fr=Math.min(FLIP.frames-1,Math.floor(k*FLIP.frames));f.tx.offset.set((fr%FLIP.cols)/FLIP.cols,1-(Math.floor(fr/FLIP.cols)+1)/FLIP.rows);
+ f.sp.material.opacity=1-k;f.sp.scale.multiplyScalar(1+dt*2.5);if(k>=1)f.sp.visible=false;}}
+function burst(p,count,speed,up=0){flashFx(p,.5+Math.min(count,40)*.03);if(!SPK.pts)initSparks();for(let k=0;k<count;k++){const i=SPK.i++%SPK.n;SPK.pos[i*3]=p.x;SPK.pos[i*3+1]=p.y;SPK.pos[i*3+2]=p.z;
  const a=Math.random()*Math.PI*2,b=Math.random()*2-1,s=speed*(.4+Math.random()*.6);SPK.vel[i*3]=Math.cos(a)*Math.sqrt(1-b*b)*s;SPK.vel[i*3+1]=b*s+up;SPK.vel[i*3+2]=Math.sin(a)*Math.sqrt(1-b*b)*s;SPK.life[i]=.18+Math.random()*.3;}}
 function sparksTick(dt){if(!SPK.pts)return;for(let i=0;i<SPK.n;i++){if(SPK.life[i]<=0)continue;SPK.life[i]-=dt;SPK.vel[i*3+1]-=6*dt;
  SPK.pos[i*3]+=SPK.vel[i*3]*dt;SPK.pos[i*3+1]+=SPK.vel[i*3+1]*dt;SPK.pos[i*3+2]+=SPK.vel[i*3+2]*dt;if(SPK.life[i]<=0)SPK.pos[i*3+1]=-999;}SPK.pts.geometry.attributes.position.needsUpdate=true;}
@@ -1297,7 +2425,7 @@ function fightTick(dt){initFoes();
  if(FG.act)tickStrike(dt);
  if(FG.bufT>0)FG.bufT-=dt;else FG.buf=null;
  if(k)fightKey(k);
- for(const f of FOES)foeTick(f,dt);crewTick(dt);sparksTick(dt);
+ for(const f of FOES)foeTick(f,dt);crewTick(dt);sparksTick(dt);flipTick(dt);
  const t=FG.target;if(t){const fn=$('foeName');if(fn)fn.textContent=t.R.label+' · Lv '+(t.R.level||1)+(t.R.kind==='crew'?' · '+t.R.crew.members.filter(m=>!m.R.out).length+' left':'');}
  const me=$('mMe');if(me)me.style.width=(st.hp*100)+'%';
  const cb=$('fgCombo');if(cb){const on=FG.combo>=2&&FG.comboT<1.2;cb.style.opacity=on?1:0;if(on)cb.textContent=FG.combo+' HIT';}
@@ -1312,13 +2440,13 @@ function startStrike(k){
  let id=null;
  if(k==='Numpad4')id=((FG.lastS==='cross'||(FG.lastS==='jab'&&FG.chain>=2))&&FG.lastT<.55)?'hook':'jab';
  else if(k==='Numpad6')id='cross';else if(k==='Numpad1')id='kickL';else if(k==='Numpad3')id='kickR';else if(k==='Numpad9')id='dash';
- else if(k==='Numpad7'){const pulse=!!(keys.ShiftLeft||keys.ShiftRight);const cost=pulse?.4:.2;if(st.charge<cost){toast('Need '+Math.round(cost*100)+'% charge — hold 5');return;}if(pulse&&!onGround){toast('Gallium Pulse needs grounded contact');return;}st.charge-=cost;id='blast';if(pulse)FG.pulseQueued=true;}
+ else if(k==='Numpad7'){const pulse=!!(keys.ShiftLeft||keys.ShiftRight);const cost=pulse?.4:.2;if(st.charge<cost){toast('Need '+Math.round(cost*100)+'% charge — hold 5');return;}if(pulse&&!onGround){toast('Gallium Pulse needs grounded contact');return;}st.charge-=cost;id='blast';proHook('power','blast');if(pulse)FG.pulseQueued=true;}
  if(!id)return;const s=STRK[id];
  FG.chain=FG.lastT<.55?FG.chain+1:1;if(id==='hook')FG.chain=0;
  let amt=0;if(id!=='blast'&&st.charge>.25){amt=st.charge;st.charge=0;}
  if(FG.lock){const v=toTarget();yaw=Math.atan2(v.x,v.z);P.o.rotation.y=yaw;}
  FG.act={id,s,t:0,hits:new Set(),amt,fired:false};
- if(id!=='blast'){const cb=comboFeed('strike');if(cb&&cb.id==='swingBreaker')FG.breakerT=.8;const fwd=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));const at=P.o.position.clone().addScaledVector(fwd,1.6).setY(P.o.position.y+1);setTimeout(()=>reframerHit('strike',id==='hook'||id==='dash'?.8:.5,at),180);}
+ if(id!=='blast'){const cb=comboFeed('strike');if(cb&&cb.id==='swingBreaker')FG.breakerT=.8;const fwd=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));const at=P.o.position.clone().addScaledVector(fwd,1.6).setY(P.o.position.y+1);setTimeout(()=>{reframerHit('strike',id==='hook'||id==='dash'?.8:.5,at);if(id==='hook'||id==='dash'||id==='kickR')mwHitWall(at,.35,'strike');},180);}
  const visualClip=yard&&P.p6?fightClipHint(id):null;
  if(!(visualClip&&P.acts[visualClip]&&playT(P,visualClip,s.end))&&!playT(P,s.a,s.end))play(P,'Punch',true);
  actT=s.end;setViolet(1);
@@ -1329,6 +2457,8 @@ function tickStrike(dt){const a=FG.act,s=a.s;a.t+=dt;const pp=P.o.position,f=_fv
  if(a.id==='blast'&&!a.fired&&a.t>=s.t0){a.fired=true;if(FG.pulseQueued){FG.pulseQueued=false;firePulse();}else fireBlast();}
  if(a.id!=='blast'&&a.t>=s.t0&&a.t<=s.t1+.02)for(const foe of activeFoes()){if(a.hits.has(foe))continue;const v=toFoe(foe),d=v.length();
   if(d<s.r+.35&&Math.abs(angDiff(yaw,Math.atan2(v.x,v.z)))<1.3){a.hits.add(foe);hitFoe(foe,s,a.amt,v.clone().normalize());}}
+ if(a.id!=='blast'&&a.t>=s.t0&&a.t<=s.t1+.02&&!a.streetHit){for(const n of npcs){if(n.sbFoe)continue;const v=new THREE.Vector3(n.o.position.x-pp.x,0,n.o.position.z-pp.z),dd=v.length();
+  if(dd<s.r+.35&&Math.abs(angDiff(yaw,Math.atan2(v.x,v.z)))<1.3){a.streetHit=true;const foe=streetPromote(n);if(foe)hitFoe(foe,s,a.amt,v.clone().normalize());break;}}}
  if(FG.buf&&a.t>=s.t1){const b=FG.buf;FG.buf=null;FG.lastS=a.id;FG.lastT=0;FG.act=null;startStrike(b);return;}
  if(a.t>=s.end){if(a.id!=='blast'&&a.hits.size===0&&FG.inFight){const target=FG.target;if(target){const distance=toFoe(target).length();toast(distance>s.r+.35?'OUT OF RANGE · move closer':'MISSED · face your opponent');}}FG.lastS=a.id;FG.lastT=0;FG.act=null;}}
 // PROPOSAL combat variant: grounded Gallium Pulse (Shift + 7).
@@ -1349,7 +2479,7 @@ const blasts=[];function fireBlast(){blastCombo();const m=new THREE.Mesh(new THR
 function blastTick(dt){for(let i=blasts.length-1;i>=0;i--){const b=blasts[i];b.t+=dt;b.m.position.addScaledVector(b.v,dt);
  let hit=false;for(const foe of activeFoes()){const c=_fv2.copy(foe.ch.o.position);c.y+=1.2;if(b.m.position.distanceTo(c)<.85){hit=true;hitFoe(foe,STRK.blast,0,b.v.clone().setY(0).normalize());break;}}
  if(hit||b.t>.7){scene.remove(b.m);b.m.geometry.dispose();blasts.splice(i,1);if(hit)burst(b.m.position,18,4);}}}
-function hitFoe(foe,s,amt,dir){const R=foe.R,ch=foe.ch;if(R.inv>0||R.out)return;
+function hitFoe(foe,s,amt,dir){const R=foe.R,ch=foe.ch;if(R.inv>0||R.out)return;if(R.street){s={...s,dmg:s.dmg*incomingMul(R.street)};hitStreet(R.street,{heavy:!!s.down,body:false});}if(R.ep1)ep1OnHit(foe,s);if(R.fb!=null)s=fbOnHit(foe,s,dir);if(!s.src||s.src==='strike'){const md=kitStrikeMods(KITV.K);if(md.dmg!==1||md.kb!==1)s={...s,dmg:s.dmg*md.dmg,kb:(s.kb||0)*md.kb};}
  if(FG.breakerT>0&&!s.src){s={...s,dmg:s.dmg*2,kb:s.kb*2,down:true};FG.breakerT=0;}
  if(R.vil){const mul=damageMul(R.vil.id,R.vil,{facingYaw:ch.o.rotation.y,fromX:-dir.x,fromZ:-dir.z,src:s.src||'strike'});s={...s,dmg:s.dmg*mul,kb:s.kb*Math.max(.3,mul)};
   if(mul<.3&&!R.armSaid){R.armSaid=true;toast(R.vil.id==='glassjaw'?'Plate cracked — keep breaking the fake reinforcement':'Armored front — use the environment: Gallium globs, cars');setTimeout(()=>R.armSaid=false,3000);}
@@ -1359,10 +2489,11 @@ function hitFoe(foe,s,amt,dir){const R=foe.R,ch=foe.ch;if(R.inv>0||R.out)return;
  if(R.guard&&face&&!brk){R.stance=Math.max(0,R.stance-s.dmg*.2);R.kb.addScaledVector(dir,s.kb*.6);burst(c,6,2.5);FG.hitstop=.045;beep(90,.05,'square',.04);toast('Blocked');return;}
  let mult=1+1.5*amt;if(R.act&&R.act.t<R.act.s.t0){mult*=1.5;toast('COUNTER');}
  if(R.guard&&brk)toast('GUARD BREAK');
- R.stance=Math.max(0,R.stance-s.dmg*mult);R.kb.addScaledVector(dir,s.kb*(1+amt)*1.6);R.act=null;R.queue=[];
+ R.stance=Math.max(R.minStance||0,R.stance-s.dmg*mult);R.kb.addScaledVector(dir,s.kb*(1+amt)*1.6);R.act=null;R.queue=[];
  FG.combo=FG.comboT<1.2?FG.combo+1:1;FG.comboT=0;FG.hits++;
  const heavy=s.down||amt>.4;FG.hitstop=heavy?.11:.065;FG.shake=heavy?.28:.12;burst(c,heavy?26:14,heavy?6:4);setViolet(1);beep(heavy?70:110,.07,'square',.06);
  if(R.stance<=0){if(R.kind==='rival'){R.sm&&R.sm.changeTo('down');endSpar(true);}else{R.out=true;R.active=false;R.act=null;R.sm=null;if(ch.body)ch.body.emissiveIntensity=0;playT(ch,'Knock',.7);toast('Tapped out');}return;}
+ if(R.custom){R.stun=Math.max(.25,s.stun||.3);playT(ch,s.react||'HitChest',R.stun+.12);R.animLock=R.stun;return;}
  ensureAI(foe);if(s.down||(R.guard&&brk)){R.sm.changeTo('down');}else{R.stun=s.stun;playT(ch,s.react,s.stun+.12);R.animLock=s.stun;R.sm.changeTo('stagger');}}
 function hitMetal(s,foe){const R=foe.R,v=toFoe(foe);const dir=v.clone().normalize().multiplyScalar(-1); // from the opponent toward Metal
  if(FG.iframe>0){if(FG.dodge&&FG.perfectArm!==R.act){FG.perfectArm=R.act;FG.slow=.45;FG.perfect++;toast('PERFECT DODGE');}return;}
@@ -1381,7 +2512,7 @@ function lvl(R){return R.level||1;}
 function attackers(){let n=0;for(const f of activeFoes())if(f.R.act||(f.R.sm&&f.R.state==='attack'))n++;return n;}
 function maxAttackers(){return activeFoes().length>=3?2:1;}
 const AI={
- approach:{run(R){const m=P.o.position;goTo(R,m.x-R.dir.x*2.0,m.z-R.dir.z*2.0,3.2+.25*lvl(R));if(R.d<2.7)R.sm.changeTo('circle');}},
+ approach:{run(R){const m=P.o.position;if(R.haul&&R.d>R.haul.r){const hp=R.ch.o.position;goTo(R,R.haul.x,R.haul.z,2.6);if(Math.hypot(hp.x-R.haul.x,hp.z-R.haul.z)<1.1&&R.animLock<=0){playT(R.ch,R.ch.acts.Chest_Open?'Chest_Open':'Idle',1.6);R.animLock=1.6;}return;}goTo(R,m.x-R.dir.x*2.0,m.z-R.dir.z*2.0,3.2+.25*lvl(R));if(R.d<2.7)R.sm.changeTo('circle');}},
  circle:{on(R){R.state='circle';R.side=Math.random()<.5?-1:1;R.dur=.45+Math.random()*Math.max(.3,1.2-.12*lvl(R));R.ring=R.kind==='crew'&&attackers()>=maxAttackers()?3.3:2.35;},
   run(R){const m=P.o.position,a=Math.atan2(-R.dir.x,-R.dir.z)+R.side*.85*R.stT;goTo(R,m.x+Math.sin(a)*R.ring,m.z+Math.cos(a)*R.ring,2.2);
    if(FG.act&&FG.act.t<FG.act.s.t0+.04&&R.d<2.9&&R.reactedTo!==FG.act){R.reactedTo=FG.act;if(Math.random()<Math.min(.7,.18+.1*lvl(R))){R.sm.changeTo(Math.random()<.55?'guard':'evade');return;}}
@@ -1404,6 +2535,7 @@ function ensureAI(foe){const R=foe.R;if(R.sm)return;R.ch=foe.ch;R.agent=new YUKA
 function foeStrike(R,id,tele){const s=STRK[id];R.act={id,s,t:-tele,hit:false};playT(R.ch,s.a,s.end+tele);R.animLock=s.end+tele;}
 function foeTick(foe,dt){const R=foe.R,ch=foe.ch;
  if(!R.active){if(ch.body)ch.body.emissiveIntensity=0;return;}
+ if(R.custom){R.inv=(R.inv||0)-dt;if(R.stun>0)R.stun-=dt;R.custom(foe,dt);return;} // prologue crew: their own brains, still hittable
  ensureAI(foe);R.dt=dt;R.inv-=dt;if(R.stun>0)R.stun-=dt;
  const rp=ch.o.position,mp=P.o.position;R.agent.position.set(rp.x,0,rp.z);
  R.dir.set(mp.x-rp.x,0,mp.z-rp.z);R.d=R.dir.length();R.dir.normalize();
@@ -1969,7 +3101,7 @@ function update(dt){
  bodyMachine.position.y=Math.max(0,P.o.position.y-floorAt(P.o.position));
  if(FG.inFight&&!st.board&&pressed.KeyB){pressed.KeyB=false;FG.wantDodge=true;}
  RSK.active=realRideOk();if(!RSK.active){RSK.R=null;RSK.tilt=null;if(RSK.hud)RSK.hud.style.display='none';}
- const pad=pollPad(dt);
+ const pad=pollPad(dt);driveTick(dt);driveSwallowInput();kitTick(dt);snapIdleTick(dt);
  if(pad&&!controllerSeen){controllerSeen=true;/* guide available on H, not forced over gameplay */}
  tickCitySystems(dt);updateMorrow(dt);updateFactionActors(dt);updateMetalBlasts(dt);updateGalliumPhysics(dt);updateSlottaBoss(dt);updateMetalStory(dt);
  // Controller contract: LB grabs, RB swings, LT charges, RT RIFFT Steps; LB+RT throws a held car.
@@ -1996,7 +3128,7 @@ function update(dt){
  // camera-relative movement
  const fwd=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw)),right=new THREE.Vector3(-fwd.z,0,fwd.x);
  const wish=new THREE.Vector3().addScaledVector(right,ix).addScaledVector(fwd,-iz);if(wish.lengthSq()>1)wish.normalize();
- const bPressed=tap('KeyB');
+ const bPressed=(KITV.on&&!st.wall)?((pressed.KeyB=false),(KITV.forgeReq&&!st.board?((KITV.forgeReq=false),true):false)):tap('KeyB');
   // Classic X/Y have no foot-combat effect while riding; opt-in board-only mapping.
   const yardEligible=!!(yard&&st.board&&!st.wall&&!st.swing&&!st.flying&&sk.bailT<=0&&bodyMachine.mode!=='fallen'&&bodyMachine.mode!=='recovering');
   const yardFlipPulse=yardEligible?(tap('BracketLeft')||tap('Numpad4')):false;
@@ -2108,13 +3240,13 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  for(const mt of seamMats)mt.emissiveIntensity=Math.max(0,mt.emissiveIntensity-dt*3);
  if(galLimb){const hb=P.handBone;if(hb){hb.updateMatrixWorld(true);hb.getWorldPosition(_hand);}else _hand.copy(P.o.position).setY(P.o.position.y+1.2);galLimb.tick(dt,{swing:st.swing,grip:worldGripActive&&gripTarget?gripTarget:null,hand:_hand,model:P.model,st,groundY,playerPos:P.o.position});} // PROPOSAL Gallium limb visuals
  // systems
- fightTick(dt);blastTick(dt);globTick(dt);villainFx(dt);villainProjTick(dt);if(FG.breakerT>0)FG.breakerT-=dt;drawTick(dt);reframerTick(dt);reframerSquad?.tick(dt);helpTick(dt,RSK.gp);doStrings(dt);doFootball(dt);
+ fightTick(dt);blastTick(dt);globTick(dt);villainFx(dt);villainProjTick(dt);if(FG.breakerT>0)FG.breakerT-=dt;drawTick(dt);reframerTick(dt);reframerSquad?.tick(dt);streetTick(dt);streetShotsTick(dt);mwTick(dt);lilHeavyTick(dt);mariTick(dt);ep1Tick(dt);proTick(dt);wtTick(dt);fbTick(dt);audioTick(dt);helpTick(dt,RSK.gp);doStrings(dt);doFootball(dt);
  for(const s of slabs){if(s.t<1){s.t+=dt;s.m.position.y=Math.min(.8,s.m.position.y+s.vy*dt);}else if(s.t<6)s.t+=dt;else{s.m.position.y-=dt;if(s.m.position.y<-1){scene.remove(s.m);s.dead=true;}}}
  for(let i=slabs.length-1;i>=0;i--)if(slabs[i].dead)slabs.splice(i,1);
  // interact prompts
  const spot=where(pp);let prompt='';
  if(spot!==lastSpot){lastSpot=spot;if(spot){$('place').textContent='Savannah · '+spot.name;plog('discoveries','Found '+spot.name);toast(spot.name+'<br><small>'+spot.src+'</small>');}else $('place').textContent='Savannah · Street';}
- if(spot===SPOTS.fight&&!rivalSt.active){prompt='E — challenge the rival to a nonlethal spar';if(tap('KeyE')){rivalSt.active=true;rivalSt.stance=1;$('foe').style.display='block';toast('SPAR! Break their stance or ring them out');plog('decisions','Accepted a spar');}}
+ if(spot===SPOTS.fight&&!rivalSt.active){prompt='E — challenge the rival to a nonlethal spar';if(tap('KeyE')){bell();rivalSt.active=true;rivalSt.stance=1;$('foe').style.display='block';toast('SPAR! Break their stance or ring them out');plog('decisions','Accepted a spar');}}
  if(spot===SPOTS.field&&!st.carry&&ball.position.distanceTo(pp)<1.6)prompt='E — pick up the ball';
  if(spot===SPOTS.forge){prompt='E — forge a quick game recipe';if(tap('KeyE'))forgeRecipe();}
  if(spot===SPOTS.pluto&&pp.distanceTo(plutoC)<6){prompt='E — Pluto Hub travel console (opens zoom map)';if(tap('KeyE')){toggle('map',true);zoom=2;drawMap();plog('discoveries','Pluto Hub travel console');}}
@@ -2133,7 +3265,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
   const nb=n.o.position.clone();for(const b of colliders)if(b.containsPoint(nb.setY(1))){n.target=wp();break;}}
  // traffic
  updateCarBodies(dt);
- for(const c of cars){if(c.userData.worldBody||(REFRAMER_SQUAD&&c.userData.reframed))continue;const u=c.userData;u.t+=u.dir*u.spd*dt;if(u.t>220)u.t=-220;if(u.t<-220)u.t=220;
+ for(const c of cars){if(c.userData.worldBody||c.userData.parked||c.userData.driven||(REFRAMER_SQUAD&&c.userData.reframed))continue;const u=c.userData;u.t+=u.dir*u.spd*dt;if(u.t>220)u.t=-220;if(u.t<-220)u.t=220;
   if(u.axis){c.position.set(u.lane,0.05,u.t);c.rotation.y=u.dir>0?0:Math.PI;}else{c.position.set(u.t,0.05,u.lane);c.rotation.y=u.dir>0?Math.PI/2:-Math.PI/2;}
   if(c.position.distanceTo(pp)<2.4&&pp.y<1.5){vel.add(pp.clone().sub(c.position).setY(0).normalize().multiplyScalar(8));vel.y=5;onGround=false;if(yard&&st.board)skBail('SIDEWAYS TRAFFIC SLIDE');else bail();bodyMachine.fall(vel.x,vel.z);bodyMachine.impact=Math.hypot(vel.x,vel.z);toast('Clipped by traffic!');}}
  // day/night + weather
@@ -2392,12 +3524,12 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
     }
   } // legacy pilot stays isolated from Mission05 by flag
   plog('log','Session started in Savannah');$('load').style.display='none';window.__ready=true;
-  boot.ready();
+  boot.ready();sfxLoad();
   if(boot.getStatus().warnings.length)toast('Mission running with '+boot.getStatus().warnings.length+' art fallbacks · PROPOSAL');
   window.__game={galLimb:()=>galLimb,forge:()=>forgeController,forgePerformance:()=>forgePerformance.snapshot(),WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
   if(AERIAL_DUEL_PILOT)window.__aerialPilot=aerialDuel; // query-flagged browser QA and training entry only
-  window.__game.setForm=setForm;window.__game.sk=sk;if(yard){window.__game.testYard=()=>yard.snapshot();if(yardSession)window.__game.testYardSession=()=>yardSession.snapshot();}window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.metalControllerV3=metalPadV3;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.RSK=RSK;window.__game.GLB=GLB;window.__game.HELP=HELP;window.__game.toggleHelp=toggleHelp;window.__game.DRW=DRW;window.__game.CMB=CMB;window.__game.RFR=RFR;window.__game.comboFeed=comboFeed;window.__game.lamps=lamps;window.__game.cars=cars;window.__game.STORY_FIGHTS=STORY_FIGHTS;window.__game.hitFoe=hitFoe;window.__game.tumbleResult=tumbleResult;window.__game.setCamYaw=v=>{camYaw=v;};window.__game.setYaw=v=>{yaw=v;};window.__game.endCrewForTest=(c,w=false)=>endCrew(c,w);window.__game.skYard=()=>skYard;window.__game.ground=()=>onGround;window.__game.bootReport=()=>boot.getStatus();initMetalStory();
-  if(METAL_STORY_MOLD){
+  window.__game.setForm=setForm;window.__game.npcs=()=>npcs;window.__game.STREET=STREET;window.__game.streetCount=()=>STREET.length;window.__game.sk=sk;if(yard){window.__game.testYard=()=>yard.snapshot();if(yardSession)window.__game.testYardSession=()=>yardSession.snapshot();}window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.metalControllerV3=metalPadV3;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.RSK=RSK;window.__game.GLB=GLB;window.__game.DRV=DRV;window.__game.LH=LH;window.__game.MARI=MARI;window.__game.EP=EP;window.__game.KITV=KITV;window.__game.GLP=GLP;window.__game.PR=PR;window.__game.PCARD=PCARD;window.__game.CUFFS=CUFFS;window.__game.POWER_CARDS=POWER_CARDS;window.__game.snapHeight=snapHeight;window.__game.SNP=SNP;window.__game.RSK=RSK;window.__game.FBV=FBV;window.__game.kitDoB=h=>kitDoB(h);window.__game.fbShear=()=>fbShear(FBV.units[0]);window.__game.reframerHitForTest=(k,p,pos)=>reframerHit(k,p,pos);window.__game.WTV=WTV;window.__game.wtHit=(k,p,pos)=>wtHit(k,p,pos);window.__game.hitLimb=hitLimb;window.__game.ep1Feed=ep1Feed;window.__game.SFX=SFX;window.__game.actx=()=>actx;window.__game.ep1Event=e=>ep1Event(e);window.__game.driveEnter=driveEnter;window.__game.driveExit=driveExit;window.__game.MWB=MWB;window.__game.mwBuild=mwBuild;window.__game.HELP=HELP;window.__game.toggleHelp=toggleHelp;window.__game.DRW=DRW;window.__game.CMB=CMB;window.__game.RFR=RFR;window.__game.comboFeed=comboFeed;window.__game.lamps=lamps;window.__game.cars=cars;window.__game.STORY_FIGHTS=STORY_FIGHTS;window.__game.hitFoe=hitFoe;window.__game.tumbleResult=tumbleResult;window.__game.setCamYaw=v=>{camYaw=v;};window.__game.setYaw=v=>{yaw=v;};window.__game.endCrewForTest=(c,w=false)=>endCrew(c,w);window.__game.skYard=()=>skYard;window.__game.ground=()=>onGround;window.__game.bootReport=()=>boot.getStatus();initMetalStory();
+if(METAL_STORY_MOLD){
    import('./metal_story_mold_world.mjs').then(({mountMetalStoryMold})=>{
     metalStoryMold=mountMetalStoryMold({
      P,st,vel,skatepark:SPOTS.skate.c,safeStorage,

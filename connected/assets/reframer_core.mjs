@@ -8,7 +8,8 @@
 
 export const RF = {
   DUR: { drop: 0.7, read: 2.4, anchor: 2.6, release: 2.4, reframe: 3.6, stagger: 2.4, stun: 3.0 },
-  WAKE: 55, NEST_COOL: 25, JAMS_TO_ABORT: 2, TIP_HITS: 2, ROAD_HP: 1, ROAD_SPEED: 7.5, RAM_DMG: 0.16, RAM_CD: 1.6,
+  // city-wide: a ReFramer wakes from any cool nest within WAKE; the audible cue is loudest within SIGNAL_R
+  WAKE: 300, SIGNAL_R: 75, DONOR_R: 40, NEST_COOL: 25, JAMS_TO_ABORT: 2, TIP_HITS: 2, ROAD_HP: 1, ROAD_SPEED: 7.5, RAM_DMG: 0.16, RAM_CD: 1.6,
   RESIDUE: 0.35,
 };
 
@@ -18,17 +19,23 @@ export function createReframers(nests) {
 }
 
 // donors: [{id, x, z, occupied}] ; metal: {x,z}
+// nests cool down even when no ReFramer is out (step() only runs during an encounter)
+export function coolNests(W, dt) {
+  for (const n of W.nests) if (n.cool > 0) n.cool -= dt;
+}
+
 export function wake(W, metal, donors) {
   if (W.enc) return null;
   let nest = null, bd = 1e9;
   for (const n of W.nests) { if (n.cool > 0) continue; const d = Math.hypot(n.x - metal.x, n.z - metal.z); if (d < RF.WAKE && d < bd) { bd = d; nest = n; } }
   if (!nest) return null;
   let donor = null, best = 1e9;
-  for (const c of donors) { const d = Math.hypot(c.x - nest.x, c.z - nest.z); if (d < 40 && d < best) { best = d; donor = c; } }
+  for (const c of donors) { const d = Math.hypot(c.x - nest.x, c.z - nest.z); if (d < RF.DONOR_R && d < best) { best = d; donor = c; } }
   if (!donor) { nest.cool = 8; return null; }
   W.stats.encounters++;
   W.enc = { id: 'E' + W.stats.encounters, nest, donor: donor.id, stage: 'drop', t: 0, jams: 0, tipHits: 0, occupied: !!donor.occupied, rescued: false,
-    hp: RF.ROAD_HP, ramCd: 0, pos: { x: nest.x, y: nest.y, z: nest.z }, target: { x: donor.x, z: donor.z }, parts: 0 };
+    hp: RF.ROAD_HP, ramCd: 0, pos: { x: nest.x, y: nest.y, z: nest.z }, target: { x: donor.x, z: donor.z }, parts: 0,
+    arms: Array(8).fill(1), armsLost: 0, wheels: Array(4).fill(1), wheelsLost: 0, speed: 1, guard: 0, released: false };
   return W.enc;
 }
 
@@ -50,18 +57,44 @@ export function hit(W, kind, power = 0.5) {
   return { type: 'clang' };
 }
 
+// ---- limb-level fighting (Metal × ReFramer brief): hit the actual outriggers, not a health bar
+export function hitArm(W, i, power = 0.5) {
+  const E = W.enc; if (!E || E.arms[i] <= 0) return null;
+  E.arms[i] -= power * (E.guard > 0 ? 0.5 : 1);
+  if (E.arms[i] > 0) return { type: 'armHit', i, hp: E.arms[i] };
+  E.armsLost++;
+  if ((E.stage === 'anchor' || E.stage === 'release') && E.armsLost >= 3) { E.stage = 'stagger'; E.t = 0; W.stats.tips++; return { type: 'armOff', i, tipped: true }; }
+  return { type: 'armOff', i };
+}
+export function hitWheel(W, i, power = 0.5) {
+  const E = W.enc; if (!E || E.stage !== 'chase' || E.wheels[i] <= 0) return null;
+  E.wheels[i] -= power; if (E.wheels[i] > 0) return { type: 'wheelHit', i };
+  E.wheelsLost++; if (E.wheelsLost >= 3) return end(W, 'roadframeDown');
+  return { type: 'wheelOff', i };
+}
+// the machine reacts to what Metal is actually doing
+export function react(W, { swinging = false, construct = null, bigHit = 0 } = {}) {
+  const E = W.enc; if (!E) return null;
+  if (swinging && E.guard <= 0) { E.guard = 2.5; return { type: 'outriggersUp' }; }                 // protects its exposed side
+  if (construct && (E.stage === 'anchor' || E.stage === 'release' || E.stage === 'chase') && !E.smashing && Math.hypot(construct.x - E.target.x, construct.z - E.target.z) < 15) {
+    E.smashing = construct.id; return { type: 'smashConstruct', id: construct.id };                   // goes after Metal's Gallium structure
+  }
+  if (bigHit >= 0.85 && (E.stage === 'release' || E.stage === 'reframe')) { const r = end(W, 'fledWithParts'); r.partsTaken = E.parts; return r; } // retreats carrying parts
+  return null;
+}
 export function rescue(W) {
   const E = W.enc; if (!E || !E.occupied || E.rescued) return false;
-  if (E.stage === 'read' || E.stage === 'anchor' || E.stage === 'stagger' || E.stage === 'stun' || E.stage === 'drop') { E.rescued = true; W.stats.rescued++; return true; }
+  if (E.stage === 'read' || E.stage === 'anchor' || E.stage === 'stagger' || E.stage === 'stun' || E.stage === 'drop') { E.rescued = true; W.stats.rescued++; E.speed = 1.5; return true; } // now it guards the parts: works faster
   return false;
 }
 
 function end(W, outcome) {
   const E = W.enc; W.enc = null; E.nest.cool = RF.NEST_COOL;
   if (outcome === 'clean') W.stats.clean++; if (outcome === 'aborted') W.stats.aborted++; if (outcome === 'roadframeDown') W.stats.roadframesDown++;
-  const lostCar = outcome === 'roadframeDown' || outcome === 'escaped' || outcome === 'lostTarget';
-  W.ledger.push({ id: E.id, outcome, rescued: E.rescued, occupied: E.occupied, jams: E.jams, carLost: lostCar });
-  return { type: 'end', outcome, residue: outcome === 'roadframeDown' || outcome === 'clean' ? RF.RESIDUE : 0, donor: E.donor, carLost: lostCar };
+  const lostCar = outcome === 'roadframeDown' || outcome === 'escaped' || outcome === 'lostTarget' || outcome === 'fledWithParts' && E.parts >= 4;
+  const scatter = outcome === 'clean' && E.released ? E.parts : 0;                                   // parts on the ground to bring back
+  W.ledger.push({ id: E.id, outcome, rescued: E.rescued, occupied: E.occupied, jams: E.jams, carLost: lostCar, scatter, armsLost: E.armsLost, wheelsLost: E.wheelsLost, repaired: 0 });
+  return { type: 'end', outcome, residue: outcome === 'roadframeDown' || outcome === 'clean' ? RF.RESIDUE : 0, donor: E.donor, carLost: lostCar, scatter, id: E.id };
 }
 
 // A Roadframe that loses Metal still keeps the donor shell, leaves evidence,
@@ -76,7 +109,9 @@ export function step(W, metal, donorPos, dt, hunt=null) {
   const out = { events: [], ram: 0 };
   for (const n of W.nests) if (n.cool > 0) n.cool -= dt;
   const E = W.enc; if (!E) return out;
-  E.t += dt; const D = RF.DUR;
+  const live = E.arms.filter(a => a > 0).length / 8;
+  if (E.guard > 0) E.guard -= dt;
+  E.t += dt * E.speed * (E.stage === 'release' || E.stage === 'reframe' ? Math.max(0.25, live) : 1); const D = RF.DUR; // fewer arms = slower dismantling
   if (donorPos) E.target = { x: donorPos.x, z: donorPos.z };
   const at = (s) => { E.stage = s; E.t = 0; out.events.push({ type: 'stage', stage: s }); };
   switch (E.stage) {
@@ -87,7 +122,7 @@ export function step(W, metal, donorPos, dt, hunt=null) {
     case 'stun': if (E.t >= D.stun) at('anchor'); break;
     case 'release':
       if (E.occupied && !E.rescued && !E.shook) { E.shook = true; W.stats.shaken++; out.events.push({ type: 'occupantShaken' }); } // canon: people always get out; unrescued = shaken
-      E.parts = Math.min(4, Math.floor(E.t / D.release * 5)); if (E.t >= D.release) at('reframe'); break;
+      E.released = true; E.parts = Math.min(4, Math.floor(E.t / D.release * 5)); if (E.t >= D.release) at('reframe'); break;
     case 'reframe': if (E.t >= D.reframe) { at('chase'); out.events.push({ type: 'roadframe' }); } break;
     case 'chase': {
       const goal=hunt?.goal&&Number.isFinite(hunt.goal.x)&&Number.isFinite(hunt.goal.z)?hunt.goal:metal;
@@ -101,3 +136,6 @@ export function step(W, metal, donorPos, dt, hunt=null) {
   if (E && E.stage !== 'drop') { E.pos.x = E.target.x; E.pos.z = E.target.z; }
   return out;
 }
+
+// a recovered part guided back into the original car (ledger keeps the count)
+export function repairPart(W, encId) { const l = W.ledger.find(x => x.id === encId); if (!l) return 0; l.repaired++; if (l.repaired >= l.scatter) { l.outcome = 'repaired'; W.stats.repaired = (W.stats.repaired || 0) + 1; } return l.repaired; }

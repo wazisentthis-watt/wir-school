@@ -17,3 +17,13 @@
 
 ## Galaxy Gallium globs + Morrow villains v0.1 (PROPOSAL / PUBLISH HOLD)
 - Glob, crystal material, villain rules and effects written for this repo; no external assets. Villain names and episodes from the owner's Metal InDa RIFFT season bible.
+
+## Ep.1 "Concrete Has a Tempo" + Morrow block (PROPOSAL / PUBLISH HOLD)
+- Morrow block kit (assets/models/morrow/morrow_kit.glb): Quaternius Ultimate Modular City / Downtown pieces (Building_Small_1, Building_Medium_2, props) + Quaternius Sci-Fi Essentials crates/barrels/lockers/shelves — CC0 1.0; merged and compressed with glTF Transform (MIT).
+- Clips (assets/anim/npc_ual2.json, metal_ual2.json): Quaternius Universal Animation Library 2 [Standard] — CC0 1.0; Metal's three are retargeted onto the Phase 6 rig.
+- Audio (assets/audio/*.mp3): owner-supplied WAVs (boxing bell, crowd, ring music, ring ambience, phase-in), mono/stereo MP3 re-encode with ffmpeg.
+- Lil Heavy look and Morrow prototype motorcycle: owner's WIR METAL × REFRAMER MORROW v0.2 design (dimensions and colours ported); mission rules, layout and code written for this repo.
+
+## Wrong Target — Foundry Steps (PROPOSAL / PUBLISH HOLD)
+- Machine meshes (assets/models/machines/wt_machines.glb): owner-supplied MagicaVoxel packs Arachnodroid (body only → ReFramer core), ReconBot (→ Framekeeper drone), MobileStorageBot (kept for the scavenger, not shown yet). Converted OBJ → GLB with vertex colours (glTF Transform). **No licence file was inside the zips; confirm the licence before publishing.**
+- Mission rules re-cut from the owner's WIR METAL × REFRAMER v0.3 mission reducer (WIRMorrowSystems) and "Morrow City: The Machine Wars" brief. Pressure-cage helmet, shuttle, limbs and code were written for this repo.

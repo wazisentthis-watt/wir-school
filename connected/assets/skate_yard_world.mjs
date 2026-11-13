@@ -156,12 +156,12 @@ export function buildSkateYardMeshes(THREE, scene, yard, { gun = 0x3a3d44 } = {}
   };
   for (const r of yard.rails) {
     if (r.kind === 'rail' || r.kind === 'coping') {
-      rod(r.a, r.b, r.kind === 'coping' ? 0.045 : 0.035, MAT.steel);
+      rod(r.a, r.b, r.kind === 'coping' ? 0.045 : 0.035, MAT.steel).userData.rail = r.name;
       if (r.kind === 'rail') {
         const n = Math.max(2, Math.ceil(r.len / 4));
         for (let i = 0; i <= n; i++) {
           const p = yard.railPoint(r, i / n), gh = yard.floorY(p.x, p.z);
-          if (p.y - gh > 0.05) rod({ x: p.x, y: gh, z: p.z }, p, 0.03, MAT.steel);
+          if (p.y - gh > 0.05) rod({ x: p.x, y: gh, z: p.z }, p, 0.03, MAT.steel).userData.rail = r.name;
         }
       }
     } else {
