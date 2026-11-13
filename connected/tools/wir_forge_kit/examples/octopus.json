@@ -1,0 +1,487 @@
+{
+ "name": "Ink Tide Octopus",
+ "detail": 1,
+ "seed": 21,
+ "skeleton": {
+  "preset": "none",
+  "chains": [
+   {
+    "name": "Mantle",
+    "count": 3,
+    "from": [
+     0,
+     0.36,
+     0
+    ],
+    "to": [
+     0,
+     0.82,
+     -0.14
+    ],
+    "parent": "Root",
+    "curl": [
+     0,
+     0,
+     -0.03
+    ]
+   },
+   {
+    "name": "LeftArmA",
+    "count": 6,
+    "from": [
+     0.07,
+     0.32,
+     0.08
+    ],
+    "to": [
+     0.55,
+     0.03,
+     0.42
+    ],
+    "curl": [
+     0,
+     0.16,
+     0
+    ],
+    "parent": "Root",
+    "mirror": true
+   },
+   {
+    "name": "LeftArmB",
+    "count": 6,
+    "from": [
+     0.1,
+     0.3,
+     0.0
+    ],
+    "to": [
+     0.62,
+     0.02,
+     -0.05
+    ],
+    "curl": [
+     0,
+     0.14,
+     0.05
+    ],
+    "parent": "Root",
+    "mirror": true
+   },
+   {
+    "name": "LeftArmC",
+    "count": 6,
+    "from": [
+     0.08,
+     0.3,
+     -0.07
+    ],
+    "to": [
+     0.45,
+     0.02,
+     -0.5
+    ],
+    "curl": [
+     0,
+     0.12,
+     0
+    ],
+    "parent": "Root",
+    "mirror": true
+   },
+   {
+    "name": "LeftArmD",
+    "count": 6,
+    "from": [
+     0.03,
+     0.31,
+     0.1
+    ],
+    "to": [
+     0.18,
+     0.02,
+     0.6
+    ],
+    "curl": [
+     0.05,
+     0.14,
+     0
+    ],
+    "parent": "Root",
+    "mirror": true
+   }
+  ]
+ },
+ "materials": {
+  "skin": {
+   "color": "#6b2a7a",
+   "color2": "#ff7ab8",
+   "pattern": "spots",
+   "scale": 4,
+   "rough": 0.35,
+   "clearcoat": 0.8,
+   "sheen": 0.4
+  },
+  "suckers": {
+   "color": "#ffc6dd",
+   "rough": 0.4
+  },
+  "eyes": {
+   "color": "#fff4c2",
+   "unlit": true
+  },
+  "pupil": {
+   "color": "#111111",
+   "unlit": true
+  }
+ },
+ "parts": [
+  {
+   "type": "blob",
+   "name": "mantle",
+   "material": "skin",
+   "at": {
+    "bone": "Mantle3"
+   },
+   "size": [
+    0.2,
+    0.27,
+    0.23
+   ],
+   "bones": [
+    "Mantle1",
+    "Mantle2",
+    "Mantle3",
+    "Mantle4"
+   ],
+   "lumps": 0.05,
+   "detail": 1.4
+  },
+  {
+   "type": "blob",
+   "name": "head",
+   "material": "skin",
+   "at": {
+    "bone": "Mantle1",
+    "offset": [
+     0,
+     -0.01,
+     0.03
+    ]
+   },
+   "size": [
+    0.17,
+    0.12,
+    0.16
+   ],
+   "bones": [
+    "Root",
+    "Mantle1",
+    "Mantle2"
+   ]
+  },
+  {
+   "type": "blob",
+   "name": "eye",
+   "material": "eyes",
+   "at": {
+    "bone": "Mantle1",
+    "offset": [
+     0.1,
+     0.03,
+     0.12
+    ]
+   },
+   "size": [
+    0.035,
+    0.03,
+    0.03
+   ],
+   "bone": "Mantle1",
+   "mirror": true
+  },
+  {
+   "type": "blob",
+   "name": "pupil",
+   "material": "pupil",
+   "at": {
+    "bone": "Mantle1",
+    "offset": [
+     0.112,
+     0.03,
+     0.142
+    ]
+   },
+   "size": [
+    0.012,
+    0.022,
+    0.012
+   ],
+   "bone": "Mantle1",
+   "mirror": true
+  },
+  {
+   "type": "limb",
+   "name": "tentacle ArmA",
+   "material": "skin",
+   "chain": [
+    "LeftArmA1",
+    "LeftArmA2",
+    "LeftArmA3",
+    "LeftArmA4",
+    "LeftArmA5",
+    "LeftArmA6",
+    "LeftArmA7"
+   ],
+   "radius": [
+    0.06,
+    0.055,
+    0.045,
+    0.036,
+    0.027,
+    0.017,
+    0.006
+   ],
+   "mirror": true,
+   "segments": 42
+  },
+  {
+   "type": "scatter",
+   "name": "suckers ArmA",
+   "material": "suckers",
+   "at": {
+    "between": [
+     "LeftArmA2",
+     "LeftArmA4"
+    ],
+    "t": 0.5,
+    "offset": [
+     0,
+     -0.035,
+     0
+    ]
+   },
+   "radius": [
+    0.05,
+    0.01,
+    0.05
+   ],
+   "count": 8,
+   "elevation": [
+    -0.3,
+    0.1
+   ],
+   "shape": "blob",
+   "size": [
+    0.009,
+    0.013
+   ],
+   "bones": [
+    "LeftArmA1",
+    "LeftArmA2",
+    "LeftArmA3",
+    "LeftArmA4",
+    "LeftArmA5"
+   ],
+   "mirror": true,
+   "lumps": 0
+  },
+  {
+   "type": "limb",
+   "name": "tentacle ArmB",
+   "material": "skin",
+   "chain": [
+    "LeftArmB1",
+    "LeftArmB2",
+    "LeftArmB3",
+    "LeftArmB4",
+    "LeftArmB5",
+    "LeftArmB6",
+    "LeftArmB7"
+   ],
+   "radius": [
+    0.06,
+    0.055,
+    0.045,
+    0.036,
+    0.027,
+    0.017,
+    0.006
+   ],
+   "mirror": true,
+   "segments": 42
+  },
+  {
+   "type": "scatter",
+   "name": "suckers ArmB",
+   "material": "suckers",
+   "at": {
+    "between": [
+     "LeftArmB2",
+     "LeftArmB4"
+    ],
+    "t": 0.5,
+    "offset": [
+     0,
+     -0.035,
+     0
+    ]
+   },
+   "radius": [
+    0.05,
+    0.01,
+    0.05
+   ],
+   "count": 8,
+   "elevation": [
+    -0.3,
+    0.1
+   ],
+   "shape": "blob",
+   "size": [
+    0.009,
+    0.013
+   ],
+   "bones": [
+    "LeftArmB1",
+    "LeftArmB2",
+    "LeftArmB3",
+    "LeftArmB4",
+    "LeftArmB5"
+   ],
+   "mirror": true,
+   "lumps": 0
+  },
+  {
+   "type": "limb",
+   "name": "tentacle ArmC",
+   "material": "skin",
+   "chain": [
+    "LeftArmC1",
+    "LeftArmC2",
+    "LeftArmC3",
+    "LeftArmC4",
+    "LeftArmC5",
+    "LeftArmC6",
+    "LeftArmC7"
+   ],
+   "radius": [
+    0.06,
+    0.055,
+    0.045,
+    0.036,
+    0.027,
+    0.017,
+    0.006
+   ],
+   "mirror": true,
+   "segments": 42
+  },
+  {
+   "type": "scatter",
+   "name": "suckers ArmC",
+   "material": "suckers",
+   "at": {
+    "between": [
+     "LeftArmC2",
+     "LeftArmC4"
+    ],
+    "t": 0.5,
+    "offset": [
+     0,
+     -0.035,
+     0
+    ]
+   },
+   "radius": [
+    0.05,
+    0.01,
+    0.05
+   ],
+   "count": 8,
+   "elevation": [
+    -0.3,
+    0.1
+   ],
+   "shape": "blob",
+   "size": [
+    0.009,
+    0.013
+   ],
+   "bones": [
+    "LeftArmC1",
+    "LeftArmC2",
+    "LeftArmC3",
+    "LeftArmC4",
+    "LeftArmC5"
+   ],
+   "mirror": true,
+   "lumps": 0
+  },
+  {
+   "type": "limb",
+   "name": "tentacle ArmD",
+   "material": "skin",
+   "chain": [
+    "LeftArmD1",
+    "LeftArmD2",
+    "LeftArmD3",
+    "LeftArmD4",
+    "LeftArmD5",
+    "LeftArmD6",
+    "LeftArmD7"
+   ],
+   "radius": [
+    0.06,
+    0.055,
+    0.045,
+    0.036,
+    0.027,
+    0.017,
+    0.006
+   ],
+   "mirror": true,
+   "segments": 42
+  },
+  {
+   "type": "scatter",
+   "name": "suckers ArmD",
+   "material": "suckers",
+   "at": {
+    "between": [
+     "LeftArmD2",
+     "LeftArmD4"
+    ],
+    "t": 0.5,
+    "offset": [
+     0,
+     -0.035,
+     0
+    ]
+   },
+   "radius": [
+    0.05,
+    0.01,
+    0.05
+   ],
+   "count": 8,
+   "elevation": [
+    -0.3,
+    0.1
+   ],
+   "shape": "blob",
+   "size": [
+    0.009,
+    0.013
+   ],
+   "bones": [
+    "LeftArmD1",
+    "LeftArmD2",
+    "LeftArmD3",
+    "LeftArmD4",
+    "LeftArmD5"
+   ],
+   "mirror": true,
+   "lumps": 0
+  }
+ ]
+}

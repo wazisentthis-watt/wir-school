@@ -1,0 +1,634 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body><title>WIR Forge</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Manrope:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a stage (live 3D model, with its download bar) beside a workbench column — picture or idea → recipe → model → files. Single committed night-ring look. */
+:root{
+  --ink:#140f1c; --panel:#1d1628; --line:#3a2d4d; --text:#f3ecff; --mute:#b6a8cc;
+  --glaze:#ff2f86; --ice:#00e5ff; --honey:#ffb000; --ok:#8dff9a; --bad:#ff6b6b;
+  --f-display:'Bungee','Arial Black',Impact,sans-serif; --f-body:'Manrope',system-ui,-apple-system,'Segoe UI',sans-serif; --f-mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none !important}
+html,body{height:100%}
+body{background:var(--ink);color:var(--text);font:15px/1.5 var(--f-body);margin:0}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,440px);gap:0;min-height:100%;height:100%}
+.stage{position:relative;min-height:0;background:radial-gradient(120% 90% at 50% 20%,#2a1d3c 0%,var(--ink) 70%)}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hud{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:16px;right:16px;display:flex;justify-content:space-between;gap:12px;pointer-events:none;flex-wrap:wrap}
+.brand{font:400 22px/1 var(--f-display);letter-spacing:.02em;color:var(--text);text-shadow:0 0 18px #ff2f8666}
+.brand small{display:block;font:600 11px/1.4 var(--f-body);letter-spacing:.14em;color:var(--mute);text-shadow:none;margin-top:6px;text-transform:uppercase}
+.stats{font:12px/1.5 var(--f-mono);color:var(--mute);text-align:right;font-variant-numeric:tabular-nums}
+.stats b{color:var(--ice);font-weight:600}
+.stagebot{position:absolute;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:16px;display:flex;flex-direction:column;gap:10px;align-items:stretch;pointer-events:none}
+.stagebot > *{pointer-events:auto}
+.poses{display:flex;gap:6px;flex-wrap:wrap}
+.dlbar{display:flex;flex-direction:column;gap:8px;align-items:flex-end;background:#1d1628e6;border:1px solid var(--line);border-radius:14px;padding:10px 12px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.dlbar .row{justify-content:flex-end}
+.dlbar .msg{text-align:right;min-height:0}
+.chip{border:1px solid var(--line);background:#1d1628cc;color:var(--text);font:600 12px var(--f-body);letter-spacing:.06em;padding:7px 12px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--ice);color:var(--ice);box-shadow:0 0 0 1px var(--ice) inset}
+.chip:focus-visible,.btn:focus-visible,.drop:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--honey);outline-offset:2px}
+.bench{background:var(--panel);border-left:1px solid var(--line);overflow:auto;padding-block:20px 28px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px;min-width:0}
+h2{font:400 15px/1.2 var(--f-display);letter-spacing:.04em;margin:0;color:var(--honey)}
+.step{display:flex;flex-direction:column;gap:8px;min-width:0}
+.lbl{font:600 11px var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+textarea,input[type=text]{width:100%;box-sizing:border-box;background:var(--ink);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:14px/1.45 var(--f-body);resize:vertical}
+#recipe{font:12px/1.5 var(--f-mono);min-height:220px;white-space:pre;overflow:auto}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:0;border-radius:10px;padding:10px 14px;font:800 13px var(--f-body);letter-spacing:.04em;cursor:pointer;color:var(--ink);background:var(--text)}
+.btn.big{padding:13px 18px;font-size:14px}
+.btn.hot{background:linear-gradient(90deg,var(--glaze),#ff7a3d);color:#fff;box-shadow:0 6px 22px #ff2f8644}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+.btn[disabled]{opacity:.5;cursor:progress}
+.drop{display:flex;gap:12px;align-items:center;border:1.5px dashed var(--line);border-radius:14px;padding:12px;cursor:pointer;background:var(--ink);min-height:70px}
+.drop.over{border-color:var(--ice);box-shadow:0 0 0 3px #00e5ff33}
+.drop img{width:76px;height:76px;object-fit:cover;border-radius:10px;flex:none}
+.drop .dt{color:var(--mute);font-size:13.5px;line-height:1.4}
+.pal{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font:12px var(--f-mono);color:var(--mute)}
+.sw{display:inline-block;width:14px;height:14px;border-radius:4px;border:1px solid #ffffff33;vertical-align:-2px;margin-right:5px}
+.ex{display:flex;gap:6px;flex-wrap:wrap}
+.msg{font:13px/1.45 var(--f-body);color:var(--mute);min-height:1.4em}
+.msg.ok{color:var(--ok)}.msg.bad{color:var(--bad)}
+.how{border-top:1px solid var(--line);padding-top:14px}
+.how summary{cursor:pointer;font:400 13px var(--f-display);color:var(--ice);letter-spacing:.04em}
+.how ol{margin:10px 0 0;padding-left:20px;color:var(--mute);font-size:13.5px;max-width:65ch}
+.how li{margin-bottom:6px}.how b{color:var(--text)}
+code{font:12px var(--f-mono);color:var(--honey)}
+@media (max-width:820px){.stats{text-align:left;flex-basis:100%}.wrap{grid-template-columns:1fr;height:auto}.stage{height:70vh;min-height:440px}.bench{border-left:0;border-top:1px solid var(--line);overflow:visible}.dlbar{align-items:stretch}.dlbar .row{justify-content:flex-start}.dlbar .msg{text-align:left}}
+@media (prefers-reduced-motion:reduce){.btn.hot{box-shadow:none}}
+</style>
+
+<div class="wrap">
+  <section class="stage" aria-label="3D preview">
+    <canvas id="cv"></canvas>
+    <div class="hud"><div class="brand">WIR FORGE<small>picture or idea → recipe → rigged 3D model</small></div><div class="stats" id="stats">loading three.js…</div></div>
+    <div class="stagebot">
+      <div class="poses" role="group" aria-label="Preview motion">
+        <button class="chip" data-pose="auto" aria-pressed="true">IN MOTION</button><button class="chip" data-pose="rest" aria-pressed="false">REST POSE</button><button class="chip" id="spin" aria-pressed="true">TURNTABLE</button><button class="chip" id="wire" aria-pressed="false">BONES</button>
+      </div>
+      <div class="dlbar" id="dlbar" role="group" aria-label="Download" hidden>
+        <div class="row">
+          <button class="btn hot big" id="glb">DOWNLOAD 3D MODEL</button><button class="btn ghost" id="png">PICTURE (PNG)</button><button class="btn ghost" id="dlR">RECIPE (JSON)</button>
+        </div>
+        <div class="msg" id="outMsg" aria-live="polite">The 3D model downloads as a .glb file. Inside the Claude viewer it arrives as a .zip with the .glb inside.</div>
+      </div>
+    </div>
+  </section>
+  <aside class="bench">
+    <div class="step">
+      <h2>1 · Show it or describe it</h2>
+      <div class="drop" id="drop" role="button" tabindex="0" aria-label="Add a picture of the character">
+        <img id="picImg" alt="Your picture" hidden>
+        <span class="dt" id="dropTxt">Drop a picture here, paste one (Ctrl/⌘+V), or click to choose. Claude builds the character in it.</span>
+      </div>
+      <input type="file" id="pic" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+      <div class="row" id="picRow" hidden><div class="pal" id="pal"></div><button class="btn ghost" id="picClear">REMOVE PICTURE</button></div>
+      <label class="lbl" for="idea">Your idea (optional when a picture is in)</label>
+      <textarea id="idea" rows="3">A caramel-glass heavyweight with honeycomb armour on his shoulders, glowing amber cracks, short dreads and burnt-sugar gloves</textarea>
+      <div class="row"><button class="btn hot" id="go">FORGE IT</button><button class="btn ghost" id="stop" hidden>STOP</button><button class="btn ghost" id="copyP">COPY AI PROMPT</button></div>
+      <div class="msg" id="aiMsg"></div>
+    </div>
+    <div class="step">
+      <span class="lbl">Or start from an example</span>
+      <div class="ex" id="examples"></div>
+    </div>
+    <div class="step">
+      <h2>2 · The recipe</h2>
+      <label class="lbl" for="recipe">Edit the JSON, then build</label>
+      <textarea id="recipe" spellcheck="false"></textarea>
+      <div class="row"><button class="btn" id="build">BUILD</button><button class="btn ghost" id="copyR">COPY RECIPE</button></div>
+      <div class="msg" id="buildMsg"></div>
+    </div>
+    <details class="how">
+      <summary>How the Glazed Ring fighters are built</summary>
+      <ol>
+        <li><b>Skeleton from real mocap.</b> The rig is the Mixamo skeleton from AMukkani's boxing FBX files, so every captured punch, slip and knockdown plays on it.</li>
+        <li><b>Bodies grown from code, not sculpted.</b> Each body part is a loft: rings of superellipse cross-sections stacked along a bone and stitched into triangles.</li>
+        <li><b>Muscle as math.</b> Ring radius changes along the limb and around it (biceps on the front, triceps on the back), so the shape reads as muscle.</li>
+        <li><b>Skin weights while building.</b> Every vertex knows which bones move it at the moment it is made, blended across joints.</li>
+        <li><b>Materials painted by code.</b> Canvas-drawn colour, bump and glow maps (noodle fibres, graham dots, popcorn bubbles, cast-iron cracks) on physical materials with sheen and clearcoat.</li>
+        <li><b>One recipe per fighter.</b> Body proportions, skin kind, hair style and colours live in one roster entry; the Forge turns that idea into an open JSON recipe any AI can write.</li>
+      </ol>
+    </details>
+  </aside>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+// WIR FORGE — turn a JSON "recipe" into a rigged, skinned, textured three.js character (and export it as .glb).
+// Same technique as the NGB: The Glazed Ring fighters, generalised: any skeleton (humanoid, quadruped, or your own bone chains),
+// lofted superellipse bodies, muscle-shaped limbs, blobs, scattered detail (locs, popcorn, spikes, scales), procedural PBR textures,
+// automatic skin weights for any body plan. An AI writes the recipe; this file builds it.
+//
+//   import * as THREE from 'three';
+//   import { forge, validate, animate } from './forge.js';
+//   const model = forge(recipe, THREE);      // { group, skeleton, bones, meshes, rest, recipe }
+//   scene.add(model.group);  ...  animate(model, t);   // idle / guard / walk / wave preview motion
+//
+// Conventions: metres. The character faces +Z, Y is up, +X is the character's OWN LEFT. Rest positions are world positions.
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const smooth = t => t * t * (3 - 2 * t);
+function rnd(seed) { let s = (seed >>> 0) || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+const mirName = n => n.replace(/Left|Right/g, m => (m === 'Left' ? 'Right' : 'Left'));
+
+// ---------------------------------------------------------------- skeletons
+// Humanoid uses Mixamo bone names, so Mixamo / mocap clips retarget straight onto it (world-space rest-delta retargeting, as in NGB).
+function humanoid(sk) {
+  const H = (sk.height || 1.8) / 1.8, p = Object.assign({ shoulders: 1, arms: 1, legs: 1, torso: 1, neck: 1, head: 1, hips: 1 }, sk.proportions || {});
+  const legY = 100 * p.legs, torsoK = p.torso, armK = p.arms;
+  const sp = y => legY + (y - 100) * torsoK; // torso heights from the leg length up
+  const J = {
+    Hips: [0, legY, 0, null], Spine: [0, sp(108), 0, 'Hips'], Spine1: [0, sp(118), 0, 'Spine'], Spine2: [0, sp(130), -1, 'Spine1'],
+    Neck: [0, sp(148), -3, 'Spine2'], Head: [0, sp(148) + 9 * p.neck, -2, 'Neck'], HeadTop_End: [0, sp(148) + 9 * p.neck + 21 * p.head, 0, 'Head'],
+  };
+  for (const [S, s] of [['Left', 1], ['Right', -1]]) {
+    const shY = sp(142), sw = 17 * p.shoulders;
+    Object.assign(J, {
+      [S + 'Shoulder']: [5 * s, sp(143), -3, 'Spine2'], [S + 'Arm']: [sw * s, shY, -4, S + 'Shoulder'], [S + 'ForeArm']: [(sw + 27 * armK) * s, shY, -4, S + 'Arm'],
+      [S + 'Hand']: [(sw + 53 * armK) * s, shY, -3, S + 'ForeArm'], [S + 'HandEnd']: [(sw + 63 * armK) * s, shY, -2, S + 'Hand'],
+      [S + 'UpLeg']: [9 * p.hips * s, legY - 5, 0, 'Hips'], [S + 'Leg']: [9 * p.hips * s, legY * 0.52, 1, S + 'UpLeg'], [S + 'Foot']: [9 * p.hips * s, legY * 0.09, -1, S + 'Leg'],
+      [S + 'ToeBase']: [9 * p.hips * s, 2, 12, S + 'Foot'], [S + 'Toe_End']: [9 * p.hips * s, 2, 20, S + 'ToeBase'],
+    });
+  }
+  return Object.entries(J).map(([n, [x, y, z, par]]) => ({ name: n, parent: par, pos: [x * 0.01 * H, y * 0.01 * H, z * 0.01 * H] }));
+}
+function quadruped(sk) {
+  const H = (sk.height || 1.0) / 1.0, L = (sk.length || 1.4) / 1.4, p = Object.assign({ legs: 1, neck: 1, head: 1, tail: 1 }, sk.proportions || {});
+  const legY = 0.9 * p.legs, J = {
+    Hips: [0, legY, -0.45 * L, null], Spine: [0, legY + 0.03, -0.2 * L, 'Hips'], Spine1: [0, legY + 0.05, 0.05 * L, 'Spine'], Spine2: [0, legY + 0.07, 0.3 * L, 'Spine1'],
+    Neck: [0, legY + 0.17 * p.neck, 0.48 * L, 'Spine2'], Head: [0, legY + 0.3 * p.neck, 0.6 * L + 0.05 * p.neck, 'Neck'], HeadTop_End: [0, legY + 0.3 * p.neck, 0.6 * L + 0.05 * p.neck + 0.28 * p.head, 'Head'],
+  };
+  for (const [S, s] of [['Left', 1], ['Right', -1]]) for (const [E, z, par] of [['Front', 0.35 * L, 'Spine2'], ['Back', -0.45 * L, 'Hips']]) {
+    const x = 0.14 * s; Object.assign(J, { [E + S + 'UpLeg']: [x, legY - 0.02, z, par], [E + S + 'Leg']: [x, legY * 0.58, z + (E === 'Back' ? 0.05 : 0.02), E + S + 'UpLeg'],
+      [E + S + 'Foot']: [x, legY * 0.13, z - (E === 'Back' ? 0.03 : 0), E + S + 'Leg'], [E + S + 'Toe']: [x, 0.0, z + 0.09, E + S + 'Foot'] });
+  }
+  let prev = 'Hips', tz = -0.45 * L, ty = legY + 0.02; const n = 5;
+  for (let i = 1; i <= n; i++) { tz -= 0.14 * p.tail * L; ty -= 0.05; J['Tail' + i] = [0, ty, tz, prev]; prev = 'Tail' + i; }
+  return Object.entries(J).map(([nm, [x, y, z, par]]) => ({ name: nm, parent: par, pos: [x * H, y * H, z * H] }));
+}
+function chains(list, have) { // extra bone chains: tails, tentacles, wings, antennae… {name, count, from, to, parent, curl:[x,y,z], mirror}
+  const out = [];
+  const add = (c, flip) => {
+    const nm = flip ? mirName(c.name).replace(/^(?!Left|Right)/, 'R_') : c.name; const f = c.from.slice(), t = c.to.slice(); if (flip) { f[0] = -f[0]; t[0] = -t[0]; }
+    const curl = c.curl || [0, 0, 0]; let par = flip ? mirName(c.parent || 'Hips') : (c.parent || 'Hips');
+    for (let i = 0; i <= c.count; i++) { const u = i / c.count, b = Math.sin(Math.PI * u);
+      const pos = [f[0] + (t[0] - f[0]) * u + curl[0] * b * (flip ? -1 : 1), f[1] + (t[1] - f[1]) * u + curl[1] * b, f[2] + (t[2] - f[2]) * u + curl[2] * b];
+      const name = `${nm}${i + 1}`; out.push({ name, parent: par, pos }); par = name; }
+  };
+  for (const c of list || []) { add(c, false); if (c.mirror) add(c, true); }
+  return out;
+}
+export function skeletonDef(sk = {}) {
+  let bones = sk.preset === 'quadruped' ? quadruped(sk) : sk.preset === 'none' ? [{ name: 'Root', parent: null, pos: [0, 0, 0] }] : humanoid(sk);
+  bones = bones.concat(chains(sk.chains, bones)).concat(sk.bones || []);
+  return bones;
+}
+function buildSkeleton(THREE, defs) {
+  const root = new THREE.Group(), bones = {}, list = [], rest = {};
+  for (const d of defs) {
+    const b = new THREE.Bone(); b.name = d.name; const P = new THREE.Vector3().fromArray(d.pos); rest[d.name] = P;
+    const par = d.parent && bones[d.parent]; b.position.copy(par ? P.clone().sub(rest[d.parent]) : P); (par || root).add(b);
+    b.userData.rest = { p: b.position.clone(), q: b.quaternion.clone() }; bones[d.name] = b; list.push(b);
+  }
+  const children = {}; for (const d of defs) if (d.parent) (children[d.parent] = children[d.parent] || []).push(d.name);
+  root.updateMatrixWorld(true);
+  return { root, bones, list, rest, children, skeleton: new THREE.Skeleton(list), index: Object.fromEntries(list.map((b, i) => [b.name, i])) };
+}
+
+// ---------------------------------------------------------------- mesh builder with skin weights
+class MB {
+  constructor(THREE, S) { this.T = THREE; this.S = S; this.p = []; this.uv = []; this.si = []; this.sw = []; this.ix = []; this.seams = []; }
+  // weights: {bone: 'Head'} rigid, or {cands: [...names]} automatic among candidates (distance to bone segments, falloff ^4)
+  weightsAt(p, W) {
+    const S = this.S, T = this.T; if (W.bone) return [[S.index[W.bone] ?? 0, 1]];
+    const out = [];
+    for (const n of W.cands) { const a = S.rest[n]; if (!a) continue; const kids = S.children[n]; const b = kids && kids.length ? S.rest[kids[0]] : a;
+      const ab = b.clone().sub(a), L2 = ab.lengthSq(); const t = L2 > 1e-8 ? clamp(p.clone().sub(a).dot(ab) / L2, 0, 1) : 0; const d = p.distanceTo(a.clone().addScaledVector(ab, t));
+      out.push([S.index[n], 1 / Math.pow(d + 0.012, 4)]); }
+    out.sort((x, y) => y[1] - x[1]); return out.slice(0, 4);
+  }
+  v(p, u, v, W) {
+    const ws = this.weightsAt(p, W); const s = ws.reduce((a, b) => a + b[1], 0) || 1;
+    this.p.push(p.x, p.y, p.z); this.uv.push(u, v);
+    for (let i = 0; i < 4; i++) { this.si.push(ws[i] ? ws[i][0] : 0); this.sw.push(ws[i] ? ws[i][1] / s : 0); }
+    return this.p.length / 3 - 1;
+  }
+  loft(rings, W, { capStart = false, capEnd = false, flip = false } = {}) { // rings: [{pts:[V3...], v}]
+    const n = rings[0].pts.length, ids = [];
+    // winding from geometry, not from how the frame happened to turn: faces must point away from the ring centre
+    { const m = Math.max(1, Math.min(rings.length - 2, Math.floor(rings.length / 2))); const A = rings[m].pts, B = rings[m + 1].pts; const c = new this.T.Vector3(); A.forEach(p => c.add(p)); c.divideScalar(n);
+      let s = 0; for (let j = 0; j < n; j += Math.max(1, n >> 2)) { const a0 = A[j], a1 = A[(j + 1) % n], b0 = B[j]; const nrm = new this.T.Vector3().crossVectors(b0.clone().sub(a0), a1.clone().sub(a0)); s += nrm.dot(a0.clone().sub(c)); }
+      flip = s < 0; }
+    rings.forEach(r => { const row = []; for (let j = 0; j <= n; j++) row.push(this.v(r.pts[j % n], j / n, r.v, W)); ids.push(row); this.seams.push([row[0], row[n]]); });
+    for (let i = 0; i < ids.length - 1; i++) for (let j = 0; j < n; j++) { const a = ids[i][j], b = ids[i][j + 1], c = ids[i + 1][j], d = ids[i + 1][j + 1]; if (flip) this.ix.push(a, b, c, b, d, c); else this.ix.push(a, c, b, b, c, d); }
+    const cap = (row, r, inv) => { const c = new this.T.Vector3(); r.pts.forEach(p => c.add(p)); c.divideScalar(n); const ci = this.v(c, 0.5, r.v, W); for (let j = 0; j < n; j++) { if (inv !== flip) this.ix.push(ci, row[j], row[j + 1]); else this.ix.push(ci, row[j + 1], row[j]); } };
+    if (capStart) cap(ids[0], rings[0], false); if (capEnd) cap(ids[ids.length - 1], rings[rings.length - 1], true);
+  }
+  geometry() {
+    const T = this.T, g = new T.BufferGeometry();
+    g.setAttribute('position', new T.Float32BufferAttribute(this.p, 3)); g.setAttribute('uv', new T.Float32BufferAttribute(this.uv, 2));
+    g.setAttribute('skinIndex', new T.Uint16BufferAttribute(this.si, 4)); g.setAttribute('skinWeight', new T.Float32BufferAttribute(this.sw, 4));
+    g.setIndex(this.ix); g.computeVertexNormals(); const nr = g.attributes.normal;
+    for (const [a, b] of this.seams) { const x = nr.getX(a) + nr.getX(b), y = nr.getY(a) + nr.getY(b), z = nr.getZ(a) + nr.getZ(b); const l = Math.hypot(x, y, z) || 1; nr.setXYZ(a, x / l, y / l, z / l); nr.setXYZ(b, x / l, y / l, z / l); }
+    g.computeBoundingSphere(); return g;
+  }
+}
+
+// ---------------------------------------------------------------- shapes
+function frameOf(T, t, prevE1) { t = t.clone().normalize(); let e1;
+  if (prevE1) { e1 = prevE1.clone().addScaledVector(t, -prevE1.dot(t)); if (e1.lengthSq() < 1e-6) e1 = null; else e1.normalize(); }
+  if (!e1) { const ref = Math.abs(t.y) > 0.85 ? new T.Vector3(1, 0, 0) : new T.Vector3(0, 1, 0); e1 = new T.Vector3().crossVectors(ref, t).normalize(); if (Math.abs(t.y) > 0.85) e1 = new T.Vector3(1, 0, 0).addScaledVector(t, -t.x).normalize(); }
+  return { t, e1, e2: new T.Vector3().crossVectors(t, e1).normalize() }; }
+// superellipse ring: exponent 2 = ellipse, 3–4 = squarer (torsos), 1.5 = pinched
+function ring(T, c, f, rx, rz, n, ex = 2, shape) { const pts = [];
+  for (let j = 0; j < n; j++) { const th = j / n * Math.PI * 2; const co = Math.cos(th), si = Math.sin(th); let k = shape ? shape(th) : 1;
+    const x = Math.sign(co) * Math.pow(Math.abs(co), 2 / ex) * rx * k, z = Math.sign(si) * Math.pow(Math.abs(si), 2 / ex) * rz * k;
+    pts.push(c.clone().addScaledVector(f.e1, x).addScaledVector(f.e2, z)); } return pts; }
+// path loft through anchor points with per-point [rx, rz] (catmull-rom resampled)
+function loftPath(T, mb, pts, radii, W, o = {}) {
+  const curve = new T.CatmullRomCurve3(pts, false, 'centripetal'); const N = Math.max(6, Math.round((o.segments || pts.length * 5) * (o.detail || 1))); const n = Math.round((o.ring || 18) * (o.detail || 1));
+  const rings = []; let prev = o.e1 ? new T.Vector3().fromArray(o.e1) : null;
+  for (let i = 0; i <= N; i++) { const u = i / N; const c = curve.getPointAt(u); const t = curve.getTangentAt(u); const f = frameOf(T, t, prev); prev = f.e1;
+    const x = u * (radii.length - 1), k = Math.min(radii.length - 2, Math.floor(x)), fr = x - k; const r0 = [].concat(radii[k]), r1 = [].concat(radii[k + 1] ?? radii[k]);
+    const rx = (r0[0] + ((r1[0]) - r0[0]) * smooth(fr)), rz = ((r0[1] ?? r0[0]) + ((r1[1] ?? r1[0]) - (r0[1] ?? r0[0])) * smooth(fr));
+    const muscle = o.muscle || 0; const shape = muscle ? th => 1 + muscle * Math.max(0, Math.sin(th)) * Math.sin(Math.PI * u) * 0.25 + muscle * 0.12 * Math.max(0, -Math.sin(th)) * Math.sin(Math.PI * clamp(u * 1.4, 0, 1)) : null;
+    rings.push({ pts: ring(T, c, f, rx, rz, n, o.squareness || 2, shape), v: u * (o.vScale || 1) }); }
+  mb.loft(rings, W, { capStart: o.caps !== false && o.capStart !== false, capEnd: o.caps !== false && o.capEnd !== false });
+}
+function blob(T, mb, C, size, W, o = {}) {
+  const [rx, ry, rz] = size; const lat = Math.round((o.lat || 12) * (o.detail || 1)), lon = Math.round((o.lon || 18) * (o.detail || 1)); const R = o.rot || [0, 0, 0];
+  const q = new T.Quaternion().setFromEuler(new T.Euler(R[0] * Math.PI / 180, R[1] * Math.PI / 180, R[2] * Math.PI / 180)); const rg = rnd(o.seed || 1); const lumps = o.lumps || 0; const ph0 = rg() * 9, ph1 = rg() * 9;
+  const rings = [];
+  for (let i = 0; i <= lat; i++) { const phi = -Math.PI / 2 + Math.PI * i / lat; const pts = [];
+    for (let j = 0; j < lon; j++) { const th = j / lon * Math.PI * 2; let k = 1 + lumps * (Math.sin(th * 3 + ph0) * Math.cos(phi * 2 + ph1) * 0.6 + Math.sin(th * 7 + phi * 5) * 0.4);
+      if (o.flatBottom && phi < -0.2) k *= 1 - 0.5 * (-phi - 0.2); if (o.taper) k *= 1 - o.taper * (Math.sin(phi) * 0.5 + 0.5) * 0;
+      let y = Math.sin(phi) * ry; if (o.taper) { const tp = 1 - o.taper * (Math.sin(phi) * 0.5 + 0.5); k *= tp; }
+      const v = new T.Vector3(Math.cos(phi) * Math.cos(th) * rx * k, y, Math.cos(phi) * Math.sin(th) * rz * k).applyQuaternion(q); pts.push(C.clone().add(v)); }
+    rings.push({ pts, v: i / lat }); }
+  mb.loft(rings, W, { flip: true });
+}
+
+// ---------------------------------------------------------------- procedural textures (canvas → PBR maps)
+function canvasTex(T, w, h, draw, rep) { const c = (typeof document !== 'undefined' ? document.createElement('canvas') : new OffscreenCanvas(w, h)); c.width = w; c.height = h; const g = c.getContext('2d'); draw(g, w, h);
+  const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(rep[0], rep[1]); t.colorSpace = T.SRGBColorSpace; t.anisotropy = 4; t.needsUpdate = true; return t; }
+export const PATTERNS = ['plain', 'noise', 'fibers', 'dots', 'bubbles', 'cracks', 'scales', 'stripes', 'spots', 'plates', 'grain', 'knit'];
+function textures(T, m, seed) {
+  const r = rnd(seed); const col = new T.Color(m.color || '#888'), c2 = new T.Color(m.color2 || m.color || '#aaa'); const css = c => '#' + c.getHexString();
+  const rgba = (c, a) => `rgba(${c.r * 255 | 0},${c.g * 255 | 0},${c.b * 255 | 0},${a})`; const rep = [].concat(m.scale ?? 3); const R = [rep[0], rep[1] ?? rep[0] * 0.7];
+  const pat = m.pattern || 'plain'; let draw = null, bump = null, glow = null;
+  const fill = (g, w, h, c) => { g.fillStyle = c; g.fillRect(0, 0, w, h); };
+  switch (pat) {
+    case 'noise': case 'grain': draw = (g, w, h) => { fill(g, w, h, css(col)); for (let i = 0; i < (pat === 'grain' ? 7000 : 2500); i++) { g.fillStyle = r() > 0.5 ? rgba(c2, r() * 0.18) : `rgba(0,0,0,${r() * 0.12})`; g.fillRect(r() * w, r() * h, pat === 'grain' ? 1 : 2, pat === 'grain' ? 3 : 2); } };
+      bump = (g, w, h) => { fill(g, w, h, '#808080'); for (let i = 0; i < 3000; i++) { const v = 90 + r() * 90 | 0; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(r() * w, r() * h, 2, 2); } }; break;
+    case 'fibers': case 'knit': draw = (g, w, h) => { fill(g, w, h, css(col)); for (let i = 0; i < 110; i++) { const x = r() * w; g.strokeStyle = rgba(c2, 0.05 + r() * 0.12); g.lineWidth = 1 + r() * 2.5; g.beginPath(); g.moveTo(x, 0); for (let y = 0; y <= h; y += 16) g.lineTo(x + Math.sin(y * 0.05 + i) * (pat === 'knit' ? 5 : 3), y); g.stroke(); } };
+      bump = (g, w, h) => { fill(g, w, h, '#808080'); for (let i = 0; i < 80; i++) { const x = r() * w; const lg = g.createLinearGradient(x - 3, 0, x + 3, 0); lg.addColorStop(0, '#606060'); lg.addColorStop(0.5, '#d0d0d0'); lg.addColorStop(1, '#606060'); g.fillStyle = lg; g.fillRect(x - 3, 0, 6, h); } }; break;
+    case 'dots': draw = (g, w, h) => { fill(g, w, h, css(col)); for (let x = 16; x < w; x += 32) for (let y = 16; y < h; y += 32) { g.fillStyle = rgba(c2, 0.8); g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); } };
+      bump = (g, w, h) => { fill(g, w, h, '#909090'); for (let x = 16; x < w; x += 32) for (let y = 16; y < h; y += 32) { g.fillStyle = '#303030'; g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); } }; break;
+    case 'bubbles': case 'spots': draw = (g, w, h) => { fill(g, w, h, css(col)); for (let i = 0; i < (pat === 'spots' ? 40 : 140); i++) { const x = r() * w, y = r() * h, s = pat === 'spots' ? 8 + r() * 22 : 6 + r() * 14; const rg = g.createRadialGradient(x, y, 1, x, y, s); rg.addColorStop(0, rgba(c2, 0.9)); rg.addColorStop(1, rgba(c2, 0)); g.fillStyle = rg; g.beginPath(); g.arc(x, y, s, 0, 7); g.fill(); } };
+      bump = (g, w, h) => { fill(g, w, h, '#707070'); for (let i = 0; i < 160; i++) { const x = r() * w, y = r() * h, s = 5 + r() * 12; const rg = g.createRadialGradient(x, y, 1, x, y, s); rg.addColorStop(0, '#e0e0e0'); rg.addColorStop(1, '#707070'); g.fillStyle = rg; g.beginPath(); g.arc(x, y, s, 0, 7); g.fill(); } }; break;
+    case 'cracks': { const cr = []; for (let i = 0; i < 16; i++) { let x = r() * 256, y = r() * 256; const pts = [[x, y]]; for (let k = 0; k < 6; k++) { x += (r() - 0.5) * 44; y += (r() - 0.5) * 44; pts.push([x, y]); } cr.push(pts); }
+      const lines = (g, c, wdt) => { g.strokeStyle = c; for (const p of cr) { g.lineWidth = wdt; g.beginPath(); g.moveTo(...p[0]); p.slice(1).forEach(q => g.lineTo(...q)); g.stroke(); } };
+      draw = (g, w, h) => { fill(g, w, h, css(col)); for (let i = 0; i < 2500; i++) { g.fillStyle = `rgba(${r() > 0.5 ? '255,255,255' : '0,0,0'},${r() * 0.07})`; g.fillRect(r() * w, r() * h, 2, 2); } lines(g, 'rgba(0,0,0,.6)', 2); };
+      glow = (g, w, h) => { fill(g, w, h, '#000'); g.shadowColor = css(c2); g.shadowBlur = 6; lines(g, css(c2), 1.4); };
+      bump = (g, w, h) => { fill(g, w, h, '#909090'); lines(g, '#202020', 3); }; break; }
+    case 'scales': case 'plates': draw = (g, w, h) => { fill(g, w, h, css(col)); const s = pat === 'plates' ? 64 : 24; for (let y = 0; y < h + s; y += s * 0.6) for (let x = ((y / (s * 0.6)) % 2) * s / 2 - s; x < w + s; x += s) { const rg = g.createRadialGradient(x, y, 1, x, y + s * 0.3, s * 0.7); rg.addColorStop(0, rgba(c2, 0.95)); rg.addColorStop(1, rgba(col, 1)); g.fillStyle = rg; g.beginPath(); if (pat === 'plates') g.rect(x - s / 2 + 2, y - s * 0.3 + 2, s - 4, s * 0.6 - 4); else g.arc(x, y, s * 0.55, 0, Math.PI); g.fill(); g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 1.5; g.stroke(); } };
+      bump = (g, w, h) => { fill(g, w, h, '#606060'); const s = pat === 'plates' ? 64 : 24; for (let y = 0; y < h + s; y += s * 0.6) for (let x = ((y / (s * 0.6)) % 2) * s / 2 - s; x < w + s; x += s) { g.fillStyle = '#d8d8d8'; g.beginPath(); if (pat === 'plates') g.rect(x - s / 2 + 3, y - s * 0.3 + 3, s - 6, s * 0.6 - 6); else g.arc(x, y, s * 0.5, 0, Math.PI); g.fill(); } }; break;
+    case 'stripes': draw = (g, w, h) => { fill(g, w, h, css(col)); g.fillStyle = css(c2); for (let x = 0; x < w; x += 32) g.fillRect(x, 0, 14, h); }; break;
+    default: draw = (g, w, h) => fill(g, w, h, css(col));
+  }
+  const S = pat === 'plain' ? 32 : 256;
+  return { map: canvasTex(T, S, S, draw, R), bump: bump && canvasTex(T, 256, 256, bump, R), glow: glow && canvasTex(T, 256, 256, glow, R) };
+}
+function material(T, m = {}, seed) {
+  const tx = textures(T, m, seed); const isBasic = m.type === 'basic' || m.unlit;
+  if (isBasic) return new T.MeshBasicMaterial({ color: m.color || '#fff' });
+  return new T.MeshPhysicalMaterial({ color: 0xffffff, map: tx.map, bumpMap: tx.bump || null, bumpScale: m.bump ?? 1, roughness: m.rough ?? 0.55, metalness: m.metal ?? 0,
+    clearcoat: m.clearcoat ?? 0.1, clearcoatRoughness: 0.25, sheen: m.sheen ?? 0, sheenColor: new T.Color(m.color2 || m.color || '#fff'), sheenRoughness: 0.6,
+    emissive: new T.Color(m.glowColor || m.color2 || m.color || '#000'), emissiveMap: tx.glow || null, emissiveIntensity: m.glow ?? 0, transparent: (m.opacity ?? 1) < 1, opacity: m.opacity ?? 1, flatShading: !!m.flat });
+}
+
+// ---------------------------------------------------------------- anchors
+// an anchor is [x,y,z]  |  {bone, offset:[x,y,z]}  |  {between:[A,B], t, offset}
+function anchor(T, S, a, mirror) {
+  const flipB = n => (mirror ? mirName(n) : n); let p;
+  if (Array.isArray(a)) p = new T.Vector3().fromArray(a);
+  else if (a && a.bone) { const r = S.rest[flipB(a.bone)]; if (!r) throw new Error(`unknown bone "${flipB(a.bone)}"`); p = r.clone(); if (a.offset) p.add(new T.Vector3().fromArray(a.offset).multiply(new T.Vector3(mirror ? -1 : 1, 1, 1))); return p; }
+  else if (a && a.between) { const [A, B] = a.between.map(flipB); if (!S.rest[A] || !S.rest[B]) throw new Error(`unknown bone in between: ${A}, ${B}`); p = S.rest[A].clone().lerp(S.rest[B], a.t ?? 0.5); if (a.offset) p.add(new T.Vector3().fromArray(a.offset).multiply(new T.Vector3(mirror ? -1 : 1, 1, 1))); return p; }
+  else throw new Error('bad anchor ' + JSON.stringify(a));
+  if (mirror) p.x = -p.x; return p;
+}
+function weightsFor(S, part, mirror, near) {
+  const fl = n => (mirror ? mirName(n) : n);
+  if (part.bone) return { bone: fl(part.bone) };
+  if (part.bones) return { cands: part.bones.map(fl).filter(n => S.rest[n]) };
+  // nearest bones to the part (auto): the 6 closest joints
+  const all = Object.keys(S.rest).map(n => [n, S.rest[n].distanceTo(near)]).sort((a, b) => a[1] - b[1]).slice(0, 6).map(x => x[0]); return { cands: all };
+}
+
+// ---------------------------------------------------------------- part builders
+function buildPart(T, S, mb, part, mirror, detail) {
+  const A = a => anchor(T, S, a, mirror); const fl = n => (mirror ? mirName(n) : n);
+  switch (part.type) {
+    case 'torso': { // humanoid torso from sections [heightFrac 0..1 between Hips and Neck, halfWidth, halfDepth, zOffset] (metres)
+      const h0 = S.rest.Hips.y - 0.14 * (part.down ?? 1), h1 = S.rest.Neck.y + 0.03; const n = Math.round(24 * detail);
+      const secs = part.sections || [[0, 0.15, 0.11, 0], [0.18, 0.16, 0.11, 0], [0.38, 0.135, 0.1, 0.005], [0.58, 0.155, 0.112, -0.006], [0.75, 0.18, 0.12, -0.016], [0.88, 0.17, 0.104, -0.03], [1, 0.07, 0.06, -0.04]];
+      const rings = secs.map(([u, hw, hd, zo], i) => { const y = h0 + (h1 - h0) * u; const c = new T.Vector3(0, y, zo); const f = { e1: new T.Vector3(1, 0, 0), e2: new T.Vector3(0, 0, 1) };
+        const bulge = part.chest ?? 0.02; return { pts: ring(T, c, f, hw * (part.width ?? 1), hd * (part.depth ?? 1), n, part.squareness || 2.6, th => 1 + (Math.sin(th) > 0 && u > 0.5 && u < 0.92 ? bulge * 4 * Math.pow(Math.sin(th), 2) : 0)), v: u * 2 }; });
+      mb.loft(rings, { cands: ['Hips', 'Spine', 'Spine1', 'Spine2', 'Neck', 'LeftUpLeg', 'RightUpLeg', 'LeftShoulder', 'RightShoulder'].filter(n => S.rest[n]) }, { capStart: true, capEnd: true }); return; }
+    case 'limb': { // along a bone chain, radii per joint [[rx,rz], …] or numbers; muscle 0..1
+      const ch = part.chain.map(fl); for (const n of ch) if (!S.rest[n]) throw new Error(`unknown bone "${n}"`);
+      const pts = ch.map(n => S.rest[n].clone()); if (part.extend) { const d = pts[pts.length - 1].clone().sub(pts[pts.length - 2]).normalize().multiplyScalar(part.extend); pts[pts.length - 1].add(d); }
+      if (part.startExtend) { const d = pts[0].clone().sub(pts[1]).normalize().multiplyScalar(part.startExtend); pts[0].add(d); }
+      const radii = part.radius.length === pts.length ? part.radius : pts.map((_, i) => part.radius[Math.min(i, part.radius.length - 1)]);
+      loftPath(T, mb, pts, radii, { cands: part.weightBones ? part.weightBones.map(fl) : ch }, { ...part, detail, segments: part.segments || ch.length * 8 }); return; }
+    case 'loft': case 'tube': { const pts = (part.path || [part.from, part.to]).map(A); const radii = part.radius.length ? part.radius : [part.radius];
+      loftPath(T, mb, pts, radii.length >= 2 ? radii : [radii[0], radii[0]], weightsFor(S, part, mirror, pts[0].clone().lerp(pts[pts.length - 1], 0.5)), { ...part, detail }); return; }
+    case 'blob': { const C = A(part.at); const rot = part.rot ? [part.rot[0], mirror ? -(part.rot[1] || 0) : part.rot[1] || 0, mirror ? -(part.rot[2] || 0) : part.rot[2] || 0] : null;
+      blob(T, mb, C, part.size, weightsFor(S, part, mirror, C), { ...part, rot, detail }); return; }
+    case 'scatter': { // detail spread over a sphere around an anchor: shape blob | spike | strand | scale
+      const C = A(part.at); const r = rnd((part.seed || 5) + (mirror ? 99 : 0)); const R = [].concat(part.radius); const Rx = R[0], Ry = R[1] ?? R[0], Rz = R[2] ?? R[0];
+      const el = part.elevation || [-0.2, 1.5], az = part.azimuth || [0, 360]; const W = weightsFor(S, part, mirror, C); const sz = [].concat(part.size || [0.02, 0.04]);
+      for (let i = 0; i < (part.count || 30); i++) { const ph = el[0] + r() * (el[1] - el[0]); const th = (az[0] + r() * (az[1] - az[0])) * Math.PI / 180;
+        const dir = new T.Vector3(Math.cos(ph) * Math.sin(th), Math.sin(ph), Math.cos(ph) * Math.cos(th)); if (mirror) dir.x = -dir.x;
+        const base = C.clone().add(new T.Vector3(dir.x * Rx, dir.y * Ry, dir.z * Rz)); const s = sz[0] + r() * ((sz[1] ?? sz[0]) - sz[0]);
+        if (part.shape === 'spike') { const tip = base.clone().addScaledVector(dir, (part.length || s * 3) * (0.7 + r() * 0.6)); loftPath(T, mb, [base, base.clone().lerp(tip, 0.5), tip], [s, s * 0.55, s * 0.05], W, { ring: 8, segments: 4, detail, caps: true }); }
+        else if (part.shape === 'strand') { const len = (part.length || 0.2) * (0.7 + r() * 0.6); const out = dir.clone().setY(0).normalize(); const g = new T.Vector3().fromArray(part.gravity || [0, -1, 0]);
+          const p1 = base.clone().addScaledVector(out, len * 0.25).addScaledVector(g, len * 0.2), p2 = base.clone().addScaledVector(out, len * 0.35).addScaledVector(g, len * 0.6), p3 = base.clone().addScaledVector(out, len * 0.4).addScaledVector(g, len);
+          loftPath(T, mb, [base, p1, p2, p3], [s, s, s * 0.9, s * 0.65], W, { ring: 7, segments: 8, detail, caps: true }); }
+        else if (part.shape === 'scale') { blob(T, mb, base, [s, s * 0.3, s * 0.8], W, { lat: 4, lon: 8, detail, rot: [0, Math.atan2(dir.x, dir.z) * 180 / Math.PI, 0] }); }
+        else blob(T, mb, base, [s, s * 0.9, s], W, { lat: 6, lon: 9, detail, lumps: part.lumps ?? 0.15, seed: i + 3 }); }
+      return; }
+    default: throw new Error('unknown part type ' + part.type);
+  }
+}
+
+// ---------------------------------------------------------------- main
+export function forge(recipe, THREE) {
+  const T = THREE; const detail = clamp(recipe.detail ?? 1, 0.5, 2.5);
+  const defs = skeletonDef(recipe.skeleton || {}); const S = buildSkeleton(T, defs);
+  const mats = {}; const mbs = {}; const errors = []; let seed = recipe.seed || 7;
+  const mdef = Object.assign({ skin: { color: '#8a5a3c', color2: '#c99a6a', pattern: 'noise' }, eyes: { color: '#ffe8b0', unlit: true } }, recipe.materials || {});
+  for (const [k, m] of Object.entries(mdef)) { mats[k] = material(T, m, seed++); mbs[k] = new MB(T, S); }
+  for (const part of recipe.parts || []) {
+    const key = part.material || 'skin'; if (!mbs[key]) { errors.push(`part uses unknown material "${key}" — using skin`); }
+    const mb = mbs[key] || mbs.skin;
+    for (const mir of part.mirror ? [false, true] : [false]) { try { buildPart(T, S, mb, part, mir, detail * (part.detail || 1)); } catch (e) { errors.push(`${part.type}${part.name ? ' "' + part.name + '"' : ''}: ${e.message}`); } }
+  }
+  const group = new T.Group(); group.name = recipe.name || 'forged'; group.add(S.root); const meshes = {};
+  for (const k in mbs) { if (!mbs[k].p.length) continue; const m = new T.SkinnedMesh(mbs[k].geometry(), mats[k]); m.name = k; m.bind(S.skeleton, new T.Matrix4()); m.castShadow = m.receiveShadow = true; m.frustumCulled = false; group.add(m); meshes[k] = m; }
+  return { group, skeleton: S.skeleton, bones: S.bones, rest: S.rest, meshes, mats, recipe, errors, preset: (recipe.skeleton || {}).preset || 'humanoid', stats: { bones: S.list.length, verts: Object.values(mbs).reduce((a, b) => a + b.p.length / 3, 0), tris: Object.values(mbs).reduce((a, b) => a + b.ix.length / 3, 0) } };
+}
+
+// ---------------------------------------------------------------- recipe check (feed errors back to the AI)
+export function validate(recipe) {
+  const errs = []; if (!recipe || typeof recipe !== 'object') return ['recipe must be a JSON object'];
+  let names; try { names = new Set(skeletonDef(recipe.skeleton || {}).map(b => b.name)); } catch (e) { return ['skeleton: ' + e.message]; }
+  const mats = new Set(Object.keys(Object.assign({ skin: 1, eyes: 1 }, recipe.materials || {})));
+  const chk = (a, where) => { if (!a || Array.isArray(a)) return; const bs = a.bone ? [a.bone] : a.between || []; for (const b of bs) if (!names.has(b)) errs.push(`${where}: unknown bone "${b}"`); };
+  (recipe.parts || []).forEach((p, i) => { const w = `parts[${i}] (${p.type})`;
+    if (!['torso', 'limb', 'loft', 'tube', 'blob', 'scatter'].includes(p.type)) errs.push(`${w}: unknown type`);
+    if (p.material && !mats.has(p.material)) errs.push(`${w}: material "${p.material}" is not defined in materials`);
+    if (p.chain) p.chain.forEach(b => { if (!names.has(b)) errs.push(`${w}: unknown bone "${b}" in chain`); });
+    [p.at, p.from, p.to, ...(p.path || [])].forEach(a => chk(a, w)); if (p.bone && !names.has(p.bone)) errs.push(`${w}: unknown bone "${p.bone}"`);
+    if ((p.type === 'limb' || p.type === 'loft' || p.type === 'tube') && !p.radius) errs.push(`${w}: needs radius`); if (p.type === 'blob' && !p.size) errs.push(`${w}: needs size`); });
+  return errs;
+}
+
+// ---------------------------------------------------------------- preview motion (procedural; real mocap retargets onto Mixamo names)
+export function animate(model, t, mode) {
+  const B = model.bones; const rs = n => { if (!B[n]) return; B[n].quaternion.copy(B[n].userData.rest.q); B[n].position.copy(B[n].userData.rest.p); }; for (const n in B) rs(n);
+  if (mode === 'rest') return; // bind pose (what the .glb exports)
+  const T = model._T || (model._T = Object.getPrototypeOf(B[Object.keys(B)[0]].quaternion).constructor); const Q = (x, y, z) => { const e = { x, y, z }; const q = new T(); const c = Math.cos, s = Math.sin; const cx = c(x / 2), sx = s(x / 2), cy = c(y / 2), sy = s(y / 2), cz = c(z / 2), sz = s(z / 2); q.set(sx * cy * cz + cx * sy * sz, cx * sy * cz - sx * cy * sz, cx * cy * sz + sx * sy * cz, cx * cy * cz - sx * sy * sz); return q; };
+  const rot = (n, x, y, z) => { if (B[n]) B[n].quaternion.multiply(Q(x, y, z)); };
+  const pre = model.preset; mode = mode || (pre === 'quadruped' ? 'walk' : pre === 'none' ? 'wave' : 'guard');
+  if (pre !== 'quadruped' && pre !== 'none' && B.LeftArm) {
+    const b = Math.sin(t * 5.5) * 0.5 + 0.5; if (B.Hips) B.Hips.position.y = B.Hips.userData.rest.p.y - 0.03 - 0.025 * b;
+    if (mode === 'guard') { for (const [S, s] of [['Left', 1], ['Right', -1]]) { rot(S + 'Arm', 0, -0.55 * s, -1.1 * s); rot(S + 'ForeArm', 0, -2.1 * s, 0); rot(S + 'Hand', 0, 0, -0.3 * s); rot(S + 'UpLeg', -0.25, 0, 0.06 * s); rot(S + 'Leg', 0.45, 0, 0); rot(S + 'Foot', -0.2, 0, 0); }
+      rot('Spine1', 0.12 + 0.03 * b, 0, 0); rot('Neck', -0.08, 0, 0); }
+    else for (const [S, s] of [['Left', 1], ['Right', -1]]) { rot(S + 'Arm', 0, 0, -1.25 * s); rot(S + 'ForeArm', 0, -0.2 * s, 0); }
+  }
+  if (pre === 'quadruped') { const ph = t * 6; for (const [E, o] of [['FrontLeft', 0], ['FrontRight', Math.PI], ['BackLeft', Math.PI], ['BackRight', 0]]) { rot(E + 'UpLeg', Math.sin(ph + o) * 0.45, 0, 0); rot(E + 'Leg', Math.max(0, -Math.cos(ph + o)) * 0.6 * (E.startsWith('Back') ? -1 : 1), 0, 0); }
+    if (B.Hips) B.Hips.position.y = B.Hips.userData.rest.p.y + Math.abs(Math.sin(ph)) * 0.02; rot('Neck', Math.sin(ph * 2) * 0.05, 0, 0); }
+  // any chain bones (tails, tentacles, wings) wave
+  for (const n in B) { const m = n.match(/^(.*?)(\d+)$/); if (!m || /Spine/.test(n)) continue; const k = +m[2]; const ph = (m[1].length % 7) * 0.9; rot(n, Math.sin(t * 2.2 + k * 0.7 + ph) * 0.12, Math.cos(t * 1.7 + k * 0.6 + ph) * 0.14, 0); }
+}
+
+const EXAMPLES = {"boxer":{"name":"Cocoa-Ramen Brawler","detail":1,"seed":7,"skeleton":{"preset":"humanoid","height":1.8,"proportions":{"shoulders":1.05,"arms":1,"legs":1,"torso":1}},"materials":{"skin":{"color":"#5b3220","color2":"#d9a35c","pattern":"fibers","scale":[3,2],"rough":0.55,"sheen":0.3,"clearcoat":0.15,"bump":0.45},"hair":{"color":"#2a160c","color2":"#d9a35c","pattern":"fibers","rough":0.45,"clearcoat":0.6,"sheen":0.5},"gloves":{"color":"#ff2f86","rough":0.18,"clearcoat":1,"glow":0.08},"band":{"color":"#ffb000","glow":1.2,"rough":0.3},"shorts":{"color":"#00c8c8","rough":0.32,"sheen":1,"color2":"#ffffff","clearcoat":0.5},"shoes":{"color":"#141414","rough":0.35,"metal":0.1},"guard":{"color":"#00e5ff","rough":0.2,"clearcoat":1},"eyes":{"color":"#ffe0a0","unlit":true}},"parts":[{"type":"torso","material":"skin","width":1,"depth":1,"chest":0.03},{"type":"tube","name":"neck","material":"skin","from":{"bone":"Neck","offset":[0,-0.03,0]},"to":{"bone":"Head","offset":[0,0.02,0.005]},"radius":[0.068,0.06],"bones":["Neck","Head"]},{"type":"blob","name":"head","material":"skin","at":{"bone":"Head","offset":[0,0.105,0.016]},"size":[0.092,0.116,0.104],"bone":"Head","detail":1.3},{"type":"blob","name":"ear","material":"skin","at":{"bone":"Head","offset":[0.09,0.095,0.01]},"size":[0.014,0.03,0.022],"bone":"Head","mirror":true},{"type":"blob","name":"cheekbone","material":"skin","at":{"bone":"Head","offset":[0.046,0.083,0.092]},"size":[0.022,0.014,0.016],"bone":"Head","mirror":true},{"type":"blob","name":"brow ridge","material":"skin","at":{"bone":"Head","offset":[0,0.133,0.102]},"size":[0.064,0.013,0.02],"bone":"Head"},{"type":"blob","name":"nose","material":"skin","at":{"bone":"Head","offset":[0,0.09,0.118]},"size":[0.013,0.026,0.016],"bone":"Head"},{"type":"blob","name":"eye","material":"eyes","at":{"bone":"Head","offset":[0.034,0.117,0.106]},"size":[0.016,0.009,0.008],"bone":"Head","mirror":true},{"type":"blob","name":"brow","material":"hair","at":{"bone":"Head","offset":[0.036,0.141,0.106]},"size":[0.023,0.0055,0.009],"rot":[0,0,-10],"bone":"Head","mirror":true},{"type":"blob","name":"mouthguard","material":"guard","at":{"bone":"Head","offset":[0,0.045,0.104]},"size":[0.038,0.011,0.014],"bone":"Head"},{"type":"blob","name":"hair cap","material":"hair","at":{"bone":"Head","offset":[0,0.15,-0.012]},"size":[0.1,0.085,0.108],"bone":"Head","lumps":0.04},{"type":"scatter","name":"locs","material":"hair","at":{"bone":"Head","offset":[0,0.13,-0.01]},"radius":[0.095,0.09,0.1],"count":26,"elevation":[0.05,1.1],"azimuth":[95,265],"shape":"strand","size":[0.012,0.014],"length":0.24,"gravity":[0,-1,-0.25],"bone":"Head","seed":11},{"type":"blob","name":"deltoid","material":"skin","at":{"bone":"LeftArm","offset":[0.016,0.006,0.004]},"size":[0.084,0.074,0.078],"bones":["LeftShoulder","LeftArm"],"mirror":true},{"type":"limb","name":"arm","material":"skin","chain":["LeftArm","LeftForeArm","LeftHand"],"radius":[[0.068,0.062],[0.054,0.048],[0.036,0.032]],"muscle":0.6,"startExtend":0.02,"mirror":true},{"type":"tube","name":"glove cuff","material":"gloves","from":{"bone":"LeftHand","offset":[-0.06,0,0]},"to":{"bone":"LeftHand","offset":[0.025,0,0]},"radius":[[0.05,0.052],[0.066,0.066]],"bone":"LeftHand","mirror":true},{"type":"blob","name":"glove","material":"gloves","at":{"bone":"LeftHand","offset":[0.095,-0.004,0.008]},"size":[0.096,0.074,0.07],"bone":"LeftHand","mirror":true,"detail":1.2},{"type":"blob","name":"glove thumb","material":"gloves","at":{"bone":"LeftHand","offset":[0.065,-0.01,0.064]},"size":[0.05,0.029,0.026],"rot":[0,-35,0],"bone":"LeftHand","mirror":true},{"type":"tube","name":"glaze ring","material":"band","from":{"bone":"LeftHand","offset":[-0.035,0,0]},"to":{"bone":"LeftHand","offset":[-0.015,0,0]},"radius":[[0.057,0.059],[0.057,0.059]],"bone":"LeftHand","mirror":true},{"type":"limb","name":"leg","material":"skin","chain":["LeftUpLeg","LeftLeg","LeftFoot"],"radius":[[0.106,0.1],[0.063,0.06],[0.045,0.042]],"muscle":0.5,"startExtend":0.04,"mirror":true},{"type":"tube","name":"boot","material":"shoes","from":{"between":["LeftLeg","LeftFoot"],"t":0.6},"to":{"bone":"LeftFoot","offset":[0,-0.02,0]},"radius":[0.05,0.046],"bones":["LeftLeg","LeftFoot"],"mirror":true},{"type":"loft","name":"shoe","material":"shoes","path":[{"bone":"LeftFoot","offset":[0,-0.05,-0.035]},{"bone":"LeftToeBase","offset":[0,0,0]},{"bone":"LeftToe_End","offset":[0,0.012,0.02]}],"radius":[[0.044,0.04],[0.042,0.03],[0.03,0.02]],"bones":["LeftFoot","LeftToeBase"],"mirror":true},{"type":"tube","name":"shorts","material":"shorts","from":{"bone":"Hips","offset":[0,-0.15,0]},"to":{"bone":"Hips","offset":[0,0.07,0]},"radius":[[0.168,0.124],[0.152,0.117]],"squareness":2.6,"bones":["Hips","Spine","LeftUpLeg","RightUpLeg"]},{"type":"loft","name":"shorts leg","material":"shorts","path":[{"bone":"LeftUpLeg","offset":[0,0.06,0]},{"between":["LeftUpLeg","LeftLeg"],"t":0.42}],"radius":[[0.128,0.122],[0.114,0.108]],"bones":["Hips","LeftUpLeg"],"mirror":true,"capEnd":false,"capStart":false},{"type":"tube","name":"waistband","material":"band","from":{"bone":"Hips","offset":[0,0.035,0]},"to":{"bone":"Hips","offset":[0,0.078,0]},"radius":[[0.155,0.119],[0.153,0.118]],"squareness":2.6,"bones":["Hips","Spine"]}]},"cast_iron":{"name":"Cast-Iron Crown","detail":1,"seed":7,"skeleton":{"preset":"humanoid","height":1.8,"proportions":{"shoulders":1.18,"arms":1.04,"legs":0.98,"torso":1.04}},"materials":{"skin":{"color":"#2a2a2e","color2":"#ff5a10","pattern":"cracks","rough":0.5,"metal":0.55,"glow":1.3,"clearcoat":0.2},"hair":{"color":"#1c1c20","color2":"#ff7a20","rough":0.4,"metal":0.7,"glow":0.25},"gloves":{"color":"#ff5a10","rough":0.3,"clearcoat":1,"glow":0.35},"band":{"color":"#ffb000","glow":1.2,"rough":0.3},"shorts":{"color":"#111111","sheen":1,"color2":"#ff7a20","rough":0.3},"shoes":{"color":"#141414","rough":0.35,"metal":0.1},"guard":{"color":"#00e5ff","rough":0.2,"clearcoat":1},"eyes":{"color":"#ff9a40","unlit":true}},"parts":[{"type":"torso","material":"skin","width":1.18,"depth":1,"chest":0.04},{"type":"tube","name":"neck","material":"skin","from":{"bone":"Neck","offset":[0,-0.03,0]},"to":{"bone":"Head","offset":[0,0.02,0.005]},"radius":[0.068,0.06],"bones":["Neck","Head"]},{"type":"blob","name":"head","material":"skin","at":{"bone":"Head","offset":[0,0.105,0.016]},"size":[0.092,0.116,0.104],"bone":"Head","detail":1.3},{"type":"blob","name":"ear","material":"skin","at":{"bone":"Head","offset":[0.09,0.095,0.01]},"size":[0.014,0.03,0.022],"bone":"Head","mirror":true},{"type":"blob","name":"cheekbone","material":"skin","at":{"bone":"Head","offset":[0.046,0.083,0.092]},"size":[0.022,0.014,0.016],"bone":"Head","mirror":true},{"type":"blob","name":"brow ridge","material":"skin","at":{"bone":"Head","offset":[0,0.133,0.102]},"size":[0.064,0.013,0.02],"bone":"Head"},{"type":"blob","name":"nose","material":"skin","at":{"bone":"Head","offset":[0,0.09,0.118]},"size":[0.013,0.026,0.016],"bone":"Head"},{"type":"blob","name":"eye","material":"eyes","at":{"bone":"Head","offset":[0.034,0.117,0.106]},"size":[0.016,0.009,0.008],"bone":"Head","mirror":true},{"type":"blob","name":"brow","material":"hair","at":{"bone":"Head","offset":[0.036,0.141,0.106]},"size":[0.023,0.0055,0.009],"rot":[0,0,-10],"bone":"Head","mirror":true},{"type":"blob","name":"mouthguard","material":"guard","at":{"bone":"Head","offset":[0,0.045,0.104]},"size":[0.038,0.011,0.014],"bone":"Head"},{"type":"blob","name":"deltoid","material":"skin","at":{"bone":"LeftArm","offset":[0.016,0.006,0.004]},"size":[0.084,0.074,0.078],"bones":["LeftShoulder","LeftArm"],"mirror":true},{"type":"limb","name":"arm","material":"skin","chain":["LeftArm","LeftForeArm","LeftHand"],"radius":[[0.078,0.07],[0.064,0.056],[0.04,0.036]],"muscle":0.6,"startExtend":0.02,"mirror":true},{"type":"tube","name":"glove cuff","material":"gloves","from":{"bone":"LeftHand","offset":[-0.06,0,0]},"to":{"bone":"LeftHand","offset":[0.025,0,0]},"radius":[[0.05,0.052],[0.066,0.066]],"bone":"LeftHand","mirror":true},{"type":"blob","name":"glove","material":"gloves","at":{"bone":"LeftHand","offset":[0.095,-0.004,0.008]},"size":[0.096,0.074,0.07],"bone":"LeftHand","mirror":true,"detail":1.2},{"type":"blob","name":"glove thumb","material":"gloves","at":{"bone":"LeftHand","offset":[0.065,-0.01,0.064]},"size":[0.05,0.029,0.026],"rot":[0,-35,0],"bone":"LeftHand","mirror":true},{"type":"tube","name":"glaze ring","material":"band","from":{"bone":"LeftHand","offset":[-0.035,0,0]},"to":{"bone":"LeftHand","offset":[-0.015,0,0]},"radius":[[0.057,0.059],[0.057,0.059]],"bone":"LeftHand","mirror":true},{"type":"limb","name":"leg","material":"skin","chain":["LeftUpLeg","LeftLeg","LeftFoot"],"radius":[[0.106,0.1],[0.063,0.06],[0.045,0.042]],"muscle":0.5,"startExtend":0.04,"mirror":true},{"type":"tube","name":"boot","material":"shoes","from":{"between":["LeftLeg","LeftFoot"],"t":0.6},"to":{"bone":"LeftFoot","offset":[0,-0.02,0]},"radius":[0.05,0.046],"bones":["LeftLeg","LeftFoot"],"mirror":true},{"type":"loft","name":"shoe","material":"shoes","path":[{"bone":"LeftFoot","offset":[0,-0.05,-0.035]},{"bone":"LeftToeBase","offset":[0,0,0]},{"bone":"LeftToe_End","offset":[0,0.012,0.02]}],"radius":[[0.044,0.04],[0.042,0.03],[0.03,0.02]],"bones":["LeftFoot","LeftToeBase"],"mirror":true},{"type":"tube","name":"shorts","material":"shorts","from":{"bone":"Hips","offset":[0,-0.15,0]},"to":{"bone":"Hips","offset":[0,0.07,0]},"radius":[[0.168,0.124],[0.152,0.117]],"squareness":2.6,"bones":["Hips","Spine","LeftUpLeg","RightUpLeg"]},{"type":"loft","name":"shorts leg","material":"shorts","path":[{"bone":"LeftUpLeg","offset":[0,0.06,0]},{"between":["LeftUpLeg","LeftLeg"],"t":0.42}],"radius":[[0.128,0.122],[0.114,0.108]],"bones":["Hips","LeftUpLeg"],"mirror":true,"capEnd":false,"capStart":false},{"type":"tube","name":"waistband","material":"band","from":{"bone":"Hips","offset":[0,0.035,0]},"to":{"bone":"Hips","offset":[0,0.078,0]},"radius":[[0.155,0.119],[0.153,0.118]],"squareness":2.6,"bones":["Hips","Spine"]},{"type":"scatter","name":"crown","material":"hair","at":{"bone":"Head","offset":[0,0.2,0]},"radius":[0.07,0.005,0.078],"count":8,"elevation":[0,0.02],"shape":"spike","size":[0.022,0.024],"length":0.07,"bone":"Head","seed":3},{"type":"blob","name":"crown band","material":"hair","at":{"bone":"Head","offset":[0,0.198,0]},"size":[0.088,0.016,0.094],"bone":"Head"}]},"octopus":{"name":"Ink Tide Octopus","detail":1,"seed":21,"skeleton":{"preset":"none","chains":[{"name":"Mantle","count":3,"from":[0,0.36,0],"to":[0,0.82,-0.14],"parent":"Root","curl":[0,0,-0.03]},{"name":"LeftArmA","count":6,"from":[0.07,0.32,0.08],"to":[0.55,0.03,0.42],"curl":[0,0.16,0],"parent":"Root","mirror":true},{"name":"LeftArmB","count":6,"from":[0.1,0.3,0],"to":[0.62,0.02,-0.05],"curl":[0,0.14,0.05],"parent":"Root","mirror":true},{"name":"LeftArmC","count":6,"from":[0.08,0.3,-0.07],"to":[0.45,0.02,-0.5],"curl":[0,0.12,0],"parent":"Root","mirror":true},{"name":"LeftArmD","count":6,"from":[0.03,0.31,0.1],"to":[0.18,0.02,0.6],"curl":[0.05,0.14,0],"parent":"Root","mirror":true}]},"materials":{"skin":{"color":"#6b2a7a","color2":"#ff7ab8","pattern":"spots","scale":4,"rough":0.35,"clearcoat":0.8,"sheen":0.4},"suckers":{"color":"#ffc6dd","rough":0.4},"eyes":{"color":"#fff4c2","unlit":true},"pupil":{"color":"#111111","unlit":true}},"parts":[{"type":"blob","name":"mantle","material":"skin","at":{"bone":"Mantle3"},"size":[0.2,0.27,0.23],"bones":["Mantle1","Mantle2","Mantle3","Mantle4"],"lumps":0.05,"detail":1.4},{"type":"blob","name":"head","material":"skin","at":{"bone":"Mantle1","offset":[0,-0.01,0.03]},"size":[0.17,0.12,0.16],"bones":["Root","Mantle1","Mantle2"]},{"type":"blob","name":"eye","material":"eyes","at":{"bone":"Mantle1","offset":[0.1,0.03,0.12]},"size":[0.035,0.03,0.03],"bone":"Mantle1","mirror":true},{"type":"blob","name":"pupil","material":"pupil","at":{"bone":"Mantle1","offset":[0.112,0.03,0.142]},"size":[0.012,0.022,0.012],"bone":"Mantle1","mirror":true},{"type":"limb","name":"tentacle ArmA","material":"skin","chain":["LeftArmA1","LeftArmA2","LeftArmA3","LeftArmA4","LeftArmA5","LeftArmA6","LeftArmA7"],"radius":[0.06,0.055,0.045,0.036,0.027,0.017,0.006],"mirror":true,"segments":42},{"type":"scatter","name":"suckers ArmA","material":"suckers","at":{"between":["LeftArmA2","LeftArmA4"],"t":0.5,"offset":[0,-0.035,0]},"radius":[0.05,0.01,0.05],"count":8,"elevation":[-0.3,0.1],"shape":"blob","size":[0.009,0.013],"bones":["LeftArmA1","LeftArmA2","LeftArmA3","LeftArmA4","LeftArmA5"],"mirror":true,"lumps":0},{"type":"limb","name":"tentacle ArmB","material":"skin","chain":["LeftArmB1","LeftArmB2","LeftArmB3","LeftArmB4","LeftArmB5","LeftArmB6","LeftArmB7"],"radius":[0.06,0.055,0.045,0.036,0.027,0.017,0.006],"mirror":true,"segments":42},{"type":"scatter","name":"suckers ArmB","material":"suckers","at":{"between":["LeftArmB2","LeftArmB4"],"t":0.5,"offset":[0,-0.035,0]},"radius":[0.05,0.01,0.05],"count":8,"elevation":[-0.3,0.1],"shape":"blob","size":[0.009,0.013],"bones":["LeftArmB1","LeftArmB2","LeftArmB3","LeftArmB4","LeftArmB5"],"mirror":true,"lumps":0},{"type":"limb","name":"tentacle ArmC","material":"skin","chain":["LeftArmC1","LeftArmC2","LeftArmC3","LeftArmC4","LeftArmC5","LeftArmC6","LeftArmC7"],"radius":[0.06,0.055,0.045,0.036,0.027,0.017,0.006],"mirror":true,"segments":42},{"type":"scatter","name":"suckers ArmC","material":"suckers","at":{"between":["LeftArmC2","LeftArmC4"],"t":0.5,"offset":[0,-0.035,0]},"radius":[0.05,0.01,0.05],"count":8,"elevation":[-0.3,0.1],"shape":"blob","size":[0.009,0.013],"bones":["LeftArmC1","LeftArmC2","LeftArmC3","LeftArmC4","LeftArmC5"],"mirror":true,"lumps":0},{"type":"limb","name":"tentacle ArmD","material":"skin","chain":["LeftArmD1","LeftArmD2","LeftArmD3","LeftArmD4","LeftArmD5","LeftArmD6","LeftArmD7"],"radius":[0.06,0.055,0.045,0.036,0.027,0.017,0.006],"mirror":true,"segments":42},{"type":"scatter","name":"suckers ArmD","material":"suckers","at":{"between":["LeftArmD2","LeftArmD4"],"t":0.5,"offset":[0,-0.035,0]},"radius":[0.05,0.01,0.05],"count":8,"elevation":[-0.3,0.1],"shape":"blob","size":[0.009,0.013],"bones":["LeftArmD1","LeftArmD2","LeftArmD3","LeftArmD4","LeftArmD5"],"mirror":true,"lumps":0}]},"ember_fox":{"name":"Ember Fox","detail":1,"seed":31,"skeleton":{"preset":"quadruped","height":0.75,"length":1,"proportions":{"legs":0.72,"tail":1.1}},"materials":{"fur":{"color":"#d4561c","color2":"#ffb070","pattern":"fibers","scale":[5,3],"rough":0.7,"sheen":0.8},"cream":{"color":"#f6e6cf","color2":"#ffffff","pattern":"fibers","rough":0.8,"sheen":0.6},"dark":{"color":"#1a1210","rough":0.3,"clearcoat":0.8},"ember":{"color":"#ff7a20","glow":2.2,"color2":"#ffd060"},"eyes":{"color":"#ffd46a","unlit":true}},"parts":[{"type":"loft","name":"body","material":"fur","path":[{"bone":"Hips","offset":[0,0,-0.1]},{"bone":"Spine"},{"bone":"Spine1"},{"bone":"Spine2"},{"bone":"Neck","offset":[0,-0.03,-0.03]}],"radius":[[0.13,0.14],[0.15,0.165],[0.155,0.17],[0.145,0.165],[0.09,0.1]],"bones":["Hips","Spine","Spine1","Spine2","Neck","BackLeftUpLeg","BackRightUpLeg","FrontLeftUpLeg","FrontRightUpLeg"],"squareness":2.2},{"type":"limb","name":"neck","material":"fur","chain":["Spine2","Neck","Head"],"radius":[[0.11,0.12],[0.075,0.085],[0.065,0.07]]},{"type":"blob","name":"head","material":"fur","at":{"bone":"Head","offset":[0,0.02,0.04]},"size":[0.085,0.075,0.095],"bone":"Head","detail":1.2},{"type":"tube","name":"snout","material":"fur","from":{"bone":"Head","offset":[0,0,0.09]},"to":{"bone":"Head","offset":[0,-0.02,0.22]},"radius":[[0.05,0.045],[0.016,0.014]],"bone":"Head"},{"type":"blob","name":"nose","material":"dark","at":{"bone":"Head","offset":[0,-0.018,0.222]},"size":[0.014,0.011,0.01],"bone":"Head"},{"type":"blob","name":"eye","material":"eyes","at":{"bone":"Head","offset":[0.043,0.035,0.11]},"size":[0.014,0.01,0.008],"bone":"Head","mirror":true},{"type":"tube","name":"ear","material":"fur","from":{"bone":"Head","offset":[0.045,0.07,0.02]},"to":{"bone":"Head","offset":[0.07,0.17,0]},"radius":[[0.032,0.012],[0.003,0.002]],"bone":"Head","mirror":true},{"type":"blob","name":"chest ruff","material":"cream","at":{"bone":"Neck","offset":[0,-0.06,0.02]},"size":[0.08,0.09,0.07],"bones":["Neck","Spine2"],"lumps":0.12},{"type":"limb","name":"front leg","material":"fur","chain":["FrontLeftUpLeg","FrontLeftLeg","FrontLeftFoot","FrontLeftToe"],"radius":[[0.07,0.075],[0.04,0.042],[0.03,0.032],[0.03,0.022]],"startExtend":0,"mirror":true},{"type":"limb","name":"back leg","material":"fur","chain":["BackLeftUpLeg","BackLeftLeg","BackLeftFoot","BackLeftToe"],"radius":[[0.095,0.11],[0.046,0.05],[0.032,0.032],[0.03,0.022]],"startExtend":0,"muscle":0.4,"mirror":true},{"type":"limb","name":"tail","material":"fur","chain":["Hips","Tail1","Tail2","Tail3","Tail4","Tail5"],"radius":[0.04,0.06,0.085,0.09,0.075,0.03],"segments":40},{"type":"blob","name":"tail tip","material":"cream","at":{"bone":"Tail5"},"size":[0.045,0.045,0.07],"bones":["Tail4","Tail5"],"lumps":0.1},{"type":"scatter","name":"embers","material":"ember","at":{"bone":"Spine1","offset":[0,0.12,0]},"radius":[0.14,0.05,0.35],"count":14,"elevation":[0.6,1.5],"shape":"spike","size":[0.008,0.012],"length":0.06,"bones":["Spine","Spine1","Spine2"],"seed":9}]}};
+const PROMPT = "You are the WIR FORGE modeler. Turn the user's idea into ONE JSON recipe that the WIR Forge engine (forge.js, three.js) builds into a rigged, skinned, textured 3D character. Output ONLY the JSON object — no prose, no code fences.\n\nWORLD RULES\n- Units are metres. The character faces +Z. Y is up. +X is the character's OWN LEFT (so \"Left…\" bones have positive x).\n- The skeleton is in a T-pose (humanoid) or standing pose (quadruped). Every shape is placed in that rest pose; the engine skins it to the bones.\n- Use \"mirror\": true for anything that exists on both sides; author only the LEFT one (positive x, \"Left…\" bones). The engine makes the right one.\n- Keep it to 12–45 parts. Big forms first (torso/body, limbs, head), then features (eyes, nose, ears, hair), then detail (scatter).\n\nSKELETON  \"skeleton\": {...}\n- {\"preset\":\"humanoid\",\"height\":1.8,\"proportions\":{\"shoulders\":1,\"arms\":1,\"legs\":1,\"torso\":1,\"neck\":1,\"head\":1,\"hips\":1}}\n  Bones (Mixamo names, so mocap retargets): Hips Spine Spine1 Spine2 Neck Head HeadTop_End, and for Left/Right: Shoulder Arm ForeArm Hand HandEnd UpLeg Leg Foot ToeBase Toe_End\n  (e.g. LeftArm, RightForeArm). At height 1.8: Hips y≈1.0, Neck y≈1.48, Head y≈1.57, LeftArm (0.17,1.42,-0.04), LeftHand (0.70,1.42,-0.03), LeftUpLeg (0.09,0.95,0), LeftLeg (0.09,0.52,0.01), LeftFoot (0.09,0.09,-0.01).\n- {\"preset\":\"quadruped\",\"height\":1.0,\"length\":1.4,\"proportions\":{\"legs\":1,\"neck\":1,\"head\":1,\"tail\":1}}\n  Bones: Hips Spine Spine1 Spine2 Neck Head HeadTop_End Tail1..Tail5, and FrontLeft/FrontRight/BackLeft/BackRight + UpLeg Leg Foot Toe (e.g. FrontLeftUpLeg).\n- {\"preset\":\"none\"} = one bone \"Root\" at the origin; build everything from chains.\n- Extra bone chains on any preset: \"chains\":[{\"name\":\"LeftWing\",\"count\":4,\"from\":[x,y,z],\"to\":[x,y,z],\"parent\":\"Spine2\",\"curl\":[0,0.1,0],\"mirror\":true}]\n  makes bones LeftWing1..LeftWing5 (count+1 joints) along the line, bowed by \"curl\"; mirror makes RightWing1… Use chains for tails, tentacles, wings, antennae, extra arms, capes.\n\nMATERIALS  \"materials\": {\"key\": {...}}  (define every key you use; \"skin\" and \"eyes\" have defaults)\n  color, color2 (hex) · pattern: plain|noise|grain|fibers|knit|dots|bubbles|spots|cracks|scales|plates|stripes · scale (texture repeats, number or [u,v])\n  rough 0–1 · metal 0–1 · clearcoat 0–1 · sheen 0–1 · bump 0–2 · glow 0–3 (emissive; with \"cracks\" the cracks glow in color2) · glowColor · opacity · unlit (true for glowing eyes)\n\nANCHORS (where a shape goes): [x,y,z]  |  {\"bone\":\"Head\",\"offset\":[x,y,z]}  |  {\"between\":[\"LeftLeg\",\"LeftFoot\"],\"t\":0.6,\"offset\":[0,0,0]}\n\nPARTS  \"parts\": [...]  — every part has \"type\", optional \"name\", \"material\" (default \"skin\"), \"mirror\", \"detail\" (0.5–2 mesh density)\n  Skin weights: \"bone\":\"Head\" = rigid to one bone; \"bones\":[...] = smooth automatic blend between those bones; omitted = the 6 nearest joints.\n- torso (humanoid only): {\"type\":\"torso\",\"width\":1,\"depth\":1,\"chest\":0.03,\"squareness\":2.6} — a lofted superellipse trunk from below the hips to the neck. Optional \"sections\":[[u,halfWidth,halfDepth,zOffset],...] with u 0 (hips) → 1 (neck).\n- limb: {\"type\":\"limb\",\"chain\":[\"LeftArm\",\"LeftForeArm\",\"LeftHand\"],\"radius\":[[rx,rz],[rx,rz],[rx,rz]],\"muscle\":0.5,\"startExtend\":0.02,\"extend\":0}\n  One continuous skinned tube through the chain's joints, one radius per joint (a number or [width, depth]); muscle 0–1 adds belly shape.\n- loft / tube: {\"type\":\"loft\",\"path\":[anchor,anchor,...],\"radius\":[r,r,...],\"squareness\":2,\"caps\":true}   tube = {\"from\":anchor,\"to\":anchor,\"radius\":[r0,r1]}\n  A smooth curve through the anchors, radius per anchor. Bodies of animals, necks, snouts, horns, tails, belts, sleeves.\n- blob: {\"type\":\"blob\",\"at\":anchor,\"size\":[rx,ry,rz],\"rot\":[degX,degY,degZ],\"lumps\":0.1,\"flatBottom\":false,\"taper\":0}\n  Ellipsoid. Heads, muscles, eyes, noses, gloves, armour plates, bellies, hooves.\n- scatter: {\"type\":\"scatter\",\"at\":anchor,\"radius\":[rx,ry,rz],\"count\":30,\"shape\":\"blob|spike|strand|scale\",\"size\":[min,max],\"length\":0.1,\n  \"elevation\":[minRad,maxRad],\"azimuth\":[minDeg,maxDeg],\"gravity\":[0,-1,0],\"seed\":5}\n  Many small pieces over an ellipsoid shell around the anchor: hair locs (strand), popcorn/curls (blob), crowns, horns, quills (spike), dragon scales (scale).\n  azimuth 0° = front (+Z), 90° = his left, 180° = back. elevation 0 = equator, 1.57 = top.\n\nSIZES THAT LOOK RIGHT (humanoid 1.8 m): head blob ≈ [0.092,0.116,0.104] at Head offset [0,0.105,0.016]; eye ≈ [0.016,0.009,0.008] at Head [0.034,0.117,0.106];\narm radius ≈ [[0.068,0.062],[0.054,0.048],[0.036,0.032]]; leg ≈ [[0.106,0.1],[0.063,0.06],[0.045,0.042]]; boxing glove blob ≈ [0.096,0.074,0.07] at LeftHand [0.095,0,0.008].\n\nQUALITY BAR\n- Readable silhouette first: exaggerate the idea's signature forms (a cast-iron fighter gets massive shoulders and a crown; a noodle fighter gets locs; a fox gets a huge tail).\n- Faces need: head, eyes (unlit material), brows or brow ridge, nose/snout, mouth or mouthguard. Eyes sit ON the face surface (z ≈ head front).\n- Every material should carry the idea: pick a pattern that matches the substance (cracks for lava/iron, fibers for fur/noodles/wood, bubbles for popcorn/foam, scales for reptiles, plates for armour).\n- Nothing floats: every part touches or overlaps its neighbour. Limbs start slightly inside the body (startExtend).\n\nPICTURE (when a picture is attached, and/or a PALETTE FROM THE PICTURE line is given)\n- The picture is the brief. Build the character IN it, and let the IDEA line add details if one is given.\n- Read the picture in this order: pose and stance → heads tall (a human is about 7.5 heads, a cartoon brawler about 5, a chibi about 3) → shoulder and hip width → limb length and thickness → the big signature forms (armour, horns, hair, tail, tentacles, crown) → face and features → materials.\n- Set skeleton.proportions and the sizes to match those ratios. Exaggerate the silhouette the way the picture does.\n- Colours: use the PALETTE hex values. The biggest share is the main material, the next the trim or color2, and the smallest the accents, glow or gloves. Do not invent colours that ignore the palette.\n- Animals, monsters and creatures: choose the matching preset (quadruped, or \"none\" with chains for tails, tentacles and wings).\n- If a detail is unclear, choose the simplest reading that keeps the silhouette right.\n\nEXAMPLE (trimmed) — \"a cocoa-ramen boxer with noodle locs and glazed pink gloves\":\n{\"name\":\"Cocoa-Ramen Brawler\",\"skeleton\":{\"preset\":\"humanoid\",\"height\":1.8,\"proportions\":{\"shoulders\":1.05}},\n \"materials\":{\"skin\":{\"color\":\"#5b3220\",\"color2\":\"#d9a35c\",\"pattern\":\"fibers\",\"scale\":[3,2],\"sheen\":0.3,\"clearcoat\":0.15,\"bump\":0.45},\"hair\":{\"color\":\"#2a160c\",\"color2\":\"#d9a35c\",\"pattern\":\"fibers\",\"clearcoat\":0.6},\n  \"gloves\":{\"color\":\"#ff2f86\",\"rough\":0.18,\"clearcoat\":1,\"glow\":0.08},\"shorts\":{\"color\":\"#00c8c8\",\"sheen\":1,\"clearcoat\":0.5},\"eyes\":{\"color\":\"#ffe0a0\",\"unlit\":true}},\n \"parts\":[{\"type\":\"torso\",\"chest\":0.03},\n  {\"type\":\"tube\",\"from\":{\"bone\":\"Neck\",\"offset\":[0,-0.03,0]},\"to\":{\"bone\":\"Head\",\"offset\":[0,0.02,0.005]},\"radius\":[0.068,0.06],\"bones\":[\"Neck\",\"Head\"]},\n  {\"type\":\"blob\",\"name\":\"head\",\"at\":{\"bone\":\"Head\",\"offset\":[0,0.105,0.016]},\"size\":[0.092,0.116,0.104],\"bone\":\"Head\"},\n  {\"type\":\"blob\",\"name\":\"eye\",\"material\":\"eyes\",\"at\":{\"bone\":\"Head\",\"offset\":[0.034,0.117,0.106]},\"size\":[0.016,0.009,0.008],\"bone\":\"Head\",\"mirror\":true},\n  {\"type\":\"scatter\",\"name\":\"locs\",\"material\":\"hair\",\"at\":{\"bone\":\"Head\",\"offset\":[0,0.13,-0.01]},\"radius\":[0.095,0.09,0.1],\"count\":26,\"elevation\":[0.05,1.1],\"azimuth\":[95,265],\"shape\":\"strand\",\"size\":[0.012,0.014],\"length\":0.24,\"bone\":\"Head\"},\n  {\"type\":\"limb\",\"chain\":[\"LeftArm\",\"LeftForeArm\",\"LeftHand\"],\"radius\":[[0.068,0.062],[0.054,0.048],[0.036,0.032]],\"muscle\":0.6,\"mirror\":true},\n  {\"type\":\"blob\",\"name\":\"glove\",\"material\":\"gloves\",\"at\":{\"bone\":\"LeftHand\",\"offset\":[0.095,-0.004,0.008]},\"size\":[0.096,0.074,0.07],\"bone\":\"LeftHand\",\"mirror\":true},\n  {\"type\":\"limb\",\"chain\":[\"LeftUpLeg\",\"LeftLeg\",\"LeftFoot\"],\"radius\":[[0.106,0.1],[0.063,0.06],[0.045,0.042]],\"muscle\":0.5,\"startExtend\":0.04,\"mirror\":true},\n  {\"type\":\"tube\",\"name\":\"shorts\",\"material\":\"shorts\",\"from\":{\"bone\":\"Hips\",\"offset\":[0,-0.15,0]},\"to\":{\"bone\":\"Hips\",\"offset\":[0,0.07,0]},\"radius\":[[0.168,0.124],[0.152,0.117]],\"squareness\":2.6,\"bones\":[\"Hips\",\"Spine\",\"LeftUpLeg\",\"RightUpLeg\"]}]}\n";
+const $ = id => document.getElementById(id);
+
+// ---------- stage ----------
+const cv = $('cv'); const R = new THREE.WebGLRenderer({ canvas: cv, antialias: true, preserveDrawingBuffer: true }); R.setPixelRatio(Math.min(2, devicePixelRatio || 1)); R.toneMapping = THREE.ACESFilmicToneMapping; R.outputColorSpace = THREE.SRGBColorSpace; R.shadowMap.enabled = true; R.setClearColor('#1f162c');
+const scene = new THREE.Scene(); const cam = new THREE.PerspectiveCamera(32, 1, 0.03, 60); cam.position.set(1.6, 1.4, 3.6);
+const ctl = new OrbitControls(cam, cv); ctl.enableDamping = true; ctl.target.set(0, 0.95, 0);
+scene.add(new THREE.HemisphereLight('#ffe8d0', '#2a1838', 1.1)); const key = new THREE.DirectionalLight('#ffffff', 2.6); key.position.set(2.2, 4, 3); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); scene.add(key);
+const rim = new THREE.DirectionalLight('#5fd8ff', 1.6); rim.position.set(-3, 2.2, -2.5); scene.add(rim); const rim2 = new THREE.DirectionalLight('#ff4fa0', 1.1); rim2.position.set(3, 1.2, -3); scene.add(rim2);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(2.2, 64), new THREE.MeshStandardMaterial({ color: '#241a33', roughness: 0.9 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+const ringLine = new THREE.Mesh(new THREE.RingGeometry(2.15, 2.2, 64), new THREE.MeshBasicMaterial({ color: '#ff2f86' })); ringLine.rotation.x = -Math.PI / 2; ringLine.position.y = 0.002; scene.add(ringLine);
+const fit = () => { const r = cv.parentElement.getBoundingClientRect(); R.setSize(r.width, r.height, false); cam.aspect = r.width / Math.max(1, r.height); cam.updateProjectionMatrix(); };
+new ResizeObserver(fit).observe(cv.parentElement); fit();
+let model = null, helper = null, pose = 'auto', spin = true, t0 = performance.now();
+function frameModel() { model.group.updateMatrixWorld(true); const box = new THREE.Box3().setFromObject(model.group, true); const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3()); const r = Math.max(s.x, s.y, s.z);
+  ctl.target.copy(c); const dir = cam.position.clone().sub(ctl.target).normalize(); if (!isFinite(dir.x)) dir.set(0.4, 0.2, 1).normalize(); cam.position.copy(c).addScaledVector(dir, r * 2.1); floor.scale.setScalar(Math.max(0.6, r / 1.6)); ringLine.scale.copy(floor.scale); }
+function show(recipe) {
+  if (model) { scene.remove(model.group); model.group.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } if (helper) { scene.remove(helper); helper = null; }
+  model = forge(recipe, THREE); scene.add(model.group); model.group.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  if ($('wire').getAttribute('aria-pressed') === 'true') { helper = new THREE.SkeletonHelper(model.group); scene.add(helper); }
+  animate(model, 0); frameModel(); const st = model.stats; $('stats').innerHTML = `<b>${esc(recipe.name || 'Untitled')}</b><br>${st.bones} bones · ${st.verts.toLocaleString()} verts · ${st.tris.toLocaleString()} tris`;
+  $('dlbar').hidden = false;
+  return model;
+}
+function loop(now) { const t = (now - t0) / 1000; if (model) { if (pose === 'auto') animate(model, t); else animate(model, 0, 'rest'); if (spin) model.group.rotation.y = Math.sin(t * 0.35) * 0.7; } ctl.update(); R.render(scene, cam); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+// ---------- recipe editor ----------
+const say = (id, text, kind) => { const el = $(id); el.textContent = text; el.className = 'msg' + (kind ? ' ' + kind : ''); };
+function buildFromEditor() {
+  let rec; try { rec = JSON.parse($('recipe').value); } catch (e) { say('buildMsg', 'The recipe is not valid JSON: ' + e.message, 'bad'); return null; }
+  const errs = validate(rec); try { show(rec); } catch (e) { say('buildMsg', 'Could not build: ' + e.message, 'bad'); return null; }
+  const all = errs.concat(model.errors || []); say('buildMsg', all.length ? 'Built with warnings: ' + all.slice(0, 4).join(' · ') : 'Built. Drag to orbit, pinch or scroll to zoom.', all.length ? 'bad' : 'ok');
+  try { localStorage.setItem('wirforge.recipe', $('recipe').value); } catch (e) {}
+  return rec;
+}
+const setRecipe = rec => { $('recipe').value = JSON.stringify(rec, null, 1); return buildFromEditor(); };
+for (const [k, rec] of Object.entries(EXAMPLES)) { const b = document.createElement('button'); b.className = 'chip'; b.textContent = rec.name; b.onclick = () => setRecipe(rec); $('examples').appendChild(b); }
+$('build').onclick = buildFromEditor;
+document.querySelectorAll('[data-pose]').forEach(b => b.onclick = () => { pose = b.dataset.pose; document.querySelectorAll('[data-pose]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); });
+$('spin').onclick = () => { spin = !spin; $('spin').setAttribute('aria-pressed', String(spin)); if (!spin && model) model.group.rotation.y = 0; };
+$('wire').onclick = () => { const on = $('wire').getAttribute('aria-pressed') !== 'true'; $('wire').setAttribute('aria-pressed', String(on)); if (helper) { scene.remove(helper); helper = null; } if (on && model) { helper = new THREE.SkeletonHelper(model.group); scene.add(helper); } };
+let saved = null; try { saved = localStorage.getItem('wirforge.recipe'); } catch (e) {}
+if (saved) { $('recipe').value = saved; buildFromEditor(); } else setRecipe(EXAMPLES.boxer);
+
+// ---------- picture → colours (read in the page, so the palette is exact) ----------
+function paletteOf(bmp, k = 6) {
+  const sc = Math.min(1, 96 / Math.max(bmp.width, bmp.height));
+  const w = Math.max(1, Math.round(bmp.width * sc)), h = Math.max(1, Math.round(bmp.height * sc));
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(bmp, 0, 0, w, h);
+  const d = x.getImageData(0, 0, w, h).data;
+  const bins = new Map(); let total = 0;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 128) continue; total++;
+    const key = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4);
+    let b = bins.get(key); if (!b) bins.set(key, b = { n: 0, r: 0, g: 0, b: 0 });
+    b.n++; b.r += d[i]; b.g += d[i + 1]; b.b += d[i + 2];
+  }
+  if (!total) return [];
+  const groups = [];
+  for (const bin of [...bins.values()].sort((p, q) => q.n - p.n)) {
+    const col = [bin.r / bin.n, bin.g / bin.n, bin.b / bin.n];
+    const g = groups.find(q => Math.hypot(q.c[0] - col[0], q.c[1] - col[1], q.c[2] - col[2]) < 56);
+    if (g) g.n += bin.n; else groups.push({ n: bin.n, c: col });
+  }
+  return groups.sort((p, q) => q.n - p.n).slice(0, k).filter(g => g.n / total >= 0.02)
+    .map(g => ({ hex: '#' + g.c.map(v => Math.round(v).toString(16).padStart(2, '0')).join(''), pct: Math.round(100 * g.n / total) }));
+}
+const DROP_TEXT = $('dropTxt').textContent;
+let pic = null; // { file, url, palette }
+async function setPicture(file) {
+  if (!file || !/^image\/(png|jpeg|webp|gif)$/.test(file.type)) { say('aiMsg', 'That is not a picture I can use — choose a PNG, JPG, WebP or GIF.', 'bad'); return; }
+  if (file.size > 20e6) { say('aiMsg', 'That picture is over 20 MB — pick a smaller one.', 'bad'); return; }
+  let bmp; try { bmp = await createImageBitmap(file); } catch (e) { say('aiMsg', 'Could not open that picture.', 'bad'); return; }
+  const palette = paletteOf(bmp); if (bmp.close) bmp.close();
+  if (pic) URL.revokeObjectURL(pic.url);
+  pic = { file, url: URL.createObjectURL(file), palette };
+  $('picImg').src = pic.url; $('picImg').hidden = false;
+  $('dropTxt').textContent = (file.name || 'Pasted picture') + ' — FORGE IT builds the character in it. Click to change.';
+  $('pal').innerHTML = palette.length ? palette.map(p => `<span><i class="sw" style="background:${p.hex}"></i>${p.hex} ${p.pct}%</span>`).join('') : 'No colours found — is the picture empty?';
+  $('picRow').hidden = false;
+  say('aiMsg', 'Picture added. Its colours go into the brief with it.', 'ok');
+}
+$('picClear').onclick = () => { if (pic) URL.revokeObjectURL(pic.url); pic = null; $('picImg').hidden = true; $('picImg').removeAttribute('src'); $('picRow').hidden = true; $('dropTxt').textContent = DROP_TEXT; $('pal').innerHTML = ''; $('pic').value = ''; say('aiMsg', ''); };
+const drop = $('drop');
+drop.onclick = () => $('pic').click();
+drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('pic').click(); } };
+$('pic').onchange = () => { if ($('pic').files[0]) setPicture($('pic').files[0]); };
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) setPicture(f); });
+window.addEventListener('paste', e => { const it = [...((e.clipboardData && e.clipboardData.items) || [])].find(i => i.type.startsWith('image/')); if (it) setPicture(it.getAsFile()); });
+
+// The brief after the prompt: the idea, and (if a picture is in) its colours.
+const briefText = () => {
+  const idea = $('idea').value.trim();
+  const lines = [idea ? 'IDEA: ' + idea : 'IDEA: none — the attached picture is the whole brief.'];
+  if (pic) lines.push('A PICTURE IS ATTACHED — follow the PICTURE rules.', 'PALETTE FROM THE PICTURE (share of pixels): ' + (pic.palette.map(p => `${p.hex} ${p.pct}%`).join(', ') || 'none found'));
+  return lines.join('\n');
+};
+
+// ---------- copy ----------
+async function copy(text, id, what) { try { await navigator.clipboard.writeText(text); say(id, what + ' copied.' + (pic && id === 'aiMsg' ? ' Attach the picture in the chat too.' : ''), 'ok'); } catch (e) { if (id === 'buildMsg') { $('recipe').focus(); $('recipe').select(); } say(id, 'Copy was blocked here — select the text and copy it yourself.', 'bad'); } }
+$('copyR').onclick = () => copy($('recipe').value, 'buildMsg', 'Recipe');
+$('copyP').onclick = () => copy(PROMPT + '\n\n' + briefText(), 'aiMsg', pic ? 'AI prompt (with your idea and this picture’s colours)' : 'AI prompt (with your idea at the end)');
+
+// ---------- files: one path that works everywhere ----------
+// Inside the Claude viewer, files go through the downloads capability (its save list has no .glb, so the model travels in a .zip).
+// Anywhere else — including a copy of forge.html opened on its own — a normal browser download starts.
+let dl = null; const getDl = async () => { if (dl !== null) return dl; try { dl = window.claude && window.claude.use ? ((await window.claude.use('downloads')) || false) : false; } catch (e) { dl = false; } return dl; };
+const baseName = () => { try { return ((JSON.parse($('recipe').value).name || '').replace(/[^a-z0-9]+/gi, '_').toLowerCase().replace(/^_+|_+$/g, '')) || 'forged'; } catch (e) { return 'forged'; } };
+function browserDownload(filename, blob) {
+  const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+async function offer(filename, blob) {
+  const d = await getDl();
+  if (!d) { browserDownload(filename, blob); return { ok: true, text: `Downloading ${filename}. If nothing appears, allow downloads for this page in your browser.` }; }
+  try { await d.save({ filename, data: blob }); return { ok: true, text: `Saved ${filename}.` }; }
+  catch (e) {
+    const c = e && e.code;
+    if (c === 'declined') return { ok: false, text: 'Save cancelled. Press the button again to retry.' };
+    if (c === 'rate_limited') return { ok: false, text: 'A save prompt is already open — answer it first.' };
+    if (c === 'too_large') return { ok: false, text: 'That file is too large for the viewer to save.' };
+    return { ok: false, text: 'The save did not go through (' + (c || (e && e.message)) + '). Try the recipe or picture button.' };
+  }
+}
+const finish = res => say('outMsg', res.text, res.ok ? 'ok' : 'bad');
+
+$('glb').onclick = async () => {
+  if (!model) return; say('outMsg', 'Packing the 3D model…');
+  model.group.rotation.y = 0; animate(model, 0, 'rest'); model.group.updateMatrixWorld(true);
+  try {
+    const buf = await new GLTFExporter().parseAsync(model.group, { binary: true });
+    const base = baseName();
+    if (await getDl()) {
+      const zip = await makeZip([{ name: base + '.glb', data: new Uint8Array(buf) }, { name: base + '.recipe.json', data: $('recipe').value }]);
+      const res = await offer(base + '_model.zip', new Blob([zip], { type: 'application/zip' }));
+      if (res.ok) res.text = `Saved ${base}_model.zip. Unzip it to get ${base}.glb and the recipe.`;
+      finish(res);
+    } else {
+      finish(await offer(base + '.glb', new Blob([buf], { type: 'model/gltf-binary' })));
+    }
+  } catch (e) { say('outMsg', 'Export failed: ' + e.message, 'bad'); }
+};
+$('png').onclick = () => {
+  if (!model) return;
+  R.render(scene, cam);                       // draw this frame, then copy it before the browser clears it
+  cv.toBlob(async blob => {
+    if (!blob) { say('outMsg', 'A picture of the model is not available in this browser.', 'bad'); return; }
+    finish(await offer(baseName() + '.png', blob));
+  }, 'image/png');
+};
+$('dlR').onclick = async () => finish(await offer(baseName() + '.json', new Blob([$('recipe').value], { type: 'application/json' })));
+
+// A minimal ZIP writer (stored, no compression) so the viewer gets one file with the model inside.
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = u8 => { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+function makeZip(files) {
+  const enc = new TextEncoder(), parts = [], central = []; let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), data = typeof f.data === 'string' ? enc.encode(f.data) : f.data, crc = crc32(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, 0, true); lh.setUint16(12, 0x21, true); lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true);
+    lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), name, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+    ch.setUint16(12, 0, true); ch.setUint16(14, 0x21, true); ch.setUint32(16, crc, true); ch.setUint32(20, data.length, true); ch.setUint32(24, data.length, true);
+    ch.setUint16(28, name.length, true); ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    offset += 30 + name.length + data.length;
+  }
+  const cdSize = central.reduce((n, p) => n + p.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)]).arrayBuffer().then(b => new Uint8Array(b));
+}
+
+// ---------- AI: picture and/or idea → recipe (asks Claude with the viewer's own account) ----------
+let sample = null, ctlAI = null;
+(async () => { try { sample = window.claude && window.claude.use ? await window.claude.use('sample') : null; } catch (e) { sample = null; }
+  if (!sample) say('aiMsg', 'AI forging runs inside the Claude viewer. Anywhere else: COPY AI PROMPT, paste it into any AI with your picture attached, and paste the JSON it returns into the recipe box.'); })();
+const codeCopy = c => ({ not_granted: 'Allow Claude for this page to forge from an idea or picture.', rate_limited: 'Claude is busy — wait a moment and try again.', cancelled: 'Stopped.', images_unavailable: 'This viewer cannot send pictures. Describe the character in words instead.', image_rejected: 'Claude could not read that picture. Try a PNG or JPG under 20 MB.' })[c] || 'The AI call failed (' + c + ').';
+$('go').onclick = async () => {
+  const idea = $('idea').value.trim();
+  if (!idea && !pic) { say('aiMsg', 'Describe the character, or add a picture of it.', 'bad'); return; }
+  if (!sample) { say('aiMsg', 'AI forging runs inside the Claude viewer — use COPY AI PROMPT with any AI instead.', 'bad'); return; }
+  if (pic) {
+    let caps = null; try { caps = await sample.limits(); } catch (e) { caps = null; }
+    if (!caps || !caps.images) { say('aiMsg', 'This viewer cannot send pictures. Describe the character in words, or COPY AI PROMPT and attach the picture in another AI.', 'bad'); return; }
+  }
+  const images = pic ? [pic.file] : null;
+  $('go').disabled = true; $('stop').hidden = false; ctlAI = new AbortController();
+  say('aiMsg', pic ? 'Forging from your picture… (this usually takes 20–60 s)' : 'Forging… (this usually takes 20–60 s)');
+  const ask = input => sample.json(input, Object.assign({ signal: ctlAI.signal, onText: ({ text }) => say('aiMsg', `Forging… ${text.length.toLocaleString()} characters of recipe so far`) }, images ? { images } : {}));
+  try {
+    const brief = PROMPT + '\n\n' + briefText();
+    let rec = await ask(brief);
+    let errs = validate(rec);
+    if (errs.length) { say('aiMsg', 'Fixing ' + errs.length + ' problem(s) in the recipe…');
+      rec = await ask(brief + '\n\nYour previous recipe had these problems — return the whole corrected JSON:\n' + errs.join('\n') + '\n\nPREVIOUS:\n' + JSON.stringify(rec)); errs = validate(rec); }
+    setRecipe(rec); say('aiMsg', errs.length ? 'Built — a few parts need a hand edit (see below).' : 'Forged. Tweak the recipe and BUILD again, or download it below.', errs.length ? 'bad' : 'ok');
+  } catch (e) { say('aiMsg', codeCopy(e && e.code), 'bad'); }
+  finally { $('go').disabled = false; $('stop').hidden = true; }
+};
+$('stop').onclick = () => ctlAI && ctlAI.abort();
+</script>
+</body></html>

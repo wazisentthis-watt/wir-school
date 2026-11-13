@@ -1,0 +1,10 @@
+import * as esbuild from 'esbuild';
+import fs from 'fs';
+const r = await esbuild.build({ entryPoints: ['/home/claude/ngb/src/main.js'], bundle: true, minify: true, format: 'iife', write: false, loader: { '.json': 'json' }, target: 'es2020', nodePaths: ['/home/claude/ngb/tools/node_modules'], logLevel: 'warning' });
+let js = r.outputFiles[0].text.replace(/<\/script/gi, '<\\/script').replace(/<!--/g, '<\\!--');
+const tpl = fs.readFileSync('/home/claude/ngb/src/template.html', 'utf8');
+const i = tpl.indexOf('/*__BUNDLE__*/');
+const html = tpl.slice(0, i) + js + tpl.slice(i + '/*__BUNDLE__*/'.length);
+fs.mkdirSync('/home/claude/ngb/dist', { recursive: true });
+fs.writeFileSync('/home/claude/ngb/dist/index.html', html);
+console.log('built', (html.length / 1024 / 1024).toFixed(2), 'MB');

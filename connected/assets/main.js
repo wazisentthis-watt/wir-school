@@ -41,6 +41,7 @@ import {vehicle,step as driveStepPhys,deadzone} from './drive_physics.mjs';
 import {KIT,createKit,bAction as kitBAction,addPuddle as kitAddPuddle,pullStep as kitPullStep,form as kitForm,meltHand as kitMeltHand,blast as kitBlast,shieldHit as kitShieldHit,strikeMods as kitStrikeMods,serializePuddles as kitSerializePuddles,loadPuddles as kitLoadPuddles} from './gallium_kit_core.mjs'; // PROPOSAL / HOLD
 import {FB,createSquad as fbCreateSquad,hitUnit as fbHitUnit,hitDrone as fbHitDrone,step as fbStep,allDown as fbAllDown,platesOn as fbPlatesOn} from './framebreaker_core.mjs'; // PROPOSAL / HOLD
 import {createLoose} from './board_body.mjs';
+import {SB,createStreet,witness as streetWitness,hitStreet,stepStreet,incomingMul,outgoingMul} from './street_brawl_core.mjs'; // STREET BRAWL PROPOSAL / HOLD
 import {WT,createWT,step as wtStep,hitLimb,hitKeeper,observe as wtObserve,serialize as wtSave,restore as wtRestore} from './wrong_target_core.mjs'; // Wrong Target PROPOSAL / HOLD
 import {EP1,createEp1,step as ep1Step,feed as ep1Feed,fightAbandoned as ep1Abandon,replay as ep1Replay,serialize as ep1Save,deserialize as ep1Load} from './ep1_mission_core.mjs'; // Ep.1 PROPOSAL / HOLD // ReFramer Rush drive model (owner source)
 import {MAT,build,constructHeight,constructRails,reclaim,damageConstruct,railFrom,railSegments,bendRail,straightenRail,createWall,hitWall,wallState,repairWall,createWorldState,currentJob,checkJobs,serialize,deserialize} from './malleable_world_core.mjs'; // PROPOSAL / HOLD
@@ -1537,6 +1538,63 @@ function mariTick(dt){mariInit();if(!MARI.o)return;const o=MARI.o.o,p=P.o.positi
 // the police take them, then the cuff Gallium drips back to the street as a puddle.
 const RF_GAP=75; // seconds between ReFramer encounters (PROPOSAL)
 const PRQ=new URLSearchParams(location.search).get('prologue'),PRO_KEY='wirPrologueV1',BIND_COST=.04;
+// STREET BRAWL (street_brawl_core.mjs): bystanders alarm when Metal is close, and fight back only once he swings on them.
+// A struck or swung-at bystander becomes a real fighter rig with the same custom brain as the prologue crew.
+const STREET=[],STREET_SHOTS=[];
+function streetPromote(npc){
+ if(npc.sbFoe)return npc.sbFoe;
+ if(!rivalGLTF||!npc.o)return null;
+ const role=npc.role||'commuter';
+ const ch=makeFighter(rivalGLTF,{top:role==='vendor'?0x5a4a2c:0x3a3550,bot:0x202227,shoe:0x151515,h:1.8});
+ ch.o.position.copy(npc.o.position);ch.o.rotation.y=npc.o.rotation.y;
+ scene.remove(npc.o);scene.add(ch.o);
+ const S=createStreet('street-'+(STREET.length+1),role);S.state='fight';S.cd=.3;
+ const R={kind:'street',label:'Street fighter',active:true,stance:1,level:1,out:false,slot:0,kb:new THREE.Vector3(),pr:0,street:S,custom:streetBrain};
+ const foe={ch,R};FOES.push(foe);STREET.push(foe);npc.sbFoe=foe;
+ const i=npcs.indexOf(npc);if(i>=0)npcs.splice(i,1);
+ return foe;
+}
+function streetThrow(from,dmg){
+ const m=new THREE.Mesh(new THREE.BoxGeometry(.28,.18,.5),new THREE.MeshStandardMaterial({color:0x8a7f70,roughness:.7}));m.position.copy(from);scene.add(m);
+ STREET_SHOTS.push({m,from,to:P.o.position.clone().setY(groundY+1.1),t:0,dur:.7,dmg});}
+function streetShotsTick(dt){if(!P)return;const p=P.o.position;
+ for(let i=STREET_SHOTS.length-1;i>=0;i--){const q=STREET_SHOTS[i];q.t+=dt;const k=Math.min(1,q.t/q.dur);
+  q.m.position.lerpVectors(q.from,q.to,k);q.m.position.y+=Math.sin(k*Math.PI)*1.2;q.m.rotation.x+=dt*12;
+  if(k>=1){if(q.m.position.distanceTo(p)<2.2)metalHurt(q.dmg,q.from,'Thrown part');scene.remove(q.m);STREET_SHOTS.splice(i,1);}}}
+function streetBrain(foe,dt){const R=foe.R,S=R.street,o=foe.ch.o,p=P.o.position;
+ if(R.kb.lengthSq()>.0004){o.position.addScaledVector(R.kb,dt);R.kb.multiplyScalar(Math.exp(-6*dt));}
+ const d=Math.hypot(p.x-o.position.x,p.z-o.position.z),r=stepStreet(S,dt,d);
+ if(r.dir&&r.dir.toMetal){const dx=p.x-o.position.x,dz=p.z-o.position.z,l=Math.hypot(dx,dz)||1,s2=Math.min(l,r.speed*dt);o.position.x+=dx/l*s2;o.position.z+=dz/l*s2;o.rotation.y+=angDiff(o.rotation.y,Math.atan2(dx,dz))*Math.min(1,dt*8);}
+ else if(r.dir&&r.dir.away){const dx=o.position.x-p.x,dz=o.position.z-p.z,l=Math.hypot(dx,dz)||1;o.position.x+=dx/l*r.speed*dt;o.position.z+=dz/l*r.speed*dt;o.rotation.y+=angDiff(o.rotation.y,Math.atan2(dx,dz))*Math.min(1,dt*8);}
+ else if(S.state==='fight'){o.rotation.y+=angDiff(o.rotation.y,Math.atan2(p.x-o.position.x,p.z-o.position.z))*Math.min(1,dt*8);}
+ if(R.stun>0||R.out)return;
+ const A={walk:'Walking',run:'Running',idle:'Idle',guard:'Guard',stunned:'Idle',stagger:'HitChest'}[r.anim]||'Idle';
+ if(r.strike==='windup'&&!foe.ch.swung&&foe.ch.playAction){foe.ch.swung=true;foe.ch.playAction('Punch',{w:.8,speed:1.1,fadeIn:.04,fadeOut:.2});}
+ if(r.strike==='end')foe.ch.swung=false;
+ if(!foe.ch.swung&&foe.ch.acts&&foe.ch.acts[A]&&foe.ch.cur!==foe.ch.acts[A])play(foe.ch,A);
+ for(const e of r.events){
+  if(e.type==='impact'&&d<=SB.STRIKE_R+.4)metalHurt(e.dmg*outgoingMul(S),o.position,'Street fighter');
+  if(e.type==='throw')streetThrow(foe.ch.o.position.clone().setY(groundY+1.6),e.dmg);
+  if(e.type==='power'&&e.power==='surge')whisper('STREET FIGHTER SURGING','he is faster for a second');
+  if(e.type==='power'&&e.power==='guard')whisper('GUARD UP','hits do less for a moment');
+ }
+}
+// ReFramers fight with the parts they dismantled off cars: while one is chasing and Metal is in range, it throws a part.
+let rfPartCd=0;
+function reframerPartTick(dt){const W=RFR.W;rfPartCd-=dt;if(!W||!W.enc||!P)return;const E=W.enc;
+ if(E.stage!=='chase'||!E.target||rfPartCd>0)return;const p=P.o.position;
+ if(Math.hypot(p.x-E.target.x,p.z-E.target.z)>16)return;
+ rfPartCd=3.2;whisper('ROADFRAME THROWS A PART','sidestep it, it lands where you stand');
+ streetThrow(new THREE.Vector3(E.target.x,groundY+2.2,E.target.z),RF.RAM_DMG*.4);}
+function streetTick(dt){reframerPartTick(dt);if(!P)return;const p=P.o.position,swing=!!FG.act;
+ for(const n of npcs.slice()){if(n.sbFoe)continue;const d=Math.hypot(n.o.position.x-p.x,n.o.position.z-p.z);
+  if(!n.sb)n.sb=createStreet('npc-'+npcs.indexOf(n),n.role||'commuter');
+  const ev=streetWitness(n.sb,d,swing&&d<SB.STRIKE_R+.6);
+  if(ev&&ev.type==='fight'){const foe=streetPromote(n);if(foe){whisper('STREET FIGHT','they fight back when you swing on them');}}
+  else if(n.sb.state==='alarm'&&n.sb.flees){n.target=new THREE.Vector3(n.o.position.x+(n.o.position.x-p.x)*3,n.o.position.y,n.o.position.z+(n.o.position.z-p.z)*3);n.speed=3.2;n.wait=0;}
+  stepStreet(n.sb,dt,d);
+ }
+}
 const POWER_CARDS=[
  {id:'glob',name:'Gallium Glob',pad:'Y — hold to bend it, let go to throw',keys:'G — hold, release to throw'},
  {id:'blast',name:'Blast',pad:'L1 tap (needs charge — hold L1 near metal first)',keys:'U / Numpad 7 (charge: hold K)'},
@@ -1649,7 +1707,22 @@ function proWatch(){const pv=PR.prev,p=P.o.position;
  const h=KITV.K.hand;if(h&&h!==pv.hand)proHook('power',h);pv.hand=h;
  if(st.flying)proHook('power','flight');if(DRW.drawing)proHook('power','draw');
  if(pv.form!=null&&st.form!==pv.form)proHook('power','form');pv.form=st.form;}
-function proTick(dt){proInit();powerCardTick(dt);bindTick(dt);if(!PR.on||!PR.M||!P)return;const M=PR.M,p=P.o.position;
+// METAL HEALTH BAR: always-on HUD strip, top-left. Reads st.hp (0..1). Colour steps down as Metal gets hurt.
+const HPB={el:null,fill:null,txt:null};
+function hpBarTick(){
+ if(!HPB.el){const d=document.createElement('div');d.id='metalHealth';d.className='wir-keep';
+  d.style.cssText='position:fixed;left:calc(12px + env(safe-area-inset-left,0px));top:calc(12px + env(safe-area-inset-top,0px));z-index:30;width:220px;pointer-events:none;font:700 11px/1 system-ui;color:#f1ebff;text-shadow:0 1px 2px #000';
+  const t=document.createElement('div');t.style.cssText='display:flex;justify-content:space-between;margin-bottom:4px;letter-spacing:.6px';
+  const name=document.createElement('span');name.textContent='METAL';const pct=document.createElement('span');t.append(name,pct);
+  const bar=document.createElement('div');bar.style.cssText='height:12px;border-radius:7px;background:rgba(10,8,20,.7);border:1px solid #8674aa;overflow:hidden';
+  const fill=document.createElement('div');fill.style.cssText='height:100%;width:100%;transition:width .15s linear,background .2s';bar.appendChild(fill);
+  d.append(t,bar);document.body.appendChild(d);HPB.el=d;HPB.fill=fill;HPB.txt=pct;}
+ const f=Math.max(0,Math.min(1,+st.hp||0));
+ HPB.fill.style.width=(f*100).toFixed(1)+'%';
+ HPB.fill.style.background=f>.5?'#7ef0b0':f>.25?'#ffd166':'#ff5d6c';
+ HPB.txt.textContent=Math.ceil(f*100)+'%';
+}
+function proTick(dt){proInit();hpBarTick();powerCardTick(dt);bindTick(dt);if(!PR.on||!PR.M||!P)return;const M=PR.M,p=P.o.position;
  if(!PR.clips&&EP.clips.npc&&EP.clips.npc.length){PR.clips=true;for(const f of PR.foes)addClips(f.ch,EP.clips.npc);}
  proWatch();proBricks(dt);
  // the crew
@@ -2368,6 +2441,8 @@ function tickStrike(dt){const a=FG.act,s=a.s;a.t+=dt;const pp=P.o.position,f=_fv
  if(a.id==='blast'&&!a.fired&&a.t>=s.t0){a.fired=true;if(FG.pulseQueued){FG.pulseQueued=false;firePulse();}else fireBlast();}
  if(a.id!=='blast'&&a.t>=s.t0&&a.t<=s.t1+.02)for(const foe of activeFoes()){if(a.hits.has(foe))continue;const v=toFoe(foe),d=v.length();
   if(d<s.r+.35&&Math.abs(angDiff(yaw,Math.atan2(v.x,v.z)))<1.3){a.hits.add(foe);hitFoe(foe,s,a.amt,v.clone().normalize());}}
+ if(a.id!=='blast'&&a.t>=s.t0&&a.t<=s.t1+.02&&!a.streetHit){for(const n of npcs){if(n.sbFoe)continue;const v=new THREE.Vector3(n.o.position.x-pp.x,0,n.o.position.z-pp.z),dd=v.length();
+  if(dd<s.r+.35&&Math.abs(angDiff(yaw,Math.atan2(v.x,v.z)))<1.3){a.streetHit=true;const foe=streetPromote(n);if(foe)hitFoe(foe,s,a.amt,v.clone().normalize());break;}}}
  if(FG.buf&&a.t>=s.t1){const b=FG.buf;FG.buf=null;FG.lastS=a.id;FG.lastT=0;FG.act=null;startStrike(b);return;}
  if(a.t>=s.end){if(a.id!=='blast'&&a.hits.size===0&&FG.inFight){const target=FG.target;if(target){const distance=toFoe(target).length();toast(distance>s.r+.35?'OUT OF RANGE · move closer':'MISSED · face your opponent');}}FG.lastS=a.id;FG.lastT=0;FG.act=null;}}
 // PROPOSAL combat variant: grounded Gallium Pulse (Shift + 7).
@@ -2388,7 +2463,7 @@ const blasts=[];function fireBlast(){blastCombo();const m=new THREE.Mesh(new THR
 function blastTick(dt){for(let i=blasts.length-1;i>=0;i--){const b=blasts[i];b.t+=dt;b.m.position.addScaledVector(b.v,dt);
  let hit=false;for(const foe of activeFoes()){const c=_fv2.copy(foe.ch.o.position);c.y+=1.2;if(b.m.position.distanceTo(c)<.85){hit=true;hitFoe(foe,STRK.blast,0,b.v.clone().setY(0).normalize());break;}}
  if(hit||b.t>.7){scene.remove(b.m);b.m.geometry.dispose();blasts.splice(i,1);if(hit)burst(b.m.position,18,4);}}}
-function hitFoe(foe,s,amt,dir){const R=foe.R,ch=foe.ch;if(R.inv>0||R.out)return;if(R.ep1)ep1OnHit(foe,s);if(R.fb!=null)s=fbOnHit(foe,s,dir);if(!s.src||s.src==='strike'){const md=kitStrikeMods(KITV.K);if(md.dmg!==1||md.kb!==1)s={...s,dmg:s.dmg*md.dmg,kb:(s.kb||0)*md.kb};}
+function hitFoe(foe,s,amt,dir){const R=foe.R,ch=foe.ch;if(R.inv>0||R.out)return;if(R.street){s={...s,dmg:s.dmg*incomingMul(R.street)};hitStreet(R.street,{heavy:!!s.down,body:false});}if(R.ep1)ep1OnHit(foe,s);if(R.fb!=null)s=fbOnHit(foe,s,dir);if(!s.src||s.src==='strike'){const md=kitStrikeMods(KITV.K);if(md.dmg!==1||md.kb!==1)s={...s,dmg:s.dmg*md.dmg,kb:(s.kb||0)*md.kb};}
  if(FG.breakerT>0&&!s.src){s={...s,dmg:s.dmg*2,kb:s.kb*2,down:true};FG.breakerT=0;}
  if(R.vil){const mul=damageMul(R.vil.id,R.vil,{facingYaw:ch.o.rotation.y,fromX:-dir.x,fromZ:-dir.z,src:s.src||'strike'});s={...s,dmg:s.dmg*mul,kb:s.kb*Math.max(.3,mul)};
   if(mul<.3&&!R.armSaid){R.armSaid=true;toast(R.vil.id==='glassjaw'?'Plate cracked — keep breaking the fake reinforcement':'Armored front — use the environment: Gallium globs, cars');setTimeout(()=>R.armSaid=false,3000);}
@@ -3149,7 +3224,7 @@ if(st.wall){wallRide(dt,wish,pp);}else{
  for(const mt of seamMats)mt.emissiveIntensity=Math.max(0,mt.emissiveIntensity-dt*3);
  if(galLimb){const hb=P.handBone;if(hb){hb.updateMatrixWorld(true);hb.getWorldPosition(_hand);}else _hand.copy(P.o.position).setY(P.o.position.y+1.2);galLimb.tick(dt,{swing:st.swing,grip:worldGripActive&&gripTarget?gripTarget:null,hand:_hand,model:P.model,st,groundY,playerPos:P.o.position});} // PROPOSAL Gallium limb visuals
  // systems
- fightTick(dt);blastTick(dt);globTick(dt);villainFx(dt);villainProjTick(dt);if(FG.breakerT>0)FG.breakerT-=dt;drawTick(dt);reframerTick(dt);reframerSquad?.tick(dt);mwTick(dt);lilHeavyTick(dt);mariTick(dt);ep1Tick(dt);proTick(dt);wtTick(dt);fbTick(dt);audioTick(dt);helpTick(dt,RSK.gp);doStrings(dt);doFootball(dt);
+ fightTick(dt);blastTick(dt);globTick(dt);villainFx(dt);villainProjTick(dt);if(FG.breakerT>0)FG.breakerT-=dt;drawTick(dt);reframerTick(dt);reframerSquad?.tick(dt);streetTick(dt);streetShotsTick(dt);mwTick(dt);lilHeavyTick(dt);mariTick(dt);ep1Tick(dt);proTick(dt);wtTick(dt);fbTick(dt);audioTick(dt);helpTick(dt,RSK.gp);doStrings(dt);doFootball(dt);
  for(const s of slabs){if(s.t<1){s.t+=dt;s.m.position.y=Math.min(.8,s.m.position.y+s.vy*dt);}else if(s.t<6)s.t+=dt;else{s.m.position.y-=dt;if(s.m.position.y<-1){scene.remove(s.m);s.dead=true;}}}
  for(let i=slabs.length-1;i>=0;i--)if(slabs[i].dead)slabs.splice(i,1);
  // interact prompts
@@ -3437,7 +3512,7 @@ let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,cl
   if(boot.getStatus().warnings.length)toast('Mission running with '+boot.getStatus().warnings.length+' art fallbacks · PROPOSAL');
   window.__game={galLimb:()=>galLimb,forge:()=>forgeController,forgePerformance:()=>forgePerformance.snapshot(),WR,colliders,vel,camera,P,st,board,seamMats,setMask,anchors,slabs,SPOTS,profile,keys,pressed,teleportForTest:(v)=>{P.o.position.copy(v);},startWallForTest:startWall};// test harness only (not a gameplay teleport)
   if(AERIAL_DUEL_PILOT)window.__aerialPilot=aerialDuel; // query-flagged browser QA and training entry only
-  window.__game.setForm=setForm;window.__game.sk=sk;if(yard){window.__game.testYard=()=>yard.snapshot();if(yardSession)window.__game.testYardSession=()=>yardSession.snapshot();}window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.metalControllerV3=metalPadV3;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.RSK=RSK;window.__game.GLB=GLB;window.__game.DRV=DRV;window.__game.LH=LH;window.__game.MARI=MARI;window.__game.EP=EP;window.__game.KITV=KITV;window.__game.GLP=GLP;window.__game.PR=PR;window.__game.PCARD=PCARD;window.__game.CUFFS=CUFFS;window.__game.POWER_CARDS=POWER_CARDS;window.__game.snapHeight=snapHeight;window.__game.SNP=SNP;window.__game.RSK=RSK;window.__game.FBV=FBV;window.__game.kitDoB=h=>kitDoB(h);window.__game.fbShear=()=>fbShear(FBV.units[0]);window.__game.reframerHitForTest=(k,p,pos)=>reframerHit(k,p,pos);window.__game.WTV=WTV;window.__game.wtHit=(k,p,pos)=>wtHit(k,p,pos);window.__game.hitLimb=hitLimb;window.__game.ep1Feed=ep1Feed;window.__game.SFX=SFX;window.__game.actx=()=>actx;window.__game.ep1Event=e=>ep1Event(e);window.__game.driveEnter=driveEnter;window.__game.driveExit=driveExit;window.__game.MWB=MWB;window.__game.mwBuild=mwBuild;window.__game.HELP=HELP;window.__game.toggleHelp=toggleHelp;window.__game.DRW=DRW;window.__game.CMB=CMB;window.__game.RFR=RFR;window.__game.comboFeed=comboFeed;window.__game.lamps=lamps;window.__game.cars=cars;window.__game.STORY_FIGHTS=STORY_FIGHTS;window.__game.hitFoe=hitFoe;window.__game.tumbleResult=tumbleResult;window.__game.setCamYaw=v=>{camYaw=v;};window.__game.setYaw=v=>{yaw=v;};window.__game.endCrewForTest=(c,w=false)=>endCrew(c,w);window.__game.skYard=()=>skYard;window.__game.ground=()=>onGround;window.__game.bootReport=()=>boot.getStatus();initMetalStory();
+  window.__game.setForm=setForm;window.__game.npcs=()=>npcs;window.__game.STREET=STREET;window.__game.streetCount=()=>STREET.length;window.__game.sk=sk;if(yard){window.__game.testYard=()=>yard.snapshot();if(yardSession)window.__game.testYardSession=()=>yardSession.snapshot();}window.__game.FG=FG;window.__game.FOES=FOES;window.__game.CREWS=CREWS;window.__game.SWS=SWS;window.__game.startCrew=startCrew;window.__game.ground=()=>onGround;window.__game.rivalSt=rivalSt;window.__game.rival=()=>rival;window.__game.STRK=STRK;window.__game.stepForTest=(n,dt)=>{for(let i=0;i<n;i++){update(dt);window.__seasonPost&&window.__seasonPost(dt);}};/* test harness only */window.__game.cityDirector=cityDirector;window.__game.structureImpact=structureImpact;window.__game.grabCar=grabCar;window.__game.slingCar=slingCar;window.__game.thrownCars=thrownCars;window.__game.bodyMachine=bodyMachine;window.__game.fireMetalBlast=fireMetalBlast;window.__game.riffStep=riffStep;window.__game.crownCharge=crownCharge;window.__game.galliumRibbons=galliumRibbons;window.__game.structureGrip=()=>structureGrip;window.__game.riftMarks=riftMarks;window.__game.galliumGrabWorld=galliumGrabWorld;window.__game.gripState=()=>({active:worldGripActive,type:structureGrip?'structure':heldCar?'car':heldCitizen?'citizen':heldActor?'actor':null,hasLimbTarget:!!gripTarget,metal:{x:P.o.position.x,y:P.o.position.y,z:P.o.position.z}});window.__game.factionActors=factionActors;window.__game.slottaAnimation=()=>slottaAnimationSnapshot(slottaAnimator);window.__game.slottaAttack=()=>slottaAttackTelemetry({animator:slottaAnimator,pending:slottaPendingGame,loadout:slottaConsole});window.__game.slottaLoadout=()=>({active:[...slottaConsole.active],stored:[...slottaConsole.stored],archive:[...(slottaConsole.archive||[])]});window.__game.metalBlasts=metalBlasts;window.__game.slottaCombat=slottaCombat;window.__game.metalStory=metalStory;window.__game.metalControllerV3=metalPadV3;window.__game.saveMetalStory=saveMetalStory;window.__game.metalStoryChapter=()=>metalStoryChapter(metalStory);window.__game.controllerSnapshot=()=>{const g=navigator.getGamepads?.()?.find(Boolean);return {connected:!!g,axes:g?.axes?.slice(0,4),buttons:g?.buttons?.map(b=>b.pressed),bodyMode:bodyMachine.mode,impactMode:structureImpact.mode,heldCar:!!heldCar,blastCount:metalBlasts.length,actors:factionActors.length,errors:window.__errors.slice(-5)}};window.__game.physicsTelemetry=physicsTelemetry;window.__game.physicsReport=()=>analyzePhysics(physicsTelemetry.export());window.__game.MSK=MSK;window.__game.RSK=RSK;window.__game.GLB=GLB;window.__game.DRV=DRV;window.__game.LH=LH;window.__game.MARI=MARI;window.__game.EP=EP;window.__game.KITV=KITV;window.__game.GLP=GLP;window.__game.PR=PR;window.__game.PCARD=PCARD;window.__game.CUFFS=CUFFS;window.__game.POWER_CARDS=POWER_CARDS;window.__game.snapHeight=snapHeight;window.__game.SNP=SNP;window.__game.RSK=RSK;window.__game.FBV=FBV;window.__game.kitDoB=h=>kitDoB(h);window.__game.fbShear=()=>fbShear(FBV.units[0]);window.__game.reframerHitForTest=(k,p,pos)=>reframerHit(k,p,pos);window.__game.WTV=WTV;window.__game.wtHit=(k,p,pos)=>wtHit(k,p,pos);window.__game.hitLimb=hitLimb;window.__game.ep1Feed=ep1Feed;window.__game.SFX=SFX;window.__game.actx=()=>actx;window.__game.ep1Event=e=>ep1Event(e);window.__game.driveEnter=driveEnter;window.__game.driveExit=driveExit;window.__game.MWB=MWB;window.__game.mwBuild=mwBuild;window.__game.HELP=HELP;window.__game.toggleHelp=toggleHelp;window.__game.DRW=DRW;window.__game.CMB=CMB;window.__game.RFR=RFR;window.__game.comboFeed=comboFeed;window.__game.lamps=lamps;window.__game.cars=cars;window.__game.STORY_FIGHTS=STORY_FIGHTS;window.__game.hitFoe=hitFoe;window.__game.tumbleResult=tumbleResult;window.__game.setCamYaw=v=>{camYaw=v;};window.__game.setYaw=v=>{yaw=v;};window.__game.endCrewForTest=(c,w=false)=>endCrew(c,w);window.__game.skYard=()=>skYard;window.__game.ground=()=>onGround;window.__game.bootReport=()=>boot.getStatus();initMetalStory();
 if(METAL_STORY_MOLD){
    import('./metal_story_mold_world.mjs').then(({mountMetalStoryMold})=>{
     metalStoryMold=mountMetalStoryMold({
