@@ -46,6 +46,7 @@ import {WT,createWT,step as wtStep,hitLimb,hitKeeper,observe as wtObserve,serial
 import {EP1,createEp1,step as ep1Step,feed as ep1Feed,fightAbandoned as ep1Abandon,replay as ep1Replay,serialize as ep1Save,deserialize as ep1Load} from './ep1_mission_core.mjs'; // Ep.1 PROPOSAL / HOLD // ReFramer Rush drive model (owner source)
 import {MAT,build,constructHeight,constructRails,reclaim,damageConstruct,railFrom,railSegments,bendRail,straightenRail,createWall,hitWall,wallState,repairWall,createWorldState,currentJob,checkJobs,serialize,deserialize} from './malleable_world_core.mjs'; // PROPOSAL / HOLD
 import {HUNT,createReframerHunt,stepReframerHunt,hitReframerArm,reframerHuntSnapshot} from './reframer_hunt_core.mjs';
+import {createTempo,onHuntEvents,tickTempo,registerHit} from './fight_tempo_core.mjs'; // Metal vs ReFramer fight tempo (PROPOSAL / HOLD)
 import {MetalForgeController,FORGE_COST,FORGE_REFUND} from './metal_forge_controller.js';
 import {selectForgePose} from './metal_forge_choreography.mjs';
 import {ForgePerformanceOverlay} from './metal_forge_performance.js';
@@ -1252,7 +1253,7 @@ function reframerHit(kind,power,pos){if(REFRAMER_SQUAD&&reframerSquad?.hit(kind,
    return true;
   }
  }
- const r=hit(RFR.W,kind,power);if(!r)return false;burst(c,24,6);beep(70,.08,'square',.05);
+ const combo=registerHit(RFR.tempo||=createTempo());const r=hit(RFR.W,kind,Math.min(1,power*combo.mul));if(!r)return false;burst(c,24,6);beep(70,.08,'square',.05);if(combo.parts.includes('riposte'))whisper('RIPOSTE','');
  if(r.type==='jam')reframerSay('jam'+E.jams,'SCAN JAMMED','one more and it aborts');if(r.type==='tipped')reframerSay('tip','TIPPED','hit it while it\'s down');
  if(r.type==='end')reframerEnd(r);return true;}
 function reframerEnd(r){const car=RFR.car;
@@ -1270,7 +1271,7 @@ function reframerEnd(r){const car=RFR.car;
  st.comboPend+=3;whisper(r.outcome==='aborted'?'REFRAMER FLED':r.outcome==='clean'?'REFRAMER DOWN — car saved':r.outcome==='roadframeDown'?'ROADFRAME DOWN — salvage the scrap':r.outcome==='lostTarget'?'ROADFRAME LOST THE TRAIL — Metal escaped':'ROADFRAME GOT AWAY','');if(HELP.on)toast('ReFramer: '+r.outcome);
  RFR.car=null;RFR.wheels=[];RFR.mesh.visible=false;for(const a of RFR.arms)a.g.visible=false;RFR.scan.visible=false;RFR.said={};
  if(RFR.escapeButton)RFR.escapeButton.hidden=true;
- RFR.hunt=REFRAMER_HUNT?createReframerHunt():null;RFR.escapeTouch=false;RFR.escapePadPrev=false;}
+ RFR.hunt=REFRAMER_HUNT?createReframerHunt():null;RFR.tempo=createTempo();RFR.escapeTouch=false;RFR.escapePadPrev=false;}
 function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=RFR.W,p=P.o.position;
  if(!W.enc){const donors=cars.filter(c=>!c.userData.worldBody&&c!==heldCar&&!c.userData.reframed).map(c=>({id:c.uuid,x:c.position.x,z:c.position.z,occupied:!c.userData.occupantExited,c}));
   const E=wake(W,{x:p.x,z:p.z},donors);if(E){if(REFRAMER_HUNT)RFR.hunt=createReframerHunt();RFR.car=donors.find(d=>d.id===E.donor).c;const u=RFR.car.userData;u.reframed=true;u.spd0=u.spd;u.spd=0;RFR.mesh.visible=true;if(REFRAMER_HUNT)RFR.mesh.scale.setScalar(1.45); // original disc-like machine is taller beside cars
@@ -1286,6 +1287,7 @@ function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=R
   if(struggle)pressed.KeyE=false;
   RFR.escapeTouch=false;
   const dist=Math.hypot(E.target.x-p.x,E.target.z-p.z);
+  if(RFR.tempo)tickTempo(RFR.tempo,dt);
   hunted=stepReframerHunt(RFR.hunt,{
     metal:{x:p.x,z:p.z},robot:{x:E.target.x,z:E.target.z},
     visible:dist<=HUNT.SIGHT,escapeTap:struggle},dt);
@@ -1294,6 +1296,7 @@ function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=R
    const out=loseReframerTarget(W);if(out)reframerEnd(out);
    return; // Robot lost Metal; no teleporting to current player position.
   }
+  onHuntEvents(RFR.tempo||=createTempo(),hunted.events);
   for(const ev of hunted.events){
    if(ev.type==='tether-warn')reframerSay('tetherWarn','REFRAMER TENTACLE CHARGING','move out of its reach or break the attachment');
    if(ev.type==='tether-caught')reframerSay('tetherCaught','TENTACLE LOCK · STRUGGLE','tap E, A, or the red touch button three times');
