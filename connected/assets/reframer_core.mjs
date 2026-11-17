@@ -125,10 +125,20 @@ export function step(W, metal, donorPos, dt, hunt=null) {
       E.released = true; E.parts = Math.min(4, Math.floor(E.t / D.release * 5)); if (E.t >= D.release) at('reframe'); break;
     case 'reframe': if (E.t >= D.reframe) { at('chase'); out.events.push({ type: 'roadframe' }); } break;
     case 'chase': {
-      const goal=hunt?.goal&&Number.isFinite(hunt.goal.x)&&Number.isFinite(hunt.goal.z)?hunt.goal:metal;
-      const dx = goal.x - E.target.x, dz = goal.z - E.target.z, d = Math.hypot(dx, dz) || 1;
-      E.target.x += dx / d * RF.ROAD_SPEED * dt; E.target.z += dz / d * RF.ROAD_SPEED * dt; E.heading = Math.atan2(dx, dz);
-      E.ramCd -= dt; if ((!hunt||hunt.canRam===true) && d < 2.4 && E.ramCd <= 0) { E.ramCd = RF.RAM_CD; out.ram = RF.RAM_DMG; out.events.push({ type: 'ram' }); }
+      // With a hunt state, the Roadframe only knows what the hunt has seen: its goal, or nothing.
+      // Without one (legacy callers) it follows Metal directly.
+      const seenGoal = hunt ? hunt.goal : metal;
+      const goal = seenGoal && Number.isFinite(seenGoal.x) && Number.isFinite(seenGoal.z) ? seenGoal : null;
+      E.ramCd -= dt;
+      if (goal) {
+        const dx = goal.x - E.target.x, dz = goal.z - E.target.z, d = Math.hypot(dx, dz);
+        if (d > 1e-9) {
+          const move = Math.min(d, RF.ROAD_SPEED * dt); // never overshoot the goal
+          E.target.x += dx / d * move; E.target.z += dz / d * move; E.heading = Math.atan2(dx, dz);
+        }
+        const gap = Math.hypot(goal.x - E.target.x, goal.z - E.target.z);
+        if ((!hunt || hunt.canRam === true) && gap < 2.4 && E.ramCd <= 0) { E.ramCd = RF.RAM_CD; out.ram = RF.RAM_DMG; out.events.push({ type: 'ram' }); }
+      }
       if (E.t > 45) { out.events.push(end(W, 'escaped')); return out; }
       break;
     }
