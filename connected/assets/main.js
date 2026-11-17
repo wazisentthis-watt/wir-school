@@ -262,8 +262,8 @@ function makeMetal(){const root=new THREE.Group();const o=metalGLTF.scene;root.a
  setMask(0,ch);return ch;}
 
 // ---------- Metal S1–S4 forms (rigged by Metal's Bot, PROPOSAL; compressed for web) ----------
-const FORM_FILES=['S1','S2','S3','S4'].map(s=>'assets/models/metal/forms/metal_'+s+'_PROPOSAL.glb');FORM_FILES[0]='assets/models/metal/metal_phase6_fight.glb';FORM_FILES.push('assets/models/metal/forms/metal_S5_mixamo_PROPOSAL.glb'); /* S5 = Mixamo rig from the uploaded FBX (swim clips only, PROPOSAL) */ /* S1 = Phase 6 game rig (metal_placeholder.glb from metal_inda_rifft phase 6) */const formGLTF=[];
-const FORM_LABEL=['S1 · Phase 6 game rig, black spiky crown (PLACEHOLDER mesh)','S2 · violet seams','S3 · braided mane · bandaged right hand · Merkaba on back','S4 · the Lion · bandaged right hand · Merkaba carryover PROPOSAL','S5 · Mixamo rig · swim idle and cruise only (PROPOSAL)'];
+const FORM_FILES=['S1','S2','S3','S4'].map(s=>'assets/models/metal/forms/metal_'+s+'_PROPOSAL.glb');FORM_FILES[0]='assets/models/metal/metal_phase6_fight.glb';FORM_FILES.push('assets/models/metal/forms/metal_S5_mixamo_PROPOSAL.glb');FORM_FILES.push('assets/models/metal/forms/metal_S6_rig_PROPOSAL.glb'); /* S5 = Mixamo rig from the uploaded FBX (swim clips only, PROPOSAL) */ /* S1 = Phase 6 game rig (metal_placeholder.glb from metal_inda_rifft phase 6) */const formGLTF=[];
+const FORM_LABEL=['S1 · Phase 6 game rig, black spiky crown (PLACEHOLDER mesh)','S2 · violet seams','S3 · braided mane · bandaged right hand · Merkaba on back','S4 · the Lion · bandaged right hand · Merkaba carryover PROPOSAL','S5 · Mixamo rig · swim idle and cruise only (PROPOSAL)','S6 · textured rig · no animation yet (PROPOSAL)'];
 // Phase 6 rig clip names (33 clips: stand walk run cruise push carve ollie air land grind manual slide bail wallride swing flight punch_l/r kick_l/r block charge blast transform …)
 const P6MAP={Idle:'u_Idle_Loop',Standing:'stand',Walking:'u_Walk_Loop',Jog:'u_Jog_Fwd_Loop',Running:'u_Sprint_Loop',Jump:'air',Air:'air',FootAir:'u_Jump_Loop',JumpStart:'u_Jump_Start',JumpLand:'u_Jump_Land',Roll:'u_Roll',Climb:'u_ClimbUp_1m',Punch:'u_Punch_Jab',Jab:'u_Punch_Jab',Cross:'u_Punch_Cross',Hook:'u_Melee_Hook',KickL:'kick_l',KickR:'kick_r',Dash:'u_Shield_Dash',Guard:'block',HitHead:'u_Hit_Head',HitChest:'u_Hit_Chest',Knock:'u_Hit_Knockback',GetUp:'u_LayToIdle',Kick:'kick_r',Block:'block',ThumbsUp:'transform',Dance:'stand',No:'stand',Charge:'charge',Blast:'u_Spell_Simple_Shoot',Swing:'swing',Grind:'grind',Carve:'carve',Sitting:'stand',Skate:'cruise',BoardIdle:'idle',Push:'push',Ollie:'ollie',Land:'land',Manual:'manual',Bail:'bail',Flight:'flight',Wallride:'wallride',Slide:'slide',Slam:'slam'};
 const traceMats=[];
@@ -275,7 +275,7 @@ function buildFormModel(gltf,i){const o=gltf.scene;o.traverse(m=>{if(!m.isMesh)r
   o.traverse(m=>{if(!m.isMesh)return;const mt=m.material;if(mt.name==='seam'){mt.emissive=new THREE.Color(VIOLET);mt.emissiveIntensity=0;seamMats.push(mt);}if(mt.name==='trace')traceMats.push(mt);});} // canon: violet only on active seams; the trace flashes through the denim on load/land
  return {model:o,mixer,acts};}
 const bandMats=[];
-async function setForm(i){if(!P||i<0||i>4)return;
+async function setForm(i){if(!P||i<0||i>FORM_FILES.length-1)return;
  if(GAL_FORGE_ENABLED&&forgeController?.busy){toast('Finish forging before switching METAL forms');return;}
  if(i===0&&metalGLTF?.userData?.missionFallback){toast('Metal fallback active · original rig still available when restored');return;}
  let g=formGLTF[i];if(!g){try{
@@ -3124,7 +3124,7 @@ function update(dt){
  if(tap('KeyM')){const on=toggle('map');if(on){zoom=0;drawMap();}}
  if(tap('KeyP')){if(toggle('prof'))renderProfile();}
  if(tap('Escape')){toggle('map',false);toggle('prof',false);}
- for(let k=0;k<5;k++)if(tap('Digit'+(k+1))||tap('F'+(k+1)))setForm(k);
+ for(let k=0;k<FORM_FILES.length;k++)if(tap('Digit'+(k+1))||tap('F'+(k+1)))setForm(k);
  if(tap('KeyO')){setMask((maskI+1)%MASKS.length);toast('Mask: '+({none:'none',HeavyCrown:'Heavy Crown (PLACEHOLDER)',KITO:'KITO Mask (PLACEHOLDER)'})[MASKS[maskI]]);}
  if(tap('KeyH')){/* H = help mode toggle (see HELP); the old help panel shows with help on */}
  const pp=P.o.position;
