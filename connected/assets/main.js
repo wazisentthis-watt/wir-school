@@ -3597,5 +3597,5 @@ if(METAL_STORY_MOLD){
     }).catch(err=>{console.warn('[METAL power wheel]',err);window.__errors.push(String(err));});
    }).catch(e=>{console.warn('METAL ability lab unavailable',e);window.__errors.push(String(e));});
   }
-  if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(0);
+  if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(4); // new playable avatar: form S5 (Mixamo rig) starts the game, no switching needed
  }catch(e){boot.failed(e);window.__errors.push(String(e));}})();
