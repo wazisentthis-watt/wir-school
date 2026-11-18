@@ -46,6 +46,7 @@ import {WT,createWT,step as wtStep,hitLimb,hitKeeper,observe as wtObserve,serial
 import {EP1,createEp1,step as ep1Step,feed as ep1Feed,fightAbandoned as ep1Abandon,replay as ep1Replay,serialize as ep1Save,deserialize as ep1Load} from './ep1_mission_core.mjs'; // Ep.1 PROPOSAL / HOLD // ReFramer Rush drive model (owner source)
 import {MAT,build,constructHeight,constructRails,reclaim,damageConstruct,railFrom,railSegments,bendRail,straightenRail,createWall,hitWall,wallState,repairWall,createWorldState,currentJob,checkJobs,serialize,deserialize} from './malleable_world_core.mjs'; // PROPOSAL / HOLD
 import {HUNT,createReframerHunt,stepReframerHunt,hitReframerArm,reframerHuntSnapshot} from './reframer_hunt_core.mjs';
+import {createTempo,onHuntEvents,tickTempo,registerHit} from './fight_tempo_core.mjs'; // Metal vs ReFramer fight tempo (PROPOSAL / HOLD)
 import {MetalForgeController,FORGE_COST,FORGE_REFUND} from './metal_forge_controller.js';
 import {selectForgePose} from './metal_forge_choreography.mjs';
 import {ForgePerformanceOverlay} from './metal_forge_performance.js';
@@ -261,8 +262,8 @@ function makeMetal(){const root=new THREE.Group();const o=metalGLTF.scene;root.a
  setMask(0,ch);return ch;}
 
 // ---------- Metal S1–S4 forms (rigged by Metal's Bot, PROPOSAL; compressed for web) ----------
-const FORM_FILES=['S1','S2','S3','S4'].map(s=>'assets/models/metal/forms/metal_'+s+'_PROPOSAL.glb');FORM_FILES[0]='assets/models/metal/metal_phase6_fight.glb'; /* S1 = Phase 6 game rig (metal_placeholder.glb from metal_inda_rifft phase 6) */const formGLTF=[];
-const FORM_LABEL=['S1 · Phase 6 game rig, black spiky crown (PLACEHOLDER mesh)','S2 · violet seams','S3 · braided mane · bandaged right hand · Merkaba on back','S4 · the Lion · bandaged right hand · Merkaba carryover PROPOSAL'];
+const FORM_FILES=['S1','S2','S3','S4'].map(s=>'assets/models/metal/forms/metal_'+s+'_PROPOSAL.glb');FORM_FILES[0]='assets/models/metal/metal_phase6_fight.glb';FORM_FILES.push('assets/models/metal/forms/metal_S5_mixamo_PROPOSAL.glb');FORM_FILES.push('assets/models/metal/forms/metal_S6_rig_PROPOSAL.glb'); /* S5 = Mixamo rig from the uploaded FBX (swim clips only, PROPOSAL) */ /* S1 = Phase 6 game rig (metal_placeholder.glb from metal_inda_rifft phase 6) */const formGLTF=[];
+const FORM_LABEL=['S1 · Phase 6 game rig, black spiky crown (PLACEHOLDER mesh)','S2 · violet seams','S3 · braided mane · bandaged right hand · Merkaba on back','S4 · the Lion · bandaged right hand · Merkaba carryover PROPOSAL','S5 · Mixamo rig · swim idle and cruise only (PROPOSAL)','S6 · textured rig · no animation yet (PROPOSAL)'];
 // Phase 6 rig clip names (33 clips: stand walk run cruise push carve ollie air land grind manual slide bail wallride swing flight punch_l/r kick_l/r block charge blast transform …)
 const P6MAP={Idle:'u_Idle_Loop',Standing:'stand',Walking:'u_Walk_Loop',Jog:'u_Jog_Fwd_Loop',Running:'u_Sprint_Loop',Jump:'air',Air:'air',FootAir:'u_Jump_Loop',JumpStart:'u_Jump_Start',JumpLand:'u_Jump_Land',Roll:'u_Roll',Climb:'u_ClimbUp_1m',Punch:'u_Punch_Jab',Jab:'u_Punch_Jab',Cross:'u_Punch_Cross',Hook:'u_Melee_Hook',KickL:'kick_l',KickR:'kick_r',Dash:'u_Shield_Dash',Guard:'block',HitHead:'u_Hit_Head',HitChest:'u_Hit_Chest',Knock:'u_Hit_Knockback',GetUp:'u_LayToIdle',Kick:'kick_r',Block:'block',ThumbsUp:'transform',Dance:'stand',No:'stand',Charge:'charge',Blast:'u_Spell_Simple_Shoot',Swing:'swing',Grind:'grind',Carve:'carve',Sitting:'stand',Skate:'cruise',BoardIdle:'idle',Push:'push',Ollie:'ollie',Land:'land',Manual:'manual',Bail:'bail',Flight:'flight',Wallride:'wallride',Slide:'slide',Slam:'slam'};
 const traceMats=[];
@@ -274,7 +275,7 @@ function buildFormModel(gltf,i){const o=gltf.scene;o.traverse(m=>{if(!m.isMesh)r
   o.traverse(m=>{if(!m.isMesh)return;const mt=m.material;if(mt.name==='seam'){mt.emissive=new THREE.Color(VIOLET);mt.emissiveIntensity=0;seamMats.push(mt);}if(mt.name==='trace')traceMats.push(mt);});} // canon: violet only on active seams; the trace flashes through the denim on load/land
  return {model:o,mixer,acts};}
 const bandMats=[];
-async function setForm(i){if(!P||i<0||i>3)return;
+async function setForm(i){if(!P||i<0||i>FORM_FILES.length-1)return;
  if(GAL_FORGE_ENABLED&&forgeController?.busy){toast('Finish forging before switching METAL forms');return;}
  if(i===0&&metalGLTF?.userData?.missionFallback){toast('Metal fallback active · original rig still available when restored');return;}
  let g=formGLTF[i];if(!g){try{
@@ -1252,7 +1253,7 @@ function reframerHit(kind,power,pos){if(REFRAMER_SQUAD&&reframerSquad?.hit(kind,
    return true;
   }
  }
- const r=hit(RFR.W,kind,power);if(!r)return false;burst(c,24,6);beep(70,.08,'square',.05);
+ const combo=registerHit(RFR.tempo||=createTempo());const r=hit(RFR.W,kind,Math.min(1,power*combo.mul));if(!r)return false;burst(c,24,6);beep(70,.08,'square',.05);if(combo.parts.includes('riposte'))whisper('RIPOSTE','');
  if(r.type==='jam')reframerSay('jam'+E.jams,'SCAN JAMMED','one more and it aborts');if(r.type==='tipped')reframerSay('tip','TIPPED','hit it while it\'s down');
  if(r.type==='end')reframerEnd(r);return true;}
 function reframerEnd(r){const car=RFR.car;
@@ -1270,7 +1271,7 @@ function reframerEnd(r){const car=RFR.car;
  st.comboPend+=3;whisper(r.outcome==='aborted'?'REFRAMER FLED':r.outcome==='clean'?'REFRAMER DOWN — car saved':r.outcome==='roadframeDown'?'ROADFRAME DOWN — salvage the scrap':r.outcome==='lostTarget'?'ROADFRAME LOST THE TRAIL — Metal escaped':'ROADFRAME GOT AWAY','');if(HELP.on)toast('ReFramer: '+r.outcome);
  RFR.car=null;RFR.wheels=[];RFR.mesh.visible=false;for(const a of RFR.arms)a.g.visible=false;RFR.scan.visible=false;RFR.said={};
  if(RFR.escapeButton)RFR.escapeButton.hidden=true;
- RFR.hunt=REFRAMER_HUNT?createReframerHunt():null;RFR.escapeTouch=false;RFR.escapePadPrev=false;}
+ RFR.hunt=REFRAMER_HUNT?createReframerHunt():null;RFR.tempo=createTempo();RFR.escapeTouch=false;RFR.escapePadPrev=false;}
 function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=RFR.W,p=P.o.position;
  if(!W.enc){const donors=cars.filter(c=>!c.userData.worldBody&&c!==heldCar&&!c.userData.reframed).map(c=>({id:c.uuid,x:c.position.x,z:c.position.z,occupied:!c.userData.occupantExited,c}));
   const E=wake(W,{x:p.x,z:p.z},donors);if(E){if(REFRAMER_HUNT)RFR.hunt=createReframerHunt();RFR.car=donors.find(d=>d.id===E.donor).c;const u=RFR.car.userData;u.reframed=true;u.spd0=u.spd;u.spd=0;RFR.mesh.visible=true;if(REFRAMER_HUNT)RFR.mesh.scale.setScalar(1.45); // original disc-like machine is taller beside cars
@@ -1286,6 +1287,7 @@ function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=R
   if(struggle)pressed.KeyE=false;
   RFR.escapeTouch=false;
   const dist=Math.hypot(E.target.x-p.x,E.target.z-p.z);
+  if(RFR.tempo)tickTempo(RFR.tempo,dt);
   hunted=stepReframerHunt(RFR.hunt,{
     metal:{x:p.x,z:p.z},robot:{x:E.target.x,z:E.target.z},
     visible:dist<=HUNT.SIGHT,escapeTap:struggle},dt);
@@ -1294,6 +1296,7 @@ function reframerTick(dt){if(!P)return;reframerInit();if(!RFR.W)return;const W=R
    const out=loseReframerTarget(W);if(out)reframerEnd(out);
    return; // Robot lost Metal; no teleporting to current player position.
   }
+  onHuntEvents(RFR.tempo||=createTempo(),hunted.events);
   for(const ev of hunted.events){
    if(ev.type==='tether-warn')reframerSay('tetherWarn','REFRAMER TENTACLE CHARGING','move out of its reach or break the attachment');
    if(ev.type==='tether-caught')reframerSay('tetherCaught','TENTACLE LOCK · STRUGGLE','tap E, A, or the red touch button three times');
@@ -3121,7 +3124,7 @@ function update(dt){
  if(tap('KeyM')){const on=toggle('map');if(on){zoom=0;drawMap();}}
  if(tap('KeyP')){if(toggle('prof'))renderProfile();}
  if(tap('Escape')){toggle('map',false);toggle('prof',false);}
- for(let k=0;k<4;k++)if(tap('Digit'+(k+1))||tap('F'+(k+1)))setForm(k);
+ for(let k=0;k<FORM_FILES.length;k++)if(tap('Digit'+(k+1))||tap('F'+(k+1)))setForm(k);
  if(tap('KeyO')){setMask((maskI+1)%MASKS.length);toast('Mask: '+({none:'none',HeavyCrown:'Heavy Crown (PLACEHOLDER)',KITO:'KITO Mask (PLACEHOLDER)'})[MASKS[maskI]]);}
  if(tap('KeyH')){/* H = help mode toggle (see HELP); the old help panel shows with help on */}
  const pp=P.o.position;
@@ -3594,5 +3597,5 @@ if(METAL_STORY_MOLD){
     }).catch(err=>{console.warn('[METAL power wheel]',err);window.__errors.push(String(err));});
    }).catch(e=>{console.warn('METAL ability lab unavailable',e);window.__errors.push(String(e));});
   }
-  if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(0);
+  if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(4); // new playable avatar: form S5 (Mixamo rig) starts the game, no switching needed
  }catch(e){boot.failed(e);window.__errors.push(String(e));}})();
