@@ -4,8 +4,10 @@
 // PROPOSAL / PUBLISH HOLD: one encounter at a time. No production justice-unit rig.
 export const HUNT=Object.freeze({
  SIGHT:32, LOST_AFTER:8, TETHER_MIN:2.2, TETHER_MAX:7.5,
- TETHER_WINDUP:.8, TETHER_HOLD:3, TETHER_COOLDOWN:7,
- STRUGGLE_TAPS:3, GRAB_DAMAGE:.12, ARM_HP:1, PART_RESERVE:.18
+ TETHER_WINDUP:.8, TETHER_HOLD:3, TETHER_COOLDOWN:4,
+ STRUGGLE_TAPS:3, GRAB_DAMAGE:.12, ARM_HP:1, PART_RESERVE:.18,
+ // tuned to hit, not just tick: the catch lands at once, the hold keeps biting, and the arm comes back sooner
+ CATCH_DAMAGE:.14, HOLD_DAMAGE:.05, HOLD_TICK:.5
 });
 const num=n=>typeof n==='number'&&Number.isFinite(n);
 const point=p=>p&&num(p.x)&&num(p.z);
@@ -15,7 +17,7 @@ const distance=(a,b)=>Math.hypot(a.x-b.x,a.z-b.z);
 
 export function createReframerHunt(){
  return {mode:'search',lastKnown:null,unseen:0,tether:'idle',tetherT:0,
-  tetherCooldown:0,struggle:0,armHP:HUNT.ARM_HP,armBroken:false,
+  tetherCooldown:0,struggle:0,holdTick:0,armHP:HUNT.ARM_HP,armBroken:false,
   warnings:0,captures:0,escapes:0,losses:0,armBreaks:0};
 }
 export function hitReframerArm(H,kind,power=.5){
@@ -32,11 +34,11 @@ export function hitReframerArm(H,kind,power=.5){
  return {ok:true,broken:true,hp:0,released:brokeGrip,salvage:HUNT.PART_RESERVE};
 }
 function release(H,why,events){
- H.tether='idle';H.tetherT=0;H.struggle=0;H.tetherCooldown=HUNT.TETHER_COOLDOWN;
+ H.tether='idle';H.tetherT=0;H.struggle=0;H.holdTick=0;H.tetherCooldown=HUNT.TETHER_COOLDOWN;
  events.push({type:why});
 }
 export function stepReframerHunt(H,context={},dt=1/60){
- const t=validDt(dt),events=[];
+ const t=validDt(dt),events=[];let dmg=0;
  if(!H||!point(context.metal)||!point(context.robot)||!t)
   return {goal:null,canRam:false,held:false,pull:0,damage:0,lost:false,events};
  H.tetherCooldown=Math.max(0,H.tetherCooldown-t);
@@ -68,24 +70,27 @@ export function stepReframerHunt(H,context={},dt=1/60){
   if(!seen||dist>HUNT.TETHER_MAX+1.5){
    release(H,'tether-dodged',events);
   }else if(H.tetherT>=HUNT.TETHER_WINDUP){
-   H.tether='hold';H.tetherT=0;H.struggle=0;H.captures++;
+   H.tether='hold';H.tetherT=0;H.struggle=0;H.holdTick=0;H.captures++;
+   dmg+=HUNT.CATCH_DAMAGE;
    events.push({type:'tether-caught'});
   }
  }else if(H.tether==='hold'){
   H.tetherT+=t;
   if(context.escapeTap===true)H.struggle++;
+  H.holdTick+=t;
+  if(H.holdTick>=HUNT.HOLD_TICK){H.holdTick=0;dmg+=HUNT.HOLD_DAMAGE;}
   if(H.struggle>=HUNT.STRUGGLE_TAPS){
    H.escapes++;release(H,'tether-escaped',events);
   }else if(H.tetherT>=HUNT.TETHER_HOLD||dist>11){
    release(H,'tether-release',events);
    if(dist<=11)return {goal:H.lastKnown,canRam:false,held:false,pull:0,
-    damage:HUNT.GRAB_DAMAGE,lost:false,events};
+    damage:dmg+HUNT.GRAB_DAMAGE,lost:false,events};
   }
  }
  const held=H.tether==='hold';
  return {goal:H.mode==='pursue'?{x:context.metal.x,z:context.metal.z}:H.lastKnown,
   canRam:seen&&!held&&H.tether==='idle',
-  held,pull:held?0.85:0,damage:0,lost:false,events,
+  held,pull:held?0.85:0,damage:dmg,lost:false,events,
   tether:H.tether,armBroken:H.armBroken,mode:H.mode};
 }
 export function reframerHuntSnapshot(H){
