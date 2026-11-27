@@ -1,7 +1,7 @@
 // Prologue · Learn the City + Scrap crew — PROPOSAL / HOLD (2026-11-07)
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PRO,STEPS,createPro,feed,step,powersDone,serialize,deserialize} from '../assets/prologue_core.mjs';
+import {PRO,STEPS,createPro,feed,step,powersDone,serialize,deserialize,timeScale,SLOW_SCALE} from '../assets/prologue_core.mjs';
 import {SC,createCrew,step as cStep,markOut,bind,take,boundCount,canBind,isSurrendered} from '../assets/scrap_crew_core.mjs';
 const dt = 1 / 60;
 const W = (o = {}) => ({ riding: false, speed: 0, crewDist: 99, crewBound: 0, crewTotal: 3, cardsTotal: 4, nextDist: 99, ...o });
@@ -91,4 +91,12 @@ test('crew: with two out, the last one gives up; out or surrendered can be bound
   assert.equal(canBind(C, 0), true); bind(C, 0); bind(C, 1); bind(C, 2);
   assert.equal(boundCount(C), 3); assert.ok(take(C, 0)); assert.equal(boundCount(C), 3, 'taken still counts as restrained');
   assert.equal(bind(C, 0), null, 'cannot bind twice');
+});
+
+test('prologue: lessons run at slow motion, the fight and the pickup run at full speed', () => {
+  assert.equal(timeScale('pull'), SLOW_SCALE);
+  assert.equal(timeScale('swing'), SLOW_SCALE);
+  assert.equal(timeScale('toCrew'), 1);
+  assert.equal(timeScale('fight'), 1);
+  assert.equal(timeScale('pickup'), 1);
 });

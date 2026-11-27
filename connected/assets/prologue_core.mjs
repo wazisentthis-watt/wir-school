@@ -51,6 +51,11 @@ export function feed(M, kind, v = 1) {
   return null;
 }
 
+// Spider-Man-style first lessons: time runs slower while the player is learning a skill.
+export const SLOW_STEPS = new Set(['where', 'pull', 'walk', 'board', 'push', 'gates', 'pop', 'gallop', 'swing', 'snapline']);
+export const SLOW_SCALE = 0.55;
+export function timeScale(step) { return SLOW_STEPS.has(step) ? SLOW_SCALE : 1; }
+
 export function powersDone(M, cardsTotal) {
   return M.seen.length >= cardsTotal && PRO.REQUIRED.every(p => M.used.includes(p)) && PRO.FORMS.some(p => M.used.includes(p));
 }

@@ -25,7 +25,7 @@ import {createTestYardSkateAdapter,trickDirection,fightClipHint} from './testyar
 import {RS,createRealSkate,padToInput,goAirborne} from './real_skate_core.mjs'; // PROPOSAL / PUBLISH HOLD (?real_skate=1)
 import {GALLOP,createGallop,press as gallopPress,step as gallopStep,landed as gallopLanded,breakChain as gallopBreak,strideSpeed} from './gallium_gallop_core.mjs'; // PROPOSAL / HOLD
 import {SNAP,createSnap,mark as snapMark,commit as snapCommit,step as snapStep} from './snapline_core.mjs'; // PROPOSAL / HOLD
-import {PRO,createPro,feed as proPFeed,step as proPStep,serialize as proSerialize,deserialize as proDeserialize} from './prologue_core.mjs'; // Prologue PROPOSAL / HOLD
+import {PRO,createPro,feed as proPFeed,step as proPStep,serialize as proSerialize,deserialize as proDeserialize,timeScale as proTimeScale} from './prologue_core.mjs'; // Prologue PROPOSAL / HOLD
 import {SC,ROLES,createCrew,alert as scAlert,step as scStep,markOut as scMarkOut,bind as scBind,take as scTake,boundCount as scBoundCount,resetCrew as scReset} from './scrap_crew_core.mjs'; // PROPOSAL / HOLD
 import {createRide,stepRide,boardPose,bodyHeading,bankLine,stepLooseBoard} from './real_skate_ride.mjs';
 import {createSkateYard,buildSkateYardMeshes} from './skate_yard_world.mjs';
@@ -1624,8 +1624,17 @@ function proInit(){if(PR.ready||!P||!rivalGLTF||!SPOTS.home||!SPOTS.home.c)retur
  if(PRQ==='reset'){try{localStorage.removeItem(PRO_KEY);}catch(e){}}
  if(PRQ==='0')return;
  let M=null;try{const t=localStorage.getItem(PRO_KEY);if(t)M=proDeserialize(t);}catch(e){}
- if(!M||PRQ==='1'&&M.step==='done')M=createPro();if(M.step==='done')return;
+ if(!M&&PRQ===null){PR.gate=true;missionGateShow();return;} // fresh start: Y takes the first mission, B plays free roam
+ proStartWith(M);}
+function proStartWith(M){if(!M||PRQ==='1'&&M.step==='done')M=createPro();if(M.step==='done')return;
  try{proBuild();}catch(e){console.error(e);window.__errors&&window.__errors.push('prologue build: '+e.message);return;}PR.M=M;PR.on=true;proSave();proEnter(M.step);whisper('PROLOGUE · LEARN THE CITY','you are Metal — this is where it starts');}
+// First-mission choice card. Y / keyboard Y = accept · B / keyboard N = free roam. Nothing is saved on decline, so it asks again next time.
+function missionGateShow(){const el=document.createElement('div');el.id='missionGate';el.className='wir-keep';el.style.cssText='position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:40;max-width:440px;padding:16px 18px;background:rgba(10,12,18,.9);border:1px solid #ffcf8a;border-radius:10px;color:#f4efe6;font:14px system-ui;text-align:center;';el.innerHTML='<div style="font-size:10px;letter-spacing:2px;color:#ffcf8a">FIRST MISSION</div><div style="font-weight:700;font-size:18px;margin:4px 0">Stop the bank heist</div><div style="opacity:.85;margin-bottom:10px">Training first: the city, the board, the line, the pull. Everything runs slowed down while you learn it.</div><div><b>Y</b> begin the mission &nbsp;·&nbsp; <b>B</b> play free roam</div>';document.body.appendChild(el);}
+function missionGateTick(){const gp=navigator.getGamepads?[...navigator.getGamepads()].find(g=>g):null;const y=!!gp?.buttons[3]?.pressed,b=!!gp?.buttons[1]?.pressed;
+ const acc=(y&&!PR.gateY)||tap('KeyY'),dec=(b&&!PR.gateB)||tap('KeyN');PR.gateY=y;PR.gateB=b;
+ if(!acc&&!dec)return;PR.gate=false;const el=document.getElementById('missionGate');if(el)el.remove();
+ if(acc)proStartWith(createPro());else whisper('FREE ROAM','Savannah is yours. The first mission waits at the Commons.');}
+function proSlowScale(){return PR.on&&PR.M?proTimeScale(PR.M.step):1;}
 function proBuild(){const y=groundY;PR.site=new THREE.Vector3(-(BLOCK+ROAD)/2,y,12);const sx=PR.site.x;
  PR.routes=[[{x:sx,z:40},{x:sx,z:84}],[{x:sx,z:-28},{x:-84,z:-28}],[{x:sx,z:28},{x:-84,z:28}]]; // real roads, away from the car
  const src=cars.find(c=>!c.userData.mine&&!c.userData.bike&&!c.userData.worldBody);
@@ -2778,6 +2787,13 @@ function showGalliumHand(target,height=0){
  gripFollow=target;gripHeight=height;
  gripTarget={position:target.position.clone().add(new THREE.Vector3(0,height,0))};
 }
+// Throw a carried person: an arc along the camera's direction, then they land and stagger.
+function throwCitizen(){const n=heldCitizen;if(!n)return;heldCitizen=null;
+ const f=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw));
+ n.throwV=f.multiplyScalar(13).setY(7);n.throwT=0;n.target=n.o.position.clone();n.wait=3;n.o.position.y+=.5;toast('THROWN');beep(300,.08,'triangle',.04);}
+function updateThrownPeople(dt){for(const n of npcs){if(!n.throwV)continue;n.throwT+=dt;n.throwV.y-=22*dt;n.o.position.addScaledVector(n.throwV,dt);
+  n.target=n.o.position.clone();n.wait=3;
+  if(n.o.position.y<=groundY+.25&&n.throwV.y<0){n.o.position.y=groundY+.25;n.throwV=null;n.wait=2;}}}
 function releaseGrip(){
  if(heldCar)releaseCar();
  if(heldCitizen){heldCitizen.o.position.y=groundY+.25;heldCitizen.wait=.4;heldCitizen.target=wp();heldCitizen=null;}
@@ -3085,6 +3101,8 @@ function tickCitySystems(dt){if(!P)return;const p=P.o.position;
 }
 let worldGripWarned=false,worldGripRetry=0,worldSwingLatch=false,worldGrabLatch=false,worldThrowLatch=false,worldGripActive=false,gripAxisX=0,gripAxisY=0;
 function update(dt){
+ if(PR.gate)missionGateTick();
+ updateThrownPeople(dt);
  if(wildCat)wildCat.update(dt); // wild predator wanders the field
  metalPowerLab?.tick(dt); // bounded optional district effects; never owns the player's movement solver
  metalStoryMold?.tick(dt); // tiny story HUD update, no physical or legacy-save writes
@@ -3116,7 +3134,7 @@ function update(dt){
  if(rt&&!lt&&!gripDown){riftPressTime+=dt;if(riftPressTime>=.16&&!combatBlastLatch){riffStep();combatBlastLatch=true;}}else{riftPressTime=0;combatBlastLatch=false;}if(tap('KeyZ'))fireMetalBlast();riftCooldown=Math.max(0,riftCooldown-dt);
  if(rb&&!gripDown&&!worldSwingLatch){if(slottaSnare>0)toast('Circuit Serpents: swing disabled');else{pressed.KeyQ=true;keys.KeyQ=true;}}if(!rb||gripDown||slottaSnare>0)keys.KeyQ=false;worldSwingLatch=rb&&!gripDown&&slottaSnare<=0;
  if(gripDown&&!heldCar&&!heldCitizen&&!heldActor&&!gripTarget&&worldGripRetry<=0){if(slottaSnare>0)toast('Circuit Serpents disrupting Galaxy Gallium');else galliumGrabWorld();worldGripRetry=.4;}else worldGripRetry=Math.max(0,worldGripRetry-dt);
- if((gripDown&&rt&&!worldThrowLatch)||tap('KeyI')){slingCar();releaseGrip();}
+ if((gripDown&&rt&&!worldThrowLatch)||tap('KeyI')){if(heldCitizen)throwCitizen();slingCar();releaseGrip();}
  if(!gripDown){worldGripWarned=false;worldGripRetry=0;if(gripTarget||heldCar||heldCitizen||heldActor||structureGrip)releaseGrip();}worldGrabLatch=gripDown;worldThrowLatch=gripDown&&rt;
  let ix=(keys.KeyD?1:0)-(keys.KeyA?1:0)+stick.x+(pad?pad.x:0),iz=(keys.KeyS?1:0)-(keys.KeyW?1:0)+stick.y+(pad?pad.y:0);
  if(forgeController?.busy){ix=0;iz=0;vel.x=0;vel.z=0;}
@@ -3492,7 +3510,7 @@ function installSlottaBrowserQA(){
     gameReady:!!window.__ready,time:new Date().toISOString()};}};
 }
 
-let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());if(window.__testHold){if(LITE)renderer.render(scene,camera);else composer.render();return;}try{update(fgTime(dt));window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<12){console.error(e);window.__errors.push(String(e));toast('Runtime error: '+String(e.message||e).slice(0,80));}}if(LITE)renderer.render(scene,camera);else composer.render();}
+let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());if(window.__testHold){if(LITE)renderer.render(scene,camera);else composer.render();return;}try{update(fgTime(dt*proSlowScale()));window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<12){console.error(e);window.__errors.push(String(e));toast('Runtime error: '+String(e.message||e).slice(0,80));}}if(LITE)renderer.render(scene,camera);else composer.render();}
 
 (async()=>{const msg=t=>{boot.stage(t);$('loadmsg').textContent=t;};
  try{
