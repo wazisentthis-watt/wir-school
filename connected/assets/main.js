@@ -81,6 +81,8 @@ const METAL_POWER_LAB=new URLSearchParams(location.search).get('metal_abilities'
 const METAL_STORY_MOLD=new URLSearchParams(location.search).get('metal_campaign')==='1'&&!MISSION05&&!AERIAL_DUEL_PILOT; // end-backward canon story preview, opt-in PUBLISH HOLD
 let skYard=null; // real-skate park heightfield (only with ?real_skate=1) // fix missing flag from merged PR34; preserve default
 let metalPowerLab=null; // never mounted during ordinary Savannah or Mission05
+const METAL_MESH_TEST=new URLSearchParams(location.search).get('metal_power_meshes')==='1'&&!MISSION05&&!AERIAL_DUEL_PILOT;
+let metalMeshTest=null; // PROPOSAL / PUBLISH HOLD: strictly opt-in visual layer
 let reframerSquad=null; // no extra AI or meshes in baseline; dynamic source adapter only on explicit opt-in
 let metalPowerWheel=null; // opt-in actual ability selection, never owns Metal locomotion
 let metalStoryMold=null; // source 30-episode narrative + physically demonstrated first rhythm
@@ -2230,7 +2232,8 @@ function kitInit(){if(KITV.loaded||!P)return;KITV.loaded=true;
  KITV.arcs=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0xb46bff,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false}));KITV.arcs.frustumCulled=false;KITV.arcs.visible=false;scene.add(KITV.arcs);}
 // the sword lives in the right hand, the shield on the left forearm (rebuilt if the rig changes)
 function kitHandMeshes(){if(!P||!P.model)return;const want=KITV.K.hand;
- const rh=P.model.getObjectByName('RightHand')||P.model.getObjectByName('hand_r'),la=P.model.getObjectByName('LeftLowerArm')||P.model.getObjectByName('lowerarm_l');
+ if(METAL_MESH_TEST){for(const k of ['sword','shield'])if(KITV[k]){let p=KITV[k];while(p&&p!==P.model)p=p.parent;if(!p){KITV[k].removeFromParent();KITV[k].traverse(o=>{if(o.isMesh){o.geometry?.dispose();o.material?.dispose();}});KITV[k]=null;}}}
+ const rh=P.model.getObjectByName('RightHand')||P.model.getObjectByName('hand_r')||(METAL_MESH_TEST?(P.model.getObjectByName('Hand_R')||P.model.getObjectByName('HandR')||P.model.getObjectByName('Hand.R')||P.model.getObjectByName('mixamorigRightHand')):null),la=P.model.getObjectByName('LeftLowerArm')||P.model.getObjectByName('lowerarm_l')||(METAL_MESH_TEST?P.model.getObjectByName('Forearm_L'):null);
  if(!KITV.sword&&rh){const s=new THREE.Group(),blade=new THREE.Mesh(new THREE.BoxGeometry(.06,1.05,.022),liquidMat(.35,{emissive:0x7b4dff,emissiveIntensity:.1}));blade.position.y=.62;
   const edge=new THREE.Mesh(new THREE.BoxGeometry(.012,1.0,.026),new THREE.MeshBasicMaterial({color:0xcdb8ff}));edge.position.set(.032,.62,0);
   const guard=new THREE.Mesh(new THREE.BoxGeometry(.22,.04,.06),liquidMat(.8));guard.position.y=.08;s.add(blade,edge,guard);s.scale.setScalar(1/(rh.getWorldScale(new THREE.Vector3()).x||1));rh.add(s);KITV.sword=s;}
@@ -3526,7 +3529,7 @@ function installSlottaBrowserQA(){
     gameReady:!!window.__ready,time:new Date().toISOString()};}};
 }
 
-let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());if(window.__testHold){if(LITE)renderer.render(scene,camera);else composer.render();return;}try{update(fgTime(dt*proSlowScale()));window.__seasonPost&&window.__seasonPost(dt);}catch(e){if(fails++<12){console.error(e);window.__errors.push(String(e));toast('Runtime error: '+String(e.message||e).slice(0,80));}}if(LITE)renderer.render(scene,camera);else composer.render();}
+let fails=0;function loop(){requestAnimationFrame(loop);const dt=Math.min(.05,clock.getDelta());if(window.__testHold){if(LITE)renderer.render(scene,camera);else composer.render();return;}try{update(fgTime(dt*proSlowScale()));window.__seasonPost&&window.__seasonPost(dt);if(metalMeshTest){try{metalMeshTest.tick(performance.now()/1000);}catch(err){console.warn('[WIR 3D mesh test disabled]',err);metalMeshTest.destroy();metalMeshTest=null;}}}catch(e){if(fails++<12){console.error(e);window.__errors.push(String(e));toast('Runtime error: '+String(e.message||e).slice(0,80));}}if(LITE)renderer.render(scene,camera);else composer.render();}
 
 (async()=>{const msg=t=>{boot.stage(t);$('loadmsg').textContent=t;};
  try{
@@ -3633,5 +3636,9 @@ if(METAL_STORY_MOLD){
     }).catch(err=>{console.warn('[METAL power wheel]',err);window.__errors.push(String(err));});
    }).catch(e=>{console.warn('METAL ability lab unavailable',e);window.__errors.push(String(e));});
   }
+  if(METAL_MESH_TEST){import('./metal_power_mesh_test.mjs').then(({mountConnectedPowerVisuals})=>{
+   metalMeshTest=mountConnectedPowerVisuals({THREE,loader:gl,scene,getPlayer:()=>P,getState:()=>({sword:KITV.K.hand==='sword',oldSword:KITV.sword,armor:!!metalPowerLab?.snapshot().armor?.active,charge:!!KITV.merk?.visible,swing:!!st.swing,swingAnchor:st.swing?.a??null,grip:!!(worldGripActive&&gripTarget),floor:floorAt(P.o.position)})});
+   window.__game.metalMeshTest=()=>metalMeshTest?.snapshot()??null;
+  }).catch(err=>console.warn('[WIR 3D mesh test unavailable]',err));}
   if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(9); // startup form S10 (Meshy body on the S5 rig); set to 7 for the S8 Gorillium showcase, 4 for S5
  }catch(e){boot.failed(e);window.__errors.push(String(e));}})();
