@@ -19,6 +19,7 @@ test('prologue: the whole run, step by step, in order', () => {
   tick({ crewDist: 10 });
   feed(M, 'down'); feed(M, 'bind'); tick({ crewBound: 3 });
   for (let t = 0; t < PRO.PICKUP_T + 0.1; t += dt) step(M, W(), dt); seen.push(M.step);
+  feed(M, 'vault'); tick(); // lock the vault after the robbers are cuffed
   for (const c of ['glob', 'blast', 'pull', 'gallop']) feed(M, 'card', c);
   for (const p of ['glob', 'blast', 'pull', 'sword']) feed(M, 'power', p);
   tick(); assert.equal(M.ledger.completed, true, 'completing the power cycle completes the mission');
@@ -99,4 +100,14 @@ test('prologue: lessons run at slow motion, the fight and the pickup run at full
   assert.equal(timeScale('toCrew'), 1);
   assert.equal(timeScale('fight'), 1);
   assert.equal(timeScale('pickup'), 1);
+});
+
+test('prologue: after the robbers are cuffed, the vault must be locked before the powers lesson', () => {
+  const M = createPro(); M.step = 'pickup'; M.t = PRO.PICKUP_T + 0.1;
+  step(M, { crewBound: 3, crewTotal: 3, cardsTotal: 3 }, 0.1);
+  assert.equal(M.step, 'vault');
+  feed(M, 'walk', 1); step(M, { crewBound: 3, crewTotal: 3, cardsTotal: 3 }, 0.1);
+  assert.equal(M.step, 'vault', 'walking does not lock the vault');
+  feed(M, 'vault', 1); step(M, { crewBound: 3, crewTotal: 3, cardsTotal: 3 }, 0.1);
+  assert.equal(M.step, 'powers');
 });

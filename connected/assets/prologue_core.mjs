@@ -13,14 +13,14 @@ export const PRO = {
   REQUIRED: ['glob', 'blast', 'pull'], FORMS: ['sword', 'shield', 'plasma'],   // + any one form while pulling
 };
 
-export const STEPS = ['where', 'pull', 'walk', 'board', 'push', 'gates', 'pop', 'gallop', 'swing', 'snapline', 'toCrew', 'fight', 'pickup', 'powers', 'next', 'done'];
+export const STEPS = ['where', 'pull', 'walk', 'board', 'push', 'gates', 'pop', 'gallop', 'swing', 'snapline', 'toCrew', 'fight', 'pickup', 'vault', 'powers', 'next', 'done'];
 const TEACH = new Set(['where', 'pull', 'walk', 'board', 'push', 'gates', 'pop', 'gallop', 'swing', 'snapline', 'powers']); // teaching steps never block you
-const CHECKPOINT = { fight: 'toCrew', pickup: 'powers' };
+const CHECKPOINT = { fight: 'toCrew', pickup: 'vault' };
 
 export function createPro() {
   return { v: 1, step: 'where', t: 0, runT: 0,
     n: { look: 0, pull: 0, walk: 0, jumps: 0, gates: 0, pops: 0, gallop: 0, swings: 0, snaps: 0 },
-    seen: [], used: [], skipped: [], downs: 0, binds: 0,
+    seen: [], used: [], skipped: [], downs: 0, binds: 0, vault: false,
     ledger: { completed: false, completions: 0, bestTime: null, dodges: 0, hitSurrendered: 0, wipes: 0 } };
 }
 
@@ -33,6 +33,7 @@ export function feed(M, kind, v = 1) {
   switch (kind) {
     case 'look': if (s === 'where') n.look += Math.abs(v); return null;
     case 'pull': if (s === 'pull') { n.pull += v; return n.pull >= PRO.PULL_S ? { type: 'progress' } : null; } return null;
+    case 'vault': if (s === 'vault') { M.vault = true; return { type: 'progress' }; } return null;
     case 'walk': if (s === 'walk') n.walk += v; return null;
     case 'jump': if (s === 'walk') { n.jumps++; return { type: 'progress' }; } return null;
     case 'gate': if (s === 'gates') { n.gates++; return { type: 'gate', n: n.gates }; } return null;
@@ -79,7 +80,8 @@ export function step(M, w, dt) {
   else if (s === 'snapline' && n.snaps >= PRO.SNAPS) next = 'toCrew';
   else if (s === 'toCrew' && w.crewDist < PRO.CREW_R) { next = 'fight'; out.events.push({ type: 'crewAlert' }); }
   else if (s === 'fight' && w.crewTotal > 0 && w.crewBound >= w.crewTotal) next = 'pickup';
-  else if (s === 'pickup' && M.t >= PRO.PICKUP_T) { next = 'powers'; out.events.push({ type: 'pickup' }); }
+  else if (s === 'pickup' && M.t >= PRO.PICKUP_T) { next = 'vault'; out.events.push({ type: 'pickup' }); }
+  else if (s === 'vault' && M.vault) next = 'powers';
   else if (s === 'powers' && powersDone(M, w.cardsTotal)) next = 'next';
   else if (s === 'next' && w.nextDist < PRO.NEXT_R) next = 'done';
   if (!next && TEACH.has(s) && M.t >= PRO.GRACE) { next = STEPS[STEPS.indexOf(s) + 1]; M.skipped.push(s); out.events.push({ type: 'skipped', step: s }); }
