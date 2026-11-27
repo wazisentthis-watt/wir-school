@@ -35,6 +35,7 @@ import {makeGalliumLimb,galliumLiquidMat,galaxyCrystalMat,GU} from './gallium_li
 import {GLOB,createGlob,formGlob,launchGlob,stepGlob,globRadius,carImpulse,foeImpact,createTumble,stepTumble,tumbleResult,splat} from './gallium_glob_core.mjs'; // PROPOSAL / HOLD
 import {VILLAINS,createVillainState,stepVillain,damageMul,echoWarnings,pullSpike,douseZone} from './villain_core.mjs';
 import {DRAW,createDraw,stepDraw} from './metal_draw_core.mjs'; // PROPOSAL / HOLD
+import {makePullStreams} from './gallium_pull_fx.js'; // liquid pull streams (replaces the flecks)
 import {COMBOS,createCombos,feed} from './power_combo_core.mjs';
 import {RF,createReframers,wake,hit,rescue,step,hitArm,hitWheel,react,repairPart,coolNests,loseReframerTarget} from './reframer_core.mjs';
 import {vehicle,step as driveStepPhys,deadzone} from './drive_physics.mjs';
@@ -262,8 +263,8 @@ function makeMetal(){const root=new THREE.Group();const o=metalGLTF.scene;root.a
  setMask(0,ch);return ch;}
 
 // ---------- Metal S1–S4 forms (rigged by Metal's Bot, PROPOSAL; compressed for web) ----------
-const FORM_FILES=['S1','S2','S3','S4'].map(s=>'assets/models/metal/forms/metal_'+s+'_PROPOSAL.glb');FORM_FILES[0]='assets/models/metal/metal_phase6_fight.glb';FORM_FILES.push('assets/models/metal/forms/metal_S5_mixamo_PROPOSAL.glb');FORM_FILES.push('assets/models/metal/forms/metal_S6_rig_PROPOSAL.glb');FORM_FILES.push('assets/models/metal/forms/metal_S7_cyber_PROPOSAL.glb'); /* S5 = Mixamo rig from the uploaded FBX (swim clips only, PROPOSAL) */ /* S1 = Phase 6 game rig (metal_placeholder.glb from metal_inda_rifft phase 6) */const formGLTF=[];
-const FORM_LABEL=['S1 · Phase 6 game rig, black spiky crown (PLACEHOLDER mesh)','S2 · violet seams','S3 · braided mane · bandaged right hand · Merkaba on back','S4 · the Lion · bandaged right hand · Merkaba carryover PROPOSAL','S5 · Mixamo rig · swim idle and cruise only (PROPOSAL)','S6 · textured rig · no animation yet (PROPOSAL)','S7 · cyberpunk Mixamo rig · walk, run, dance, spin jump + Phase 6 idle and punch (PROPOSAL)'];
+const FORM_FILES=['S1','S2','S3','S4'].map(s=>'assets/models/metal/forms/metal_'+s+'_PROPOSAL.glb');FORM_FILES[0]='assets/models/metal/metal_phase6_fight.glb';FORM_FILES.push('assets/models/metal/forms/metal_S5_mixamo_PROPOSAL.glb');FORM_FILES.push('assets/models/metal/forms/metal_S6_rig_PROPOSAL.glb');FORM_FILES.push('assets/models/metal/forms/metal_S7_cyber_PROPOSAL.glb');FORM_FILES.push('assets/models/metal/forms/metal_S8_gorillium_PROPOSAL.glb'); /* S5 = Mixamo rig from the uploaded FBX (swim clips only, PROPOSAL) */ /* S1 = Phase 6 game rig (metal_placeholder.glb from metal_inda_rifft phase 6) */const formGLTF=[];
+const FORM_LABEL=['S1 · Phase 6 game rig, black spiky crown (PLACEHOLDER mesh)','S2 · violet seams','S3 · braided mane · bandaged right hand · Merkaba on back','S4 · the Lion · bandaged right hand · Merkaba carryover PROPOSAL','S5 · Mixamo rig · swim idle and cruise only (PROPOSAL)','S6 · textured rig · no animation yet (PROPOSAL)','S7 · cyberpunk Mixamo rig · walk, run, dance, spin jump + Phase 6 idle and punch (PROPOSAL)','S8 · Gorillium ability showcase · 24 abilities as animations · startup form (PROPOSAL)'];
 // Phase 6 rig clip names (33 clips: stand walk run cruise push carve ollie air land grind manual slide bail wallride swing flight punch_l/r kick_l/r block charge blast transform …)
 const P6MAP={Idle:'u_Idle_Loop',Standing:'stand',Walking:'u_Walk_Loop',Jog:'u_Jog_Fwd_Loop',Running:'u_Sprint_Loop',Jump:'air',Air:'air',FootAir:'u_Jump_Loop',JumpStart:'u_Jump_Start',JumpLand:'u_Jump_Land',Roll:'u_Roll',Climb:'u_ClimbUp_1m',Punch:'u_Punch_Jab',Jab:'u_Punch_Jab',Cross:'u_Punch_Cross',Hook:'u_Melee_Hook',KickL:'kick_l',KickR:'kick_r',Dash:'u_Shield_Dash',Guard:'block',HitHead:'u_Hit_Head',HitChest:'u_Hit_Chest',Knock:'u_Hit_Knockback',GetUp:'u_LayToIdle',Kick:'kick_r',Block:'block',ThumbsUp:'transform',Dance:'stand',No:'stand',Charge:'charge',Blast:'u_Spell_Simple_Shoot',Swing:'swing',Grind:'grind',Carve:'carve',Sitting:'stand',Skate:'cruise',BoardIdle:'idle',Push:'push',Ollie:'ollie',Land:'land',Manual:'manual',Bail:'bail',Flight:'flight',Wallride:'wallride',Slide:'slide',Slam:'slam'};
 const traceMats=[];
@@ -1147,7 +1148,7 @@ function helpTick(dt,gp){
 }
 
 // ---------- METAL DRAW: pull metal from everything around you (charge-up) ----------
-const DRW={D:createDraw(),srcT:0,srcs:[],scrap:[],pts:null,pos:null,life:null,from:null,i:0,N:360,l1T:0,l1Prev:false,drawing:false,longFed:false};
+const DRW={D:createDraw(),srcT:0,srcs:[],scrap:[],fx:null,l1T:0,l1Prev:false,drawing:false,longFed:false};
 function drawSources(){const p=P.o.position,R2=DRAW.RANGE+4,out=[];
  for(const c of cars){if(c===heldCar)continue;if(c.position.distanceTo(p)<R2){c.userData.drawSrc=c.userData.drawSrc||{kind:'car',id:c.uuid};const s=c.userData.drawSrc;s.x=c.position.x;s.y=c.position.y+.8;s.z=c.position.z;s.obj=c;out.push(s);}}
  for(const l of lamps){if(Math.abs(l.position.x-p.x)>R2||Math.abs(l.position.z-p.z)>R2)continue;l.userData.drawSrc=l.userData.drawSrc||{kind:'lamp',x:l.position.x,y:3.4,z:l.position.z,obj:l};out.push(l.userData.drawSrc);}
@@ -1155,8 +1156,6 @@ function drawSources(){const p=P.o.position,R2=DRAW.RANGE+4,out=[];
  for(const kp of KITV.K.puddles)out.push({kind:'puddle',x:kp.x,y:kp.y+.1,z:kp.z,reserve:kp.amount,kp});
  for(const s of DRW.scrap)out.push(s);
  return out;}
-function drawStreamsInit(){const g=new THREE.BufferGeometry();DRW.pos=new Float32Array(DRW.N*3);DRW.life=new Float32Array(DRW.N);DRW.from=new Float32Array(DRW.N*3);g.setAttribute('position',new THREE.BufferAttribute(DRW.pos,3));
- DRW.pts=new THREE.Points(g,new THREE.PointsMaterial({color:0xb9b2ff,size:.09,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false}));DRW.pts.frustumCulled=false;scene.add(DRW.pts);}
 function drawTick(dt){
  if(!P)return;const gp=RSK.gp;const l1=!!(gp&&gp.buttons[4]&&gp.buttons[4].pressed);
  const sky=metalPadV3.mode==='skylab'||RSK.active;
@@ -1169,16 +1168,15 @@ function drawTick(dt){
  if(holding&&!DRW.drawing){DRW.drawing=true;DRW.longFed=false;}
  if(!holding&&DRW.drawing){DRW.drawing=false;}
  if(holding&&DRW.D.held>1&&!DRW.longFed&&DRW.D.total>.02){DRW.longFed=true;comboFeed('drawLong');}
- if(!DRW.pts)drawStreamsInit();
+ if(!DRW.fx)DRW.fx=makePullStreams(scene,THREE);
+ window.__drawDebug=()=>({lamp:lamps[0]?[lamps[0].position.x,lamps[0].position.z]:null,srcs:DRW.srcs.length,streams:DRW.D.streams.length,held:+DRW.D.held.toFixed(2),tubes:DRW.fx?DRW.fx.visibleCount():-1});
+ if(holding&&r.streams.length)proFeed('pull',dt); // the prologue's pull lesson counts seconds of drawing
  const me=_fv2.copy(P.o.position);me.y+=1.15;
- for(const s of r.streams){ // spawn matter flecks along each stream, more for closer/heavier sources
-  const n=Math.min(4,1+Math.floor(s.amount*900));for(let k=0;k<n;k++){const i=DRW.i++%DRW.N;DRW.from[i*3]=s.src.x+(Math.random()-.5)*.6;DRW.from[i*3+1]=s.src.y+(Math.random()-.5)*.6;DRW.from[i*3+2]=s.src.z+(Math.random()-.5)*.6;DRW.life[i]=1;}
+DRW.fx.update(r.streams,me,performance.now()/1000,dt); // liquid Gallium peels off each metal source into Metal
+ for(const s of r.streams){
   if(s.src.mesh&&s.src.reserve<=0.001){scene.remove(s.src.mesh);const k=DRW.scrap.indexOf(s.src);if(k>=0)DRW.scrap.splice(k,1);}
   if(s.src.kp){s.src.kp.amount=s.src.reserve;if(s.src.kp.amount<=0.001){const k=KITV.K.puddles.indexOf(s.src.kp);if(k>=0)KITV.K.puddles.splice(k,1);}KITV.dirty=true;kitPuddleSync();}
  }
- for(let i=0;i<DRW.N;i++){if(DRW.life[i]<=0){DRW.pos[i*3+1]=-999;continue;}DRW.life[i]-=dt*2.2;const t=1-Math.max(0,DRW.life[i]),e=t*t*(3-2*t);const sw=Math.sin(t*9+i)*.25*(1-t);
-  DRW.pos[i*3]=DRW.from[i*3]+(me.x-DRW.from[i*3])*e+sw;DRW.pos[i*3+1]=DRW.from[i*3+1]+(me.y-DRW.from[i*3+1])*e+Math.sin(t*Math.PI)*.6;DRW.pos[i*3+2]=DRW.from[i*3+2]+(me.z-DRW.from[i*3+2])*e-sw;}
- DRW.pts.geometry.attributes.position.needsUpdate=true;
  if(holding){setViolet(.5+Math.min(.5,r.streams.length*.1));if(r.streams.length&&Math.random()<.2)beep(140+Math.random()*60,.03,'sine',.012);
   if(!RSK.active&&!actT){playT(P,P.acts.Blast?'Blast':'Idle',1.2);actT=.1;}
   if(r.streams.length===0&&!DRW.noneSaid){DRW.noneSaid=true;whisper('No metal in reach','move closer to cars, lamp posts, rails');}}
@@ -1641,6 +1639,7 @@ function proBuild(){const y=groundY;PR.site=new THREE.Vector3(-(BLOCK+ROAD)/2,y,
  const el=document.createElement('div');el.id='prologueCard';el.className='wir-keep';el.style.cssText='position:fixed;left:12px;top:64px;z-index:31;max-width:340px;padding:8px 11px;background:rgba(12,10,22,.72);color:#efe9ff;border-left:3px solid #ffb347;border-radius:8px;font:500 12.5px/1.4 system-ui;pointer-events:none';document.body.appendChild(el);PR.el=el;}
 const PRO_TEXT={
  where:['Where you are',()=>'You\'re Metal. This is Savannah — WIR: Connected. You\'re standing in Forsyth Commons, your home block. Around it: Skatepark · Pickup Field · Fight Lot · Dojo Plaza · The Forge · Pluto Hub · Foundry Steps · Morrow Block. The amber light always shows where to go next.',p=>p?'Look around — right stick':'Look around — drag the mouse'],
+ pull:['Pull Galaxy Gallium',()=>'Metal pulls liquid Gallium out of the metal around him. Cars, lamp posts, rails and puddles all give it up. Hold the pull and it streams into your body as a line you can see, refilling the Gallium bar. Let go to stop. Each source only has so much, so move to keep drawing.',p=>p?'Hold L1 near metal · release to stop':'Hold K near metal · release to stop'],
  walk:['Move',()=>'Get your feet under you.',p=>p?'Left stick to move · A to jump':'WASD to move · Space to jump'],
  board:['Your board',()=>'Galaxy Gallium is finite liquid metal. It sets into a real four-wheel board under you.',p=>p?'Tap B — forge the board':'Tap B — forge the board'],
  push:['Push',()=>'One stroke per tap. Lean is how you steer.',p=>p?'Tap A to push · left stick to lean':'Tap W to push · A / D to lean'],
@@ -3597,5 +3596,5 @@ if(METAL_STORY_MOLD){
     }).catch(err=>{console.warn('[METAL power wheel]',err);window.__errors.push(String(err));});
    }).catch(e=>{console.warn('METAL ability lab unavailable',e);window.__errors.push(String(e));});
   }
-  if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(4); // new playable avatar: form S5 (Mixamo rig) starts the game, no switching needed
+  if(SLOTTA_BROWSER_QA)installSlottaBrowserQA();loop();await setForm(7); // startup form S8 (Gorillium ability showcase); set back to 4 for the S5 Mixamo avatar
  }catch(e){boot.failed(e);window.__errors.push(String(e));}})();
