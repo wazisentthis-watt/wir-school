@@ -9,6 +9,7 @@ const W = (o = {}) => ({ riding: false, speed: 0, crewDist: 99, crewBound: 0, cr
 test('prologue: the whole run, step by step, in order', () => {
   const M = createPro(); const seen = [M.step]; const tick = (w, n = 2) => { for (let i = 0; i < n; i++) for (const e of step(M, W(w), dt).events) if (e.type === 'step') seen.push(e.step); };
   feed(M, 'look', 2.5); tick();
+  for (let t = 0; t < PRO.PULL_S + 0.1; t += dt) feed(M, 'pull', dt); tick();
   feed(M, 'walk', 11); feed(M, 'jump'); tick();
   tick({ riding: true }); tick({ riding: true, speed: 6 });
   for (let i = 0; i < 3; i++) feed(M, 'gate'); tick({ riding: true });
@@ -28,7 +29,7 @@ test('prologue: the whole run, step by step, in order', () => {
 test('prologue: teaching steps never block you — they pass after a grace period and are logged', () => {
   const M = createPro();
   for (let t = 0; t < PRO.GRACE + 0.1; t += dt) step(M, W(), dt);
-  assert.equal(M.step, 'walk'); assert.deepEqual(M.skipped, ['where']);
+  assert.equal(M.step, 'pull'); assert.deepEqual(M.skipped, ['where']);
 });
 
 test('prologue: the fight is not skippable; a wipe sends you back to the crew', () => {

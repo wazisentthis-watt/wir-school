@@ -9,16 +9,17 @@ export const PRO = {
   id: 'prologue', title: 'Prologue · Learn the City',
   LOOK: 2.4, WALK: 10, JUMPS: 1, PUSH_SPEED: 5.5, GATES: 3, POPS: 1, GALLOP: 3, SWINGS: 1, SNAPS: 1,
   CREW_R: 16, PICKUP_T: 6, GRACE: 60, NEXT_R: 26,
+  PULL_S: 1.5,        // seconds of holding the pull (L1 / K) to learn it
   REQUIRED: ['glob', 'blast', 'pull'], FORMS: ['sword', 'shield', 'plasma'],   // + any one form while pulling
 };
 
-export const STEPS = ['where', 'walk', 'board', 'push', 'gates', 'pop', 'gallop', 'swing', 'snapline', 'toCrew', 'fight', 'pickup', 'powers', 'next', 'done'];
-const TEACH = new Set(['where', 'walk', 'board', 'push', 'gates', 'pop', 'gallop', 'swing', 'snapline', 'powers']); // teaching steps never block you
+export const STEPS = ['where', 'pull', 'walk', 'board', 'push', 'gates', 'pop', 'gallop', 'swing', 'snapline', 'toCrew', 'fight', 'pickup', 'powers', 'next', 'done'];
+const TEACH = new Set(['where', 'pull', 'walk', 'board', 'push', 'gates', 'pop', 'gallop', 'swing', 'snapline', 'powers']); // teaching steps never block you
 const CHECKPOINT = { fight: 'toCrew', pickup: 'powers' };
 
 export function createPro() {
   return { v: 1, step: 'where', t: 0, runT: 0,
-    n: { look: 0, walk: 0, jumps: 0, gates: 0, pops: 0, gallop: 0, swings: 0, snaps: 0 },
+    n: { look: 0, pull: 0, walk: 0, jumps: 0, gates: 0, pops: 0, gallop: 0, swings: 0, snaps: 0 },
     seen: [], used: [], skipped: [], downs: 0, binds: 0,
     ledger: { completed: false, completions: 0, bestTime: null, dodges: 0, hitSurrendered: 0, wipes: 0 } };
 }
@@ -31,6 +32,7 @@ export function feed(M, kind, v = 1) {
   const s = M.step, n = M.n;
   switch (kind) {
     case 'look': if (s === 'where') n.look += Math.abs(v); return null;
+    case 'pull': if (s === 'pull') { n.pull += v; return n.pull >= PRO.PULL_S ? { type: 'progress' } : null; } return null;
     case 'walk': if (s === 'walk') n.walk += v; return null;
     case 'jump': if (s === 'walk') { n.jumps++; return { type: 'progress' }; } return null;
     case 'gate': if (s === 'gates') { n.gates++; return { type: 'gate', n: n.gates }; } return null;
@@ -60,7 +62,8 @@ export function step(M, w, dt) {
   M.t += dt; M.runT += dt;
   const n = M.n, s = M.step;
   let next = null;
-  if (s === 'where' && n.look >= PRO.LOOK) next = 'walk';
+  if (s === 'where' && n.look >= PRO.LOOK) next = 'pull';
+  else if (s === 'pull' && n.pull >= PRO.PULL_S) next = 'walk';
   else if (s === 'walk' && n.walk >= PRO.WALK && n.jumps >= PRO.JUMPS) next = 'board';
   else if (s === 'board' && w.riding) next = 'push';
   else if (s === 'push' && w.riding && w.speed >= PRO.PUSH_SPEED) next = 'gates';
