@@ -60,7 +60,8 @@ test('failing the timed struggle applies finite harm, not infinite stun or insta
   const r=tick(h);total+=r.damage;
   release+=r.events.filter(e=>e.type==='tether-release').length;
  }
- assert.equal(release,1);assert.equal(total,HUNT.GRAB_DAMAGE);
+ assert.equal(release,1);
+ assert.ok(total>=HUNT.CATCH_DAMAGE+HUNT.GRAB_DAMAGE&&total<=.6,'catch, ticks and release add up to finite harm');
  assert.equal(h.tether,'idle');assert.ok(h.tetherCooldown>0);
 });
 test('claw must receive mechanical weakpoint hits; broken attachment cannot grab again',()=>{
@@ -111,4 +112,14 @@ test('invalid frames and invalid damage cannot produce an attack or corrupt stat
  assert.equal(h.warnings,0);
  const weak=hitReframerArm(h,'glob',NaN);assert.equal(weak.ok,false);
  assert.deepEqual(reframerHuntSnapshot(h).lastKnown,null);
+});
+
+test('the catch hits at once, and the hold keeps biting until it lets go',()=>{
+ const h=toCapture();
+ let catchFrame=null;
+ for(let i=0;i<120&&!catchFrame;i++){const r=tick(h);if(r.events.some(e=>e.type==='tether-caught'))catchFrame=r;}
+ assert.ok(catchFrame,'the grab lands');
+ assert.ok(catchFrame.damage>=HUNT.CATCH_DAMAGE,'the catch frame itself carries the hit');
+ let hold=0;for(let i=0;i<60;i++){const r=tick(h);hold+=r.damage;if(h.tether!=='hold')break;}
+ assert.ok(hold>=HUNT.HOLD_DAMAGE,'holding Metal keeps taking damage');
 });
